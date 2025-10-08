@@ -952,12 +952,6 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
           <Text style={styles.sendButtonText}>发送</Text>
         </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.sendButton, { backgroundColor: '#28a745', marginLeft: 8 }]} 
-          onPress={() => showImagePreview('https://picsum.photos/400/300')}
-        >
-          <Text style={styles.sendButtonText}>测试预览</Text>
-        </TouchableOpacity>
       </View>
 
       {/* 图片预览 Modal */}

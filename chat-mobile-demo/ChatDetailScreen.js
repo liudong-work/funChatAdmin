@@ -689,6 +689,26 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     }
   }, [messages]);
 
+  // 键盘监听器
+  useEffect(() => {
+    const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (event) => {
+      console.log('[Keyboard] 键盘显示，高度:', event.endCoordinates.height);
+      setKeyboardHeight(event.endCoordinates.height);
+      setIsKeyboardVisible(true);
+    });
+
+    const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
+      console.log('[Keyboard] 键盘隐藏');
+      setKeyboardHeight(0);
+      setIsKeyboardVisible(false);
+    });
+
+    return () => {
+      keyboardDidShowListener?.remove();
+      keyboardDidHideListener?.remove();
+    };
+  }, []);
+
   const sendMessage = async () => {
     if (!inputText.trim()) return;
     
@@ -760,7 +780,12 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         <ScrollView
           ref={scrollViewRef}
           style={styles.scrollView}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            {
+              paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 80, // 键盘弹起时增加底部边距
+            }
+          ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
@@ -931,10 +956,11 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         style={[
           styles.inputContainer,
           { 
-            bottom: keyboardHeight > 0 ? keyboardHeight - 45 : 0, // 键盘出现时贴近键盘，隐藏时贴底部
+            bottom: keyboardHeight > 0 ? keyboardHeight : 0, // 键盘出现时直接贴在键盘上方
             position: 'absolute',
-            minHeight: keyboardHeight > 0 ? 0 : 70, // 键盘出现时减少高度
-            paddingVertical: keyboardHeight > 0 ? 8 : 10 // 键盘出现时减少内边距
+            minHeight: keyboardHeight > 0 ? 60 : 70, // 键盘出现时稍微减少高度
+            paddingVertical: keyboardHeight > 0 ? 8 : 10, // 键盘出现时减少内边距
+            paddingBottom: keyboardHeight > 0 ? 8 : 10, // 底部内边距根据键盘状态调整
           }
         ]}
       >

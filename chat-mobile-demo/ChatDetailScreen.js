@@ -919,10 +919,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         style={[
           styles.inputContainer,
           { 
-            bottom: keyboardHeight > 0 ? keyboardHeight - 40 : 0, // 键盘出现时贴近键盘，隐藏时贴底部
+            bottom: keyboardHeight > 0 ? keyboardHeight - 45 : 0, // 键盘出现时贴近键盘，隐藏时贴底部
             position: 'absolute',
             minHeight: keyboardHeight > 0 ? 0 : 70, // 键盘出现时减少高度
-            paddingVertical: keyboardHeight > 0 ? 8 : 15 // 键盘出现时减少内边距
+            paddingVertical: keyboardHeight > 0 ? 8 : 10 // 键盘出现时减少内边距
           }
         ]}
       >

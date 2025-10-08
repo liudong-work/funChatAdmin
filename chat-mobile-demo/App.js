@@ -35,7 +35,7 @@ function MessagesStack({ onNewMessageCallback, onRegisterChatMessageCallback, on
         name="ChatDetail" 
         // 需要将实时回调注册方法传给聊天详情
         options={{
-          headerShown: false,
+          headerShown: true,
         }}
       >
         {(props) => (
@@ -60,6 +60,52 @@ function MessagesStack({ onNewMessageCallback, onRegisterChatMessageCallback, on
 }
 
 // 底部标签导航器
+// 主堆栈导航器
+function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
+  return (
+    <Stack.Navigator>
+      <Stack.Screen 
+        name="MainTabs" 
+        options={{ headerShown: false }}
+      >
+        {(props) => (
+          <TabNavigator 
+            {...props}
+            onNewMessageCallback={onNewMessageCallback} 
+            handleLogout={handleLogout}
+            onRegisterChatMessageCallback={onRegisterChatMessageCallback}
+            onSetCurrentChatUser={onSetCurrentChatUser}
+            currentUserUuid={currentUserUuid}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="ChatDetail" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => (
+          <ChatDetailScreen
+            {...props}
+            onRegisterChatMessageCallback={onRegisterChatMessageCallback}
+            onSetCurrentChatUser={onSetCurrentChatUser}
+            currentUserUuid={currentUserUuid}
+          />
+        )}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="VoiceCall" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <VoiceCallScreen {...props} />}
+      </Stack.Screen>
+    </Stack.Navigator>
+  );
+}
+
 function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
   return (
     <Tab.Navigator
@@ -401,7 +447,7 @@ export default function App() {
   return (
     <NavigationContainer ref={navigationRef}>
       {isAuthenticated ? (
-        <TabNavigator 
+        <MainStack 
           onNewMessageCallback={setNewMessageCallback} 
           handleLogout={handleLogout}
           onRegisterChatMessageCallback={(cb) => { chatMessageHandlerRef.current = cb; }}

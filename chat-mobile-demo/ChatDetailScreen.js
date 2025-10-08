@@ -950,7 +950,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           blurOnSubmit={false}
         />
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
-          <Text style={styles.sendButtonText}>发送</Text>
+          <Text style={styles.sendButtonText}>➤</Text>
         </TouchableOpacity>
       </View>
 
@@ -1100,14 +1100,16 @@ const styles = StyleSheet.create({
   },
   sendButton: {
     backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
+    width: 40,
+    height: 40,
     borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   sendButtonText: {
     color: 'white',
+    fontSize: 20,
     fontWeight: 'bold',
-    fontSize: 16,
   },
   voiceButton: {
     width: 40,

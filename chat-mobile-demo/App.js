@@ -15,6 +15,7 @@ import ChatDetailScreen from './ChatDetailScreen';
 import LoginScreen from './LoginScreen';
 import RegisterScreen from './RegisterScreen';
 import VoiceCallScreen from './VoiceCallScreen';
+import PublishMomentScreen from './PublishMomentScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -129,6 +130,8 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
 
           if (route.name === 'Home') {
             iconName = focused ? '🏠' : '🏡';
+          } else if (route.name === 'Publish') {
+            iconName = focused ? '✏️' : '✏️';
           } else if (route.name === 'Messages') {
             iconName = focused ? '💬' : '💭';
           } else if (route.name === 'Profile') {
@@ -159,6 +162,13 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
         component={HomeScreen}
         options={{
           tabBarLabel: '首页',
+        }}
+      />
+      <Tab.Screen 
+        name="Publish" 
+        component={PublishMomentScreen}
+        options={{
+          tabBarLabel: '发布',
         }}
       />
       <Tab.Screen 

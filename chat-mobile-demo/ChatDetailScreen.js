@@ -948,7 +948,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         />
         {/* 选择图片按钮 */}
         <TouchableOpacity style={[styles.voiceButton, { marginRight: 8 }]} onPress={pickAndSendImage}>
-          <Text style={styles.voiceIcon}>🖼️</Text>
+          <Text style={styles.voiceIcon}>📷</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
           <Text style={styles.sendButtonText}>➤</Text>

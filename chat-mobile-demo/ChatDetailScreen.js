@@ -938,12 +938,12 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           }
         ]}
       >
-        {/* 麦克风按钮 */}
+        {/* 麦克风/键盘切换按钮 */}
         <TouchableOpacity
           style={styles.voiceButton}
           onPress={toggleVoiceMode}
         >
-          <Text style={styles.buttonIcon}>🔊</Text>
+          <Text style={styles.buttonIcon}>{isVoiceMode ? '⌨️' : '🔊'}</Text>
         </TouchableOpacity>
         {isVoiceMode ? (
           <TouchableOpacity

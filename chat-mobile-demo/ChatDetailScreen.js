@@ -845,15 +845,9 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     </>
                   )}
                 </View>
-                <View style={[
-                  styles.messageBubble,
-                  message.user.id === currentUserUuid ? styles.myBubble : styles.otherBubble,
-                  message.isBottle && styles.bottleBubble // 瓶子消息特殊样式
-                ]}>
-                  {message.isBottle && (
-                    <Text style={styles.bottleLabel}>🌊 漂流瓶</Text>
-                  )}
-                  {message.imageUrl ? (
+                {message.imageUrl ? (
+                  // 图片消息使用特殊容器，无气泡背景
+                  <View style={styles.imageMessageContainer}>
                     <TouchableOpacity onPress={() => {
                       console.log('[Image] 点击图片消息:', {
                         id: message.id,
@@ -891,7 +885,18 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                         )}
                       </View>
                     </TouchableOpacity>
-                  ) : (message.audioUrl || message.audioData) ? (
+                  </View>
+                ) : (
+                  // 文本和语音消息使用气泡样式
+                  <View style={[
+                    styles.messageBubble,
+                    message.user.id === currentUserUuid ? styles.myBubble : styles.otherBubble,
+                    message.isBottle && styles.bottleBubble // 瓶子消息特殊样式
+                  ]}>
+                    {message.isBottle && (
+                      <Text style={styles.bottleLabel}>🌊 漂流瓶</Text>
+                    )}
+                    {message.audioUrl || message.audioData ? (
                     <TouchableOpacity onPress={() => {
                       console.log('[Voice] 点击播放按钮，音频数据:', {
                         hasAudioUrl: !!message.audioUrl,
@@ -942,7 +947,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                       {message.text}
                     </Text>
                   )}
-                </View>
+                  </View>
+                )}
               </View>
             </View>
                     );
@@ -1221,6 +1227,12 @@ const styles = StyleSheet.create({
     width: 120,
     height: 120,
     borderRadius: 8,
+  },
+  imageMessageContainer: {
+    paddingHorizontal: 5,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: 'transparent', // 透明背景，无边框
   },
   imageSizeText: {
     fontSize: 10,

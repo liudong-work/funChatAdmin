@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, Animated, Platform } from 'react-native';
-import webrtcService from './services/webrtcService';
-// import webrtcService from './MockWebRTCService'; // 模拟版本（用于 Expo Go 测试）
+// import webrtcService from './services/webrtcService';
+import webrtcService from './MockWebRTCService'; // 模拟版本（用于 Expo Go 测试）
 
 export default function VoiceCallScreen({ route, navigation }) {
   const { caller, callee, isIncoming } = route.params;

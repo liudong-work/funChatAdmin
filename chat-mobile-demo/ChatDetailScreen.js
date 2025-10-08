@@ -1053,6 +1053,7 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderRadius: 20,
     maxWidth: '100%',
+    alignItems: 'center',
   },
   myBubble: {
     backgroundColor: '#007AFF',

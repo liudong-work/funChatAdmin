@@ -245,8 +245,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   // 图片预览功能
   const showImagePreview = (imageUrl) => {
     console.log('[Image] 显示图片预览:', imageUrl);
+    console.log('[Image] 预览状态:', { imagePreviewVisible, previewImageUrl });
     setPreviewImageUrl(imageUrl);
     setImagePreviewVisible(true);
+    console.log('[Image] 预览状态已更新');
   };
 
   const hideImagePreview = () => {
@@ -821,8 +823,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                         imageUrl: message.imageUrl,
                         fullUrl: getImageUrl(message.imageUrl),
                         width: message.width,
-                        height: message.height
+                        height: message.height,
+                        type: message.type
                       });
+                      console.log('[Image] 准备显示预览');
                       showImagePreview(getImageUrl(message.imageUrl))
                     }}>
                       <View style={styles.imageContainer}>

@@ -10,8 +10,9 @@ class WebRTCService {
     this.localStream = null;
     this.remoteStream = null;
     this.socket = null;
+    this.isInitialized = false;
     
-    // ICE 服务器配置（使用 Google 的免费 STUN 服务器）
+    // ICE 服务器配置（使用多个 STUN 服务器提高连接成功率）
     this.configuration = {
       iceServers: [
         {
@@ -22,8 +23,31 @@ class WebRTCService {
         },
         {
           urls: 'stun:stun2.l.google.com:19302'
+        },
+        {
+          urls: 'stun:stun3.l.google.com:19302'
+        },
+        {
+          urls: 'stun:stun4.l.google.com:19302'
         }
-      ]
+      ],
+      // 优化连接策略
+      iceCandidatePoolSize: 10,
+      bundlePolicy: 'max-bundle',
+      rtcpMuxPolicy: 'require'
+    };
+    
+    // 音频质量配置（优化语音通话质量）
+    this.audioConstraints = {
+      audio: {
+        echoCancellation: true,      // 回声消除
+        noiseSuppression: true,       // 噪音抑制
+        autoGainControl: true,        // 自动增益控制
+        sampleRate: 48000,            // 采样率
+        sampleSize: 16,               // 采样位数
+        channelCount: 1               // 单声道（减少带宽）
+      },
+      video: false
     };
   }
   
@@ -32,32 +56,58 @@ class WebRTCService {
    * @param {Object} socket - Socket.IO 实例
    */
   initialize(socket) {
+    if (!socket) {
+      console.error('[WebRTC] Socket 未提供');
+      throw new Error('Socket instance is required');
+    }
+    
     this.socket = socket;
+    this.isInitialized = true;
     console.log('[WebRTC] 服务初始化完成');
   }
   
   /**
-   * 获取本地音频流
+   * 获取本地音频流（带音频质量优化）
    */
   async getLocalStream() {
     try {
-      console.log('[WebRTC] 请求本地音频流...');
+      console.log('[WebRTC] 请求本地音频流（高质量配置）...');
       
-      const stream = await mediaDevices.getUserMedia({
-        audio: true,
-        video: false, // 仅语音通话
-      });
+      // 使用优化的音频约束
+      const stream = await mediaDevices.getUserMedia(this.audioConstraints);
       
       this.localStream = stream;
-      console.log('[WebRTC] 本地音频流获取成功:', {
-        id: stream.id,
-        audioTracks: stream.getAudioTracks().length
-      });
+      
+      // 获取音频轨道信息
+      const audioTrack = stream.getAudioTracks()[0];
+      if (audioTrack) {
+        const settings = audioTrack.getSettings();
+        console.log('[WebRTC] 本地音频流获取成功:', {
+          id: stream.id,
+          audioTracks: stream.getAudioTracks().length,
+          trackLabel: audioTrack.label,
+          sampleRate: settings.sampleRate,
+          channelCount: settings.channelCount,
+          echoCancellation: settings.echoCancellation,
+          noiseSuppression: settings.noiseSuppression,
+          autoGainControl: settings.autoGainControl
+        });
+      }
       
       return stream;
     } catch (error) {
       console.error('[WebRTC] 获取本地音频流失败:', error);
-      throw error;
+      
+      // 提供更友好的错误信息
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        throw new Error('麦克风权限被拒绝，请在设置中允许应用访问麦克风');
+      } else if (error.name === 'NotFoundError' || error.name === 'DevicesNotFoundError') {
+        throw new Error('未找到可用的麦克风设备');
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        throw new Error('麦克风正在被其他应用使用');
+      } else {
+        throw new Error(`获取音频失败: ${error.message}`);
+      }
     }
   }
   
@@ -151,13 +201,19 @@ class WebRTCService {
         this.createPeerConnection(callerId, calleeId, true);
       }
       
+      // 创建 Offer 时优化音频设置
       const offer = await this.peerConnection.createOffer({
         offerToReceiveAudio: true,
         offerToReceiveVideo: false,
+        voiceActivityDetection: true  // 启用语音活动检测（节省带宽）
       });
       
       await this.peerConnection.setLocalDescription(offer);
-      console.log('[WebRTC] Offer 创建成功，发送给对方...');
+      
+      console.log('[WebRTC] Offer 创建成功:', {
+        type: offer.type,
+        sdpSize: offer.sdp.length
+      });
       
       // 通过 WebSocket 发送 Offer
       this.socket.emit('call_offer', {
@@ -169,6 +225,7 @@ class WebRTCService {
         }
       });
       
+      console.log('[WebRTC] Offer 已发送给对方');
       return offer;
     } catch (error) {
       console.error('[WebRTC] 创建 Offer 失败:', error);
@@ -246,6 +303,30 @@ class WebRTCService {
   }
   
   /**
+   * 检查麦克风权限
+   */
+  async checkMicrophonePermission() {
+    try {
+      console.log('[WebRTC] 检查麦克风权限...');
+      
+      // 尝试枚举设备来检查权限
+      const devices = await mediaDevices.enumerateDevices();
+      const audioDevices = devices.filter(device => device.kind === 'audioinput');
+      
+      console.log('[WebRTC] 找到音频设备数量:', audioDevices.length);
+      
+      if (audioDevices.length === 0) {
+        throw new Error('未找到可用的麦克风设备');
+      }
+      
+      return true;
+    } catch (error) {
+      console.error('[WebRTC] 检查麦克风权限失败:', error);
+      return false;
+    }
+  }
+  
+  /**
    * 切换静音
    */
   toggleMute(muted) {
@@ -254,7 +335,10 @@ class WebRTCService {
         track.enabled = !muted;
       });
       console.log('[WebRTC] 静音状态:', muted ? '已静音' : '未静音');
+      return true;
     }
+    console.warn('[WebRTC] 无法切换静音：本地音频流不存在');
+    return false;
   }
   
   /**
@@ -265,32 +349,69 @@ class WebRTCService {
   }
   
   /**
-   * 关闭连接
+   * 获取连接状态
+   */
+  getConnectionState() {
+    if (!this.peerConnection) {
+      return 'disconnected';
+    }
+    
+    return {
+      iceConnectionState: this.peerConnection.iceConnectionState,
+      signalingState: this.peerConnection.signalingState,
+      connectionState: this.peerConnection.connectionState
+    };
+  }
+  
+  /**
+   * 关闭连接（完整清理）
    */
   close() {
     try {
-      console.log('[WebRTC] 关闭连接...');
+      console.log('[WebRTC] 开始关闭连接...');
       
       // 停止本地音频流
       if (this.localStream) {
+        console.log('[WebRTC] 停止本地音频流');
         this.localStream.getTracks().forEach(track => {
           track.stop();
+          console.log(`[WebRTC] 停止轨道: ${track.kind}`);
         });
         this.localStream = null;
       }
       
       // 关闭 PeerConnection
       if (this.peerConnection) {
+        console.log('[WebRTC] 关闭 PeerConnection');
+        
+        // 移除所有事件监听器
+        this.peerConnection.onicecandidate = null;
+        this.peerConnection.oniceconnectionstatechange = null;
+        this.peerConnection.onsignalingstatechange = null;
+        this.peerConnection.ontrack = null;
+        
+        // 关闭连接
         this.peerConnection.close();
         this.peerConnection = null;
       }
       
+      // 清理远程流
       this.remoteStream = null;
-      console.log('[WebRTC] 连接已关闭');
+      
+      console.log('[WebRTC] 连接已完全关闭');
       
     } catch (error) {
-      console.error('[WebRTC] 关闭连接失败:', error);
+      console.error('[WebRTC] 关闭连接时出错:', error);
     }
+  }
+  
+  /**
+   * 重置服务（用于新的通话）
+   */
+  reset() {
+    console.log('[WebRTC] 重置服务状态');
+    this.close();
+    this.isInitialized = false;
   }
 }
 

@@ -472,22 +472,30 @@ onMounted(() => {
 
 <style scoped>
 .user-management {
-  padding: 0;
+  padding: 24px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {
   background: #fff;
-  margin-bottom: 16px;
-  padding: 16px 24px;
-  border-radius: 2px;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .search-card {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .table-card {
   background: #fff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .table-title {
@@ -516,6 +524,45 @@ onMounted(() => {
 .user-phone {
   font-size: 12px;
   color: #999;
+}
+
+/* 优化表格样式 */
+:deep(.ant-table) {
+  border-radius: 8px;
+}
+
+:deep(.ant-table-thead > tr > th) {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+:deep(.ant-table-tbody > tr:hover > td) {
+  background: #f5f5f5;
+}
+
+/* 优化卡片内容 */
+:deep(.ant-card-body) {
+  padding: 24px;
+}
+
+/* 优化按钮样式 */
+:deep(.ant-btn) {
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+:deep(.ant-btn:hover) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* 优化输入框样式 */
+:deep(.ant-input) {
+  border-radius: 6px;
+}
+
+:deep(.ant-select) {
+  border-radius: 6px;
 }
 </style>
 

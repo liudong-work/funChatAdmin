@@ -12,14 +12,18 @@
 
 <style scoped>
 .reports {
-  padding: 0;
+  padding: 24px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {
   background: #fff;
-  margin-bottom: 16px;
-  padding: 16px 24px;
-  border-radius: 2px;
+  margin-bottom: 24px;
+  padding: 20px 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 </style>
 

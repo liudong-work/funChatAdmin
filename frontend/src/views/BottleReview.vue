@@ -12,7 +12,10 @@
 
 <style scoped>
 .bottle-review {
-  padding: 0;
+  padding: 24px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {

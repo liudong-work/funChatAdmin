@@ -8,7 +8,7 @@
         <a-card :bordered="false" class="stat-card">
           <a-statistic
             title="总用户数"
-            :value="statistics.totalUsers"
+            :value="statistics.total"
             :prefix="h(UserOutlined)"
             :value-style="{ color: '#3f8600' }"
           />
@@ -27,8 +27,8 @@
       <a-col :xs="24" :sm="12" :lg="6">
         <a-card :bordered="false" class="stat-card">
           <a-statistic
-            title="在线用户"
-            :value="statistics.onlineUsers"
+            title="活跃用户"
+            :value="statistics.activeUsers"
             :prefix="h(UserAddOutlined)"
             :value-style="{ color: '#faad14' }"
           />
@@ -37,8 +37,8 @@
       <a-col :xs="24" :sm="12" :lg="6">
         <a-card :bordered="false" class="stat-card">
           <a-statistic
-            title="待审核内容"
-            :value="statistics.pendingReviews"
+            title="封禁用户"
+            :value="statistics.bannedUsers"
             :prefix="h(WarningOutlined)"
             :value-style="{ color: '#cf1322' }"
           />
@@ -112,6 +112,7 @@
 
 <script setup lang="ts">
 import { ref, h, onMounted } from 'vue'
+import { message } from 'ant-design-vue'
 import {
   UserOutlined,
   TeamOutlined,
@@ -121,13 +122,15 @@ import {
   BarChartOutlined,
   SettingOutlined
 } from '@ant-design/icons-vue'
+import request from '@/utils/request'
 
 // 统计数据
 const statistics = ref({
-  totalUsers: 1256,
-  todayUsers: 48,
-  onlineUsers: 324,
-  pendingReviews: 15
+  total: 0,
+  todayUsers: 0,
+  activeUsers: 0,
+  bannedUsers: 0,
+  frozenUsers: 0
 })
 
 // 最近注册用户
@@ -184,40 +187,117 @@ const formatTime = (time: string) => {
   return new Date(time).toLocaleDateString('zh-CN')
 }
 
+// 加载统计数据
+const loadStatistics = async () => {
+  try {
+    const response = await request({
+      url: '/api/admin/users/statistics',
+      method: 'get'
+    })
+    
+    if (response.status) {
+      statistics.value = response.data
+    } else {
+      message.error('获取统计数据失败')
+    }
+  } catch (error) {
+    console.error('获取统计数据失败:', error)
+    message.error('获取统计数据失败')
+  }
+}
+
+// 加载最近用户
+const loadRecentUsers = async () => {
+  try {
+    const response = await request({
+      url: '/api/admin/users',
+      method: 'get',
+      params: {
+        page: 1,
+        pageSize: 5
+      }
+    })
+    
+    if (response.status) {
+      recentUsers.value = response.data.list
+    }
+  } catch (error) {
+    console.error('获取最近用户失败:', error)
+  }
+}
+
 onMounted(() => {
-  // 这里可以调用API获取真实数据
-  console.log('Dashboard mounted')
+  loadStatistics()
+  loadRecentUsers()
 })
 </script>
 
 <style scoped>
 .dashboard {
-  padding: 0;
+  padding: 24px;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 
 .page-header {
   background: #fff;
   margin-bottom: 16px;
   padding: 16px 24px;
-  border-radius: 2px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .stats-row {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
 }
 
 .stat-card {
   background: #fff;
-  border-radius: 2px;
-  margin-bottom: 16px;
+  border-radius: 8px;
+  margin-bottom: 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.stat-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  transform: translateY(-2px);
 }
 
 .quick-actions {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
 .recent-row {
-  margin-bottom: 16px;
+  margin-bottom: 24px;
+}
+
+.recent-row .ant-card {
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+/* 确保卡片内容充满宽度 */
+:deep(.ant-card-body) {
+  padding: 24px;
+}
+
+:deep(.ant-statistic) {
+  text-align: center;
+}
+
+:deep(.ant-statistic-title) {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+
+:deep(.ant-statistic-content) {
+  font-size: 24px;
+  font-weight: 600;
 }
 </style>
 

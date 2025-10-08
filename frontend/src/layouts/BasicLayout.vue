@@ -56,7 +56,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, h } from 'vue'
+import { ref, h, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   UserOutlined,
@@ -73,6 +73,24 @@ const router = useRouter()
 const collapsed = ref(false)
 const selectedKeys = ref<string[]>(['dashboard'])
 const username = ref('管理员')
+
+// 获取当前登录的管理员信息
+const getCurrentAdmin = () => {
+  try {
+    const adminUser = localStorage.getItem('admin_user')
+    if (adminUser) {
+      const user = JSON.parse(adminUser)
+      username.value = user.username || '管理员'
+    }
+  } catch (error) {
+    console.error('获取管理员信息失败:', error)
+  }
+}
+
+// 组件挂载时获取管理员信息
+onMounted(() => {
+  getCurrentAdmin()
+})
 
 // 菜单项配置
 const menuItems = [
@@ -140,6 +158,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
 // 退出登录
 const handleLogout = () => {
   localStorage.removeItem('admin_token')
+  localStorage.removeItem('admin_user')
   router.push('/login')
 }
 </script>
@@ -147,6 +166,8 @@ const handleLogout = () => {
 <style scoped>
 .layout {
   min-height: 100vh;
+  width: 100vw;
+  overflow: hidden;
 }
 
 .header {
@@ -158,6 +179,8 @@ const handleLogout = () => {
   position: sticky;
   top: 0;
   z-index: 999;
+  height: 64px;
+  width: 100%;
 }
 
 .logo {
@@ -192,16 +215,22 @@ const handleLogout = () => {
 
 .sider {
   background: #001529;
+  height: calc(100vh - 64px);
+  overflow-y: auto;
 }
 
 .content {
   background: #f0f2f5;
   min-height: calc(100vh - 64px);
+  width: 100%;
+  overflow-y: auto;
 }
 
 .content-wrapper {
-  padding: 24px;
-  min-height: calc(100vh - 64px - 48px);
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
 }
 </style>
 

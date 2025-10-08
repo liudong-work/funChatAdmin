@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Text } from 'react-native';
+import { Text, TouchableOpacity, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
@@ -57,9 +57,47 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
       </Stack.Screen>
       <Stack.Screen 
         name="ChatDetail" 
-        options={{
-          headerShown: false,
-        }}
+        options={({ route, navigation }) => ({
+          headerShown: true,
+          title: route.params?.user?.name || route.params?.user?.username || '聊天',
+          headerStyle: {
+            backgroundColor: '#007AFF',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+          headerRight: () => (
+            <TouchableOpacity
+              onPress={() => {
+                Alert.alert(
+                  '语音通话',
+                  `确定要呼叫 ${route.params?.user?.name || route.params?.user?.username || '用户'} 吗？`,
+                  [
+                    { text: '取消', style: 'cancel' },
+                    { text: '确定', onPress: () => {
+                      navigation.navigate('VoiceCall', {
+                        caller: {
+                          id: 'current_user_id', // 这里需要从全局状态获取
+                          name: '当前用户',
+                          avatar: '👤',
+                        },
+                        callee: {
+                          id: route.params?.user?.id,
+                          name: route.params?.user?.name || route.params?.user?.username,
+                          avatar: route.params?.user?.avatar || '👤',
+                        },
+                      });
+                    }}
+                  ]
+                );
+              }}
+              style={{ marginRight: 15 }}
+            >
+              <Text style={{ color: '#fff', fontSize: 18 }}>📞</Text>
+            </TouchableOpacity>
+          ),
+        })}
       >
         {(props) => (
           <ChatDetailScreen

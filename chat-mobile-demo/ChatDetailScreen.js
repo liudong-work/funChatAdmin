@@ -1083,7 +1083,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderTopWidth: 1,
     borderTopColor: '#E5E5EA',
-    alignItems: 'flex-end',
+    alignItems: 'center',
     minHeight: 70,
   },
   textInput: {

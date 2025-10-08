@@ -37,6 +37,23 @@ const bottles = [];
 const conversations = new Map(); // 存储对话记录
 const pushTokens = new Map(); // 存储用户推送令牌
 
+// 管理员账号（临时方案）
+const admins = new Map();
+admins.set('admin', {
+  id: 'admin_001',
+  username: 'admin',
+  password: 'admin123', // 实际项目中应该加密
+  role: 'admin',
+  createdAt: new Date().toISOString()
+});
+admins.set('test', {
+  id: 'admin_002', 
+  username: 'test',
+  password: 'test123',
+  role: 'admin',
+  createdAt: new Date().toISOString()
+});
+
 // 创建上传目录
 const uploadsDir = path.join(process.cwd(), 'uploads');
 if (!fs.existsSync(uploadsDir)) {
@@ -132,6 +149,58 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     version: config.app.version
   });
+});
+
+// 管理员登录接口
+app.post('/api/admin/login', (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    if (!username || !password) {
+      return res.status(400).json({
+        status: false,
+        message: '用户名和密码不能为空'
+      });
+    }
+    
+    const admin = admins.get(username);
+    if (!admin || admin.password !== password) {
+      return res.status(401).json({
+        status: false,
+        message: '用户名或密码错误'
+      });
+    }
+    
+    // 生成管理员token
+    const token = jwt.sign({
+      id: admin.id,
+      username: admin.username,
+      role: admin.role,
+      type: 'admin'
+    }, config.jwt.secret, {
+      expiresIn: '24h'
+    });
+    
+    res.json({
+      status: true,
+      message: '登录成功',
+      data: {
+        token,
+        user: {
+          id: admin.id,
+          username: admin.username,
+          role: admin.role
+        }
+      }
+    });
+  } catch (error) {
+    log.error('管理员登录失败:', error);
+    res.status(500).json({
+      status: false,
+      message: '登录失败',
+      error: error.message
+    });
+  }
 });
 
 // 文件上传接口 - 使用 formidable

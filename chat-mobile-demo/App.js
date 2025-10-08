@@ -35,7 +35,7 @@ function MessagesStack({ onNewMessageCallback, onRegisterChatMessageCallback, on
         name="ChatDetail" 
         // 需要将实时回调注册方法传给聊天详情
         options={{
-          headerShown: true,
+          headerShown: false,
         }}
       >
         {(props) => (

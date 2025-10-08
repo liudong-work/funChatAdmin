@@ -933,7 +933,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           onPressOut={stopRecording}
           delayLongPress={200}
         >
-          <Text style={styles.buttonIcon}>{isRecording ? '🛑' : '🎤'}</Text>
+          <Text style={styles.buttonIcon}>{isRecording ? '🛑' : '🔊'}</Text>
         </TouchableOpacity>
         <TextInput
           style={styles.textInput}

@@ -1146,7 +1146,7 @@ const styles = StyleSheet.create({
     marginRight: 8,
   },
   buttonIcon: {
-    fontSize: 20,
+    fontSize: 16,
     textAlign: 'center',
   },
   voiceInputButton: {

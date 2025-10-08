@@ -208,18 +208,31 @@ class WebRTCService {
         voiceActivityDetection: true  // 启用语音活动检测（节省带宽）
       });
       
+      // 检查 offer 是否有效
+      if (!offer) {
+        throw new Error('createOffer 返回了 undefined');
+      }
+      
       await this.peerConnection.setLocalDescription(offer);
       
       console.log('[WebRTC] Offer 创建成功:', {
         type: offer.type,
-        sdpSize: offer.sdp.length
+        sdpSize: offer.sdp ? offer.sdp.length : 0
       });
+      
+      // 手动构建 offer JSON 对象（兼容 react-native-webrtc）
+      const offerData = {
+        type: offer.type,
+        sdp: offer.sdp
+      };
+      
+      console.log('[WebRTC] Offer 数据准备发送:', offerData);
       
       // 通过 WebSocket 发送 Offer
       this.socket.emit('call_offer', {
         from: callerId,
         to: calleeId,
-        offer: offer.toJSON(),
+        offer: offerData,
         caller: {
           id: callerId,
         }
@@ -249,14 +262,32 @@ class WebRTCService {
       console.log('[WebRTC] 远程描述已设置');
       
       const answer = await this.peerConnection.createAnswer();
+      
+      // 检查 answer 是否有效
+      if (!answer) {
+        throw new Error('createAnswer 返回了 undefined');
+      }
+      
       await this.peerConnection.setLocalDescription(answer);
-      console.log('[WebRTC] Answer 创建成功，发送给对方...');
+      
+      console.log('[WebRTC] Answer 创建成功:', {
+        type: answer.type,
+        sdpSize: answer.sdp ? answer.sdp.length : 0
+      });
+      
+      // 手动构建 answer JSON 对象（兼容 react-native-webrtc）
+      const answerData = {
+        type: answer.type,
+        sdp: answer.sdp
+      };
+      
+      console.log('[WebRTC] Answer 数据准备发送:', answerData);
       
       // 通过 WebSocket 发送 Answer
       this.socket.emit('call_answer', {
         from: calleeId,
         to: callerId,
-        answer: answer.toJSON(),
+        answer: answerData,
       });
       
       return answer;
@@ -271,7 +302,15 @@ class WebRTCService {
    */
   async handleAnswer(answer) {
     try {
-      console.log('[WebRTC] 处理 Answer...');
+      console.log('[WebRTC] 处理 Answer...', {
+        type: answer?.type,
+        sdpSize: answer?.sdp ? answer.sdp.length : 0
+      });
+      
+      // 检查 answer 是否有效
+      if (!answer || !answer.type || !answer.sdp) {
+        throw new Error('无效的 Answer 数据');
+      }
       
       const remoteDesc = new RTCSessionDescription(answer);
       await this.peerConnection.setRemoteDescription(remoteDesc);

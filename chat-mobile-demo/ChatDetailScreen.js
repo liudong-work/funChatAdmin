@@ -942,7 +942,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           style={styles.textInput}
           value={inputText}
           onChangeText={setInputText}
-          placeholder={`发送消息给${user.name}...`}
+          placeholder="发送消息..."
           multiline
           maxLength={500}
           returnKeyType="send"

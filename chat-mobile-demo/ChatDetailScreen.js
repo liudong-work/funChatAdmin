@@ -400,7 +400,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       
       // 导航到语音通话页面
       console.log('[VoiceCall] 准备导航到通话页面...');
-      navigation.navigate('VoiceCall', {
+      navigation.getParent()?.navigate('VoiceCall', {
         caller: {
           id: currentUser.uuid,
           name: currentUser.nickname || currentUser.username,

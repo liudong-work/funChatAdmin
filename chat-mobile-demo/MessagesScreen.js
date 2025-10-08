@@ -163,7 +163,7 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
   const renderUserItem = ({ item }) => (
     <TouchableOpacity
       style={styles.userItem}
-      onPress={() => navigation.navigate('ChatDetail', { user: item })}
+      onPress={() => navigation.getParent()?.navigate('ChatDetail', { user: item })}
     >
       <View style={styles.avatarContainer}>
         <Text style={styles.avatar}>{item.avatar}</Text>

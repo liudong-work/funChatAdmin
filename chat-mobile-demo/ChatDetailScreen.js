@@ -49,6 +49,9 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   const [recordSeconds, setRecordSeconds] = useState(0);
   const recordTimerRef = useRef(null);
   
+  // 语音输入模式状态
+  const [isVoiceMode, setIsVoiceMode] = useState(false);
+  
   // 语音播放状态管理
   const [playingMessageId, setPlayingMessageId] = useState(null);
   const [playingProgress, setPlayingProgress] = useState(0);
@@ -473,6 +476,15 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       }
     })();
   }, []);
+
+  // 切换语音输入模式
+  const toggleVoiceMode = () => {
+    setIsVoiceMode(!isVoiceMode);
+    if (isVoiceMode) {
+      // 退出语音模式时，清空输入文本
+      setInputText('');
+    }
+  };
 
   const startRecording = async () => {
     try {
@@ -929,23 +941,34 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         {/* 麦克风按钮 */}
         <TouchableOpacity
           style={styles.voiceButton}
-          onLongPress={startRecording}
-          onPressOut={stopRecording}
-          delayLongPress={200}
+          onPress={toggleVoiceMode}
         >
-          <Text style={styles.buttonIcon}>{isRecording ? '🛑' : '🔊'}</Text>
+          <Text style={styles.buttonIcon}>🔊</Text>
         </TouchableOpacity>
-        <TextInput
-          style={styles.textInput}
-          value={inputText}
-          onChangeText={setInputText}
-          placeholder="发送消息..."
-          multiline
-          maxLength={500}
-          returnKeyType="send"
-          onSubmitEditing={sendMessage}
-          blurOnSubmit={false}
-        />
+        {isVoiceMode ? (
+          <TouchableOpacity
+            style={styles.voiceInputButton}
+            onLongPress={startRecording}
+            onPressOut={stopRecording}
+            delayLongPress={200}
+          >
+            <Text style={styles.voiceInputText}>
+              {isRecording ? `录音中... ${recordSeconds}s` : '长按 说话'}
+            </Text>
+          </TouchableOpacity>
+        ) : (
+          <TextInput
+            style={styles.textInput}
+            value={inputText}
+            onChangeText={setInputText}
+            placeholder="发送消息..."
+            multiline
+            maxLength={500}
+            returnKeyType="send"
+            onSubmitEditing={sendMessage}
+            blurOnSubmit={false}
+          />
+        )}
         {/* 选择图片按钮 */}
         <TouchableOpacity style={[styles.voiceButton, { marginRight: 8 }]} onPress={pickAndSendImage}>
           <Text style={styles.buttonIcon}>🏞️</Text>
@@ -1124,6 +1147,22 @@ const styles = StyleSheet.create({
   },
   buttonIcon: {
     fontSize: 20,
+    textAlign: 'center',
+  },
+  voiceInputButton: {
+    flex: 1,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f8f8f8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#E5E5EA',
+  },
+  voiceInputText: {
+    fontSize: 16,
+    color: '#666',
     textAlign: 'center',
   },
   loadingContainer: {

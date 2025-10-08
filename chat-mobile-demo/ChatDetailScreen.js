@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Platform, Keyboard, Dimensions, ScrollView, StatusBar, Alert, Image } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Platform, Keyboard, Dimensions, ScrollView, StatusBar, Alert, Image, Modal, SafeAreaView } from 'react-native';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -37,6 +37,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [inputText, setInputText] = useState('');
+  
+  // 图片预览状态
+  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const scrollViewRef = useRef(null);
@@ -237,6 +241,18 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       }
     };
   }, [onRegisterChatMessageCallback, onSetCurrentChatUser, user]);
+
+  // 图片预览功能
+  const showImagePreview = (imageUrl) => {
+    console.log('[Image] 显示图片预览:', imageUrl);
+    setPreviewImageUrl(imageUrl);
+    setImagePreviewVisible(true);
+  };
+
+  const hideImagePreview = () => {
+    setImagePreviewVisible(false);
+    setPreviewImageUrl('');
+  };
 
   const loadConversationHistory = async () => {
     try {
@@ -807,7 +823,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                         width: message.width,
                         height: message.height
                       });
-                      // TODO: 实现图片预览功能
+                      showImagePreview(getImageUrl(message.imageUrl))
                     }}>
                       <View style={styles.imageContainer}>
                         <Image 
@@ -933,6 +949,39 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           <Text style={styles.sendButtonText}>发送</Text>
         </TouchableOpacity>
       </View>
+
+      {/* 图片预览 Modal */}
+      <Modal
+        visible={imagePreviewVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={hideImagePreview}
+      >
+        <View style={styles.imagePreviewContainer}>
+          <TouchableOpacity 
+            style={styles.imagePreviewBackground}
+            activeOpacity={1}
+            onPress={hideImagePreview}
+          >
+            <View style={styles.imagePreviewContent}>
+              <TouchableOpacity 
+                style={styles.closeButton}
+                onPress={hideImagePreview}
+              >
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+              <Image
+                source={{ uri: previewImageUrl }}
+                style={styles.previewImage}
+                resizeMode="contain"
+                onError={(error) => {
+                  console.error('[Image] 预览图片加载失败:', error);
+                }}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1148,5 +1197,49 @@ const styles = StyleSheet.create({
   },
   otherVoiceDuration: {
     color: '#666666',
+  },
+  // 图片预览样式
+  imagePreviewContainer: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.9)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imagePreviewBackground: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  imagePreviewContent: {
+    flex: 1,
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingVertical: 50,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 50,
+    right: 20,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  closeButtonText: {
+    color: '#FFFFFF',
+    fontSize: 18,
+    fontWeight: 'bold',
+  },
+  previewImage: {
+    width: '100%',
+    height: '100%',
+    maxWidth: Dimensions.get('window').width - 40,
+    maxHeight: Dimensions.get('window').height - 100,
   },
 });

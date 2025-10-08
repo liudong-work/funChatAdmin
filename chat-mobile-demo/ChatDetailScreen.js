@@ -956,7 +956,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         style={[
           styles.inputContainer,
           { 
-            bottom: keyboardHeight > 0 ? keyboardHeight : 0, // 键盘出现时直接贴在键盘上方
+            bottom: keyboardHeight > 0 ? keyboardHeight + 5 : 0, // 键盘出现时在键盘上方5px
             position: 'absolute',
             minHeight: keyboardHeight > 0 ? 60 : 70, // 键盘出现时稍微减少高度
             paddingVertical: keyboardHeight > 0 ? 8 : 10, // 键盘出现时减少内边距

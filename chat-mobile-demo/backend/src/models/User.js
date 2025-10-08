@@ -47,9 +47,14 @@ const User = sequelize.define('User', {
     comment: '邮箱'
   },
   status: {
-    type: DataTypes.ENUM('active', 'inactive', 'banned'),
+    type: DataTypes.ENUM('active', 'inactive', 'banned', 'frozen'),
     defaultValue: 'active',
     comment: '用户状态'
+  },
+  lastLogin: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: '最后登录时间'
   }
 }, {
   tableName: 'users',

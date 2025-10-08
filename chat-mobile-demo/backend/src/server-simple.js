@@ -120,6 +120,9 @@ app.use(express.text({ type: '*/*', limit: '10mb' }));
 // 静态文件服务
 app.use('/uploads', express.static(uploadsDir));
 
+// 管理员路由
+import adminRouter from './routes/admin.js';
+app.use('/api/admin', adminRouter);
 
 // 健康检查
 app.get('/health', (req, res) => {

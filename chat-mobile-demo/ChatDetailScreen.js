@@ -933,7 +933,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           onPressOut={stopRecording}
           delayLongPress={200}
         >
-          <Text style={styles.voiceIcon}>{isRecording ? '🛑' : '🎤'}</Text>
+          <Text style={styles.buttonIcon}>{isRecording ? '🛑' : '🎤'}</Text>
         </TouchableOpacity>
         <TextInput
           style={styles.textInput}
@@ -948,7 +948,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         />
         {/* 选择图片按钮 */}
         <TouchableOpacity style={[styles.voiceButton, { marginRight: 8 }]} onPress={pickAndSendImage}>
-          <Text style={styles.voiceIcon}>🏞️</Text>
+          <Text style={styles.buttonIcon}>🏞️</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.sendButton} onPress={sendMessage}>
           <Text style={styles.sendButtonText}>➤</Text>
@@ -1122,8 +1122,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: 8,
   },
-  voiceIcon: {
-    fontSize: 18,
+  buttonIcon: {
+    fontSize: 20,
+    textAlign: 'center',
   },
   loadingContainer: {
     flex: 1,

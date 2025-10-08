@@ -815,8 +815,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                           style={[
                             styles.imageMsg,
                             message.width && message.height ? {
-                              width: Math.min(200, message.width),
-                              height: Math.min(200, message.height),
+                              width: Math.min(120, message.width),
+                              height: Math.min(120, message.height),
                               aspectRatio: message.width / message.height
                             } : {}
                           ]} 
@@ -1095,8 +1095,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   imageMsg: {
-    width: 180,
-    height: 180,
+    width: 120,
+    height: 120,
     borderRadius: 8,
     backgroundColor: '#f0f0f0',
   },

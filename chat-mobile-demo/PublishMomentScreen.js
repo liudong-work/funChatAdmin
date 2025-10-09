@@ -14,6 +14,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import momentService from './services/momentService';
+import { fileApi } from './services/apiService';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -82,33 +84,90 @@ export default function PublishMomentScreen({ navigation }) {
       
       if (!token || !userInfo) {
         Alert.alert('提示', '请先登录');
+        setIsPublishing(false);
         return;
       }
 
       const user = JSON.parse(userInfo);
       
-      // TODO: 这里需要调用后端API发布动态
-      console.log('发布动态:', {
+      // 上传图片
+      let uploadedImages = [];
+      if (selectedImages.length > 0) {
+        console.log('[PublishMoment] 开始上传图片，共', selectedImages.length, '张');
+        
+        for (let i = 0; i < selectedImages.length; i++) {
+          const image = selectedImages[i];
+          console.log(`[PublishMoment] 上传第 ${i + 1} 张图片:`, image.uri);
+          
+          try {
+            // 创建FormData
+            const formData = new FormData();
+            
+            // 获取文件扩展名
+            const uriParts = image.uri.split('.');
+            const fileType = uriParts[uriParts.length - 1];
+            
+            formData.append('file', {
+              uri: image.uri,
+              name: `moment_${Date.now()}_${i}.${fileType}`,
+              type: `image/${fileType}`
+            });
+            
+            // 上传图片
+            const uploadResponse = await fileApi.uploadFile(formData, token);
+            
+            if (uploadResponse.status && uploadResponse.data) {
+              uploadedImages.push({
+                url: uploadResponse.data.url || uploadResponse.data.path,
+                width: image.width,
+                height: image.height
+              });
+              console.log(`[PublishMoment] 第 ${i + 1} 张图片上传成功:`, uploadedImages[i]);
+            } else {
+              throw new Error('图片上传失败');
+            }
+          } catch (uploadError) {
+            console.error(`[PublishMoment] 第 ${i + 1} 张图片上传失败:`, uploadError);
+            Alert.alert('错误', `图片上传失败: ${uploadError.message}`);
+            setIsPublishing(false);
+            return;
+          }
+        }
+      }
+
+      console.log('[PublishMoment] 所有图片上传完成，开始发布动态');
+      console.log('[PublishMoment] 发布内容:', {
         content: content.trim(),
-        images: selectedImages,
+        images: uploadedImages,
         userId: user.uuid,
       });
 
-      // 模拟发布成功
-      setTimeout(() => {
+      // 调用API发布动态
+      const response = await momentService.publishMoment(
+        content.trim(),
+        uploadedImages,
+        null, // location 暂时为null
+        token
+      );
+
+      if (response.status) {
+        console.log('[PublishMoment] 动态发布成功:', response.data);
         Alert.alert('成功', '动态发布成功！', [
           { text: '确定', onPress: () => {
             setContent('');
             setSelectedImages([]);
-            // 可以导航到动态列表页面
+            // 导航到动态列表页面
+            navigation.navigate('Moments');
           }}
         ]);
-        setIsPublishing(false);
-      }, 1000);
+      } else {
+        throw new Error(response.message || '发布失败');
+      }
 
     } catch (error) {
-      console.error('发布动态失败:', error);
-      Alert.alert('错误', '发布失败，请重试');
+      console.error('[PublishMoment] 发布动态失败:', error);
+      Alert.alert('错误', error.message || '发布失败，请重试');
+    } finally {
       setIsPublishing(false);
     }
   };

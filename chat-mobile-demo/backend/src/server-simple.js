@@ -141,6 +141,10 @@ app.use('/uploads', express.static(uploadsDir));
 import adminRouter from './routes/admin.js';
 app.use('/api/admin', adminRouter);
 
+// 动态路由
+import momentRouter from './routes/moment.js';
+app.use('/api/moments', momentRouter);
+
 // 健康检查
 app.get('/health', (req, res) => {
   res.json({

@@ -79,40 +79,11 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
           unreadCount: conv.unread_count || 0,
         }));
         
-        // 如果没有对话，添加一条默认测试数据
-        if (conversationUsers.length === 0) {
-          conversationUsers.push({
-            id: 'test_user_001',
-            sender_uuid: 'test_user_001',
-            name: '测试联系人',
-            avatar: '👤',
-            lastMessage: '点击开始聊天，测试语音通话功能',
-            lastTime: new Date().toLocaleTimeString('zh-CN', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            }),
-            unreadCount: 0,
-          });
-          console.log('消息列表为空，添加默认测试数据');
-        }
-        
         setUsers(conversationUsers);
         console.log('消息列表加载成功:', conversationUsers.length, '个对话');
       } else {
         console.warn('加载消息列表失败:', response.message);
-        // 如果加载失败，也添加默认数据
-        setUsers([{
-          id: 'test_user_001',
-          sender_uuid: 'test_user_001',
-          name: '测试联系人',
-          avatar: '👤',
-          lastMessage: '点击开始聊天，测试语音通话功能',
-          lastTime: new Date().toLocaleTimeString('zh-CN', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          unreadCount: 0,
-        }]);
+        setUsers([]);
       }
     } catch (error) {
       console.error('加载消息列表失败:', error);

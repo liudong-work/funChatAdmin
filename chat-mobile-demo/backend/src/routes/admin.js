@@ -2,6 +2,14 @@ import express from 'express';
 
 const router = express.Router();
 
+// 全局用户存储的引用（将在server-simple.js中设置）
+let globalUsers = null;
+
+// 设置全局用户存储
+export const setGlobalUsers = (users) => {
+  globalUsers = users;
+};
+
 // 模拟用户数据（临时方案）
 const mockUsers = [
   {
@@ -77,8 +85,29 @@ router.get('/users', adminAuth, async (req, res) => {
     const skip = (parseInt(page) - 1) * parseInt(pageSize);
     const limit = parseInt(pageSize);
     
-    // 模拟查询用户列表
-    let filteredUsers = mockUsers;
+    // 获取真实用户数据
+    let allUsers = [];
+    if (globalUsers && globalUsers.size > 0) {
+      // 从内存Map中获取用户数据
+      allUsers = Array.from(globalUsers.values()).map(user => ({
+        id: user.id,
+        uuid: user.uuid,
+        username: user.username,
+        nickname: user.nickname,
+        phone: user.phone,
+        email: user.email,
+        avatar: user.avatar,
+        status: user.status,
+        createdAt: user.created_at,
+        lastLogin: user.lastLogin
+      }));
+    } else {
+      // 如果没有真实数据，使用模拟数据
+      allUsers = mockUsers;
+    }
+    
+    // 应用筛选条件
+    let filteredUsers = allUsers;
     
     if (username) {
       filteredUsers = filteredUsers.filter(user => 

@@ -16,6 +16,9 @@ import { log } from './config/logger.js';
 // 导入中间件
 import { corsConfig, requestLogger, globalErrorHandler } from './middleware/cors.js';
 
+// 导入服务
+import verificationService from './services/verificationService.js';
+
 const app = express();
 const server = createServer(app);
 const io = new Server(server, {
@@ -138,8 +141,11 @@ app.use(express.text({ type: '*/*', limit: '10mb' }));
 app.use('/uploads', express.static(uploadsDir));
 
 // 管理员路由
-import adminRouter from './routes/admin.js';
+import adminRouter, { setGlobalUsers } from './routes/admin.js';
 app.use('/api/admin', adminRouter);
+
+// 设置全局用户存储引用
+setGlobalUsers(users);
 
 // 健康检查
 app.get('/health', (req, res) => {
@@ -277,15 +283,67 @@ app.post('/api/file', authenticateToken, async (req, res) => {
   }
 });
 
-// 用户注册
-app.post('/api/user/register', (req, res) => {
+// 发送验证码
+app.post('/api/user/send-verification-code', (req, res) => {
   try {
-    const { phone, username, nickname, email } = req.body;
+    const { phone } = req.body;
     
     if (!phone) {
       return res.status(400).json({
         status: false,
         message: '手机号不能为空'
+      });
+    }
+
+    // 验证手机号格式
+    const phoneRegex = /^1[3-9]\d{9}$/;
+    if (!phoneRegex.test(phone)) {
+      return res.status(400).json({
+        status: false,
+        message: '请输入正确的手机号'
+      });
+    }
+
+    // 发送验证码
+    const result = verificationService.sendVerificationCode(phone);
+    
+    log.info(`验证码发送请求: 手机号=${phone}`);
+    
+    res.status(200).json({
+      status: true,
+      message: result.message,
+      data: {
+        expiresIn: result.expiresIn,
+        // 开发环境返回验证码，生产环境不返回
+        ...(process.env.NODE_ENV === 'development' && { code: result.code })
+      }
+    });
+  } catch (error) {
+    log.error('发送验证码失败:', error);
+    res.status(500).json({
+      status: false,
+      message: '发送验证码失败'
+    });
+  }
+});
+
+// 用户注册
+app.post('/api/user/register', (req, res) => {
+  try {
+    const { phone, username, nickname, email, verificationCode } = req.body;
+    
+    if (!phone || !verificationCode) {
+      return res.status(400).json({
+        status: false,
+        message: '手机号和验证码不能为空'
+      });
+    }
+
+    // 验证验证码
+    if (!verificationService.verifyCode(phone, verificationCode)) {
+      return res.status(400).json({
+        status: false,
+        message: '验证码错误或已过期'
       });
     }
 
@@ -307,7 +365,8 @@ app.post('/api/user/register', (req, res) => {
       email: email || '',
       avatar: '',
       status: 'active',
-      created_at: new Date()
+      created_at: new Date(),
+      lastLogin: new Date()
     };
 
     users.set(phone, user);
@@ -315,7 +374,7 @@ app.post('/api/user/register', (req, res) => {
     // 生成JWT令牌
     const token = generateToken(user);
 
-    log.info(`用户注册成功: ${phone}`);
+    log.info(`用户注册成功: ${phone} (${user.nickname})`);
 
     res.status(201).json({
       status: true,
@@ -375,24 +434,22 @@ app.post('/api/user/login', (req, res) => {
       });
     }
 
+    // 验证验证码
+    if (!verificationService.verifyCode(phone, verificationCode)) {
+      console.log('[LOGIN] 验证码错误', { phone, code: verificationCode });
+      return res.status(400).json({
+        status: false,
+        message: '验证码错误或已过期'
+      });
+    }
+
     // 查找用户
     let user = users.get(phone);
     if (!user) {
-      // 未注册则自动注册一个默认账号
-      const last4 = String(phone).slice(-4);
-      user = {
-        id: Date.now() + Math.random(),
-        uuid: `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        phone,
-        username: `user_${last4}`,
-        nickname: `用户${last4}`,
-        email: '',
-        avatar: '',
-        status: 'active',
-        created_at: new Date()
-      };
-      users.set(phone, user);
-      console.log('[LOGIN] 自动注册并登录', { phone, uuid: user.uuid });
+      return res.status(400).json({
+        status: false,
+        message: '手机号未注册，请先注册'
+      });
     }
 
     if (user.status !== 'active') {
@@ -403,14 +460,8 @@ app.post('/api/user/login', (req, res) => {
       });
     }
 
-    // 验证码验证（简化处理）
-    if (verificationCode !== '123456') {
-      console.log('[LOGIN] 验证码错误', { phone, verificationCode });
-      return res.status(400).json({
-        status: false,
-        message: '验证码错误'
-      });
-    }
+    // 更新最后登录时间
+    user.lastLogin = new Date();
 
     // 生成JWT令牌
     const token = generateToken(user);

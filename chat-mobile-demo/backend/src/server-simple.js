@@ -140,9 +140,15 @@ app.use(express.text({ type: '*/*', limit: '10mb' }));
 // 静态文件服务
 app.use('/uploads', express.static(uploadsDir));
 
+// 动态路由
+import momentRouter from './routes/moment.js';
+app.use('/api/moment', momentRouter);
+
 // 管理员路由
 import adminRouter, { setGlobalUsers } from './routes/admin.js';
+import adminMomentRouter from './routes/adminMoment.js';
 app.use('/api/admin', adminRouter);
+app.use('/api/admin/moments', adminMomentRouter);
 
 // 设置全局用户存储引用
 setGlobalUsers(users);

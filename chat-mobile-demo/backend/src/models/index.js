@@ -1,17 +1,21 @@
 import User from './User.js';
 import Bottle from './Bottle.js';
+import Moment from './Moment.js';
 
 // 定义模型关联
 User.hasMany(Bottle, { foreignKey: 'sender_id', as: 'sentBottles' });
 User.hasMany(Bottle, { foreignKey: 'caught_by', as: 'caughtBottles' });
+User.hasMany(Moment, { foreignKey: 'user_id', as: 'moments' });
 
 Bottle.belongsTo(User, { foreignKey: 'sender_id', as: 'sender' });
 Bottle.belongsTo(User, { foreignKey: 'caught_by', as: 'catcher' });
+Moment.belongsTo(User, { foreignKey: 'user_id', as: 'author' });
 
 // 导出所有模型
 export {
   User,
-  Bottle
+  Bottle,
+  Moment
 };
 
 // 初始化数据库

@@ -81,7 +81,10 @@ class ApiService {
   async post(endpoint, data = {}, headers = {}) {
     return this.request(endpoint, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
       body: JSON.stringify(data),
     });
   }
@@ -90,7 +93,10 @@ class ApiService {
   async put(endpoint, data = {}, headers = {}) {
     return this.request(endpoint, {
       method: 'PUT',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
       body: JSON.stringify(data),
     });
   }
@@ -101,6 +107,37 @@ class ApiService {
       method: 'DELETE',
       headers,
     });
+  }
+
+  // 文件上传请求
+  async uploadFile(fileUri, token) {
+    const formData = new FormData();
+    
+    // 创建文件对象
+    const file = {
+      uri: fileUri,
+      type: 'image/jpeg',
+      name: `image_${Date.now()}.jpg`,
+    };
+    
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseURL}/api/file`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        // 不要设置 Content-Type，让浏览器自动设置 multipart/form-data
+      },
+      body: formData,
+    });
+
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.message || '文件上传失败');
+    }
+    
+    return data;
   }
 
   // 带认证的请求
@@ -128,7 +165,10 @@ class ApiService {
   async authenticatedPost(endpoint, data = {}, token, headers = {}) {
     return this.authenticatedRequest(endpoint, {
       method: 'POST',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
       body: JSON.stringify(data),
     }, token);
   }
@@ -137,7 +177,10 @@ class ApiService {
   async authenticatedPut(endpoint, data = {}, token, headers = {}) {
     return this.authenticatedRequest(endpoint, {
       method: 'PUT',
-      headers,
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
       body: JSON.stringify(data),
     }, token);
   }
@@ -162,6 +205,12 @@ export const userApi = {
   // 创建测试用户
   createTestUsers: () => apiService.post(API_CONFIG.ENDPOINTS.USER.CREATE_TEST_USERS),
 
+  // 发送验证码
+  sendVerificationCode: (phone) => 
+    apiService.post('/api/user/send-verification-code', {
+      phone,
+    }),
+
   // 用户登录
   login: (phone, verificationCode) => 
     apiService.post(API_CONFIG.ENDPOINTS.USER.LOGIN, {
@@ -169,9 +218,24 @@ export const userApi = {
       verificationCode,
     }),
 
-  // 用户注册
-  register: (userData) => 
-    apiService.post(API_CONFIG.ENDPOINTS.USER.REGISTER, userData),
+        // 用户注册
+        register: (userData) => 
+          apiService.post(API_CONFIG.ENDPOINTS.USER.REGISTER, userData),
+
+        // 发布动态
+        publishMoment: (momentData, token) => 
+          apiService.authenticatedPost('/api/moment/publish', momentData, token),
+
+        // 获取动态列表
+        getMoments: (params = {}, token) => {
+          const queryString = new URLSearchParams({
+            page: params.page || 1,
+            pageSize: params.pageSize || 10,
+            status: params.status || 'approved',
+            privacy: params.privacy || 'public'
+          }).toString();
+          return apiService.authenticatedGet(`/api/moment/list?${queryString}`, token);
+        },
 
   // 获取用户信息
   getUser: (uuid, token) => 

@@ -13,6 +13,7 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
+import { userApi } from './services/apiService.js';
 
 const { width, height } = Dimensions.get('window');
 
@@ -65,13 +66,23 @@ export default function RegisterScreen({ navigation }) {
     setIsLoading(true);
     
     try {
-      // 模拟发送验证码
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await userApi.sendVerificationCode(formData.phoneNumber);
       
-      setIsCodeSent(true);
-      setCountdown(60);
-      Alert.alert('成功', '验证码已发送');
+      if (response.status) {
+        setIsCodeSent(true);
+        setCountdown(60);
+        
+        // 开发环境显示验证码
+        if (response.data && response.data.code) {
+          Alert.alert('验证码已发送', `验证码: ${response.data.code}\n(开发环境显示)`);
+        } else {
+          Alert.alert('成功', '验证码已发送');
+        }
+      } else {
+        Alert.alert('错误', response.message || '发送失败，请重试');
+      }
     } catch (error) {
+      console.error('发送验证码失败:', error);
       Alert.alert('错误', '发送失败，请重试');
     } finally {
       setIsLoading(false);
@@ -115,17 +126,26 @@ export default function RegisterScreen({ navigation }) {
     setIsLoading(true);
     
     try {
-      // 模拟注册请求
-      await new Promise(resolve => setTimeout(resolve, 1500));
+      const response = await userApi.register({
+        phone: phoneNumber,
+        verificationCode,
+        username,
+        nickname: username,
+        email: '', // 暂时不填写邮箱
+      });
       
-      // 注册成功，跳转到登录页面
-      Alert.alert('成功', '注册成功！请登录', [
-        {
-          text: '确定',
-          onPress: () => navigation.navigate('Login')
-        }
-      ]);
+      if (response.status) {
+        Alert.alert('成功', '注册成功！请登录', [
+          {
+            text: '确定',
+            onPress: () => navigation.navigate('Login')
+          }
+        ]);
+      } else {
+        Alert.alert('注册失败', response.message || '注册失败，请稍后重试');
+      }
     } catch (error) {
+      console.error('注册请求失败:', error);
       Alert.alert('错误', '注册失败，请稍后重试');
     } finally {
       setIsLoading(false);

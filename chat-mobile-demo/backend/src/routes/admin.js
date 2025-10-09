@@ -431,5 +431,63 @@ router.post('/users/batch', adminAuth, async (req, res) => {
   }
 });
 
+// 动态管理 - 获取待审核动态
+router.get('/moments/pending', adminAuth, async (req, res) => {
+  try {
+    // 这里应该调用动态服务的API
+    // 暂时返回模拟数据
+    const mockPendingMoments = [
+      {
+        id: 1,
+        uuid: 'moment_1',
+        content: '今天天气真好！',
+        images: [],
+        privacy: 'public',
+        status: 'pending',
+        user_id: 1,
+        created_at: new Date(),
+        author: {
+          id: 1,
+          username: 'testuser1',
+          nickname: '测试用户1',
+          phone: '13800138001'
+        }
+      },
+      {
+        id: 2,
+        uuid: 'moment_2',
+        content: '分享一张美图',
+        images: ['image1.jpg'],
+        privacy: 'public',
+        status: 'pending',
+        user_id: 2,
+        created_at: new Date(),
+        author: {
+          id: 2,
+          username: 'testuser2',
+          nickname: '测试用户2',
+          phone: '13800138002'
+        }
+      }
+    ];
+
+    res.json({
+      status: true,
+      data: {
+        list: mockPendingMoments,
+        total: mockPendingMoments.length,
+        page: 1,
+        pageSize: 10
+      }
+    });
+  } catch (error) {
+    console.error('获取待审核动态失败:', error);
+    res.status(500).json({ status: false, message: '获取待审核动态失败' });
+  }
+});
+
+// 动态管理 - 审核动态（已移动到 adminMoment.js）
+// 这个路由已经在 adminMoment.js 中实现，此处删除以避免冲突
+
 export default router;
 

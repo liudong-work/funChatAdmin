@@ -15,6 +15,8 @@ import ChatDetailScreen from './ChatDetailScreen';
 import LoginScreen from './LoginScreen';
 import RegisterScreen from './RegisterScreen';
 import VoiceCallScreen from './VoiceCallScreen';
+import MomentsScreen from './MomentsScreen';
+import PublishMomentScreen from './PublishMomentScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -116,6 +118,14 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
       >
         {(props) => <VoiceCallScreen {...props} />}
       </Stack.Screen>
+      <Stack.Screen 
+        name="PublishMoment" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <PublishMomentScreen {...props} />}
+      </Stack.Screen>
     </Stack.Navigator>
   );
 }
@@ -131,6 +141,8 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
             iconName = focused ? '🏠' : '🏡';
           } else if (route.name === 'Messages') {
             iconName = focused ? '💬' : '💭';
+          } else if (route.name === 'Moments') {
+            iconName = focused ? '⭐' : '✨';
           } else if (route.name === 'Profile') {
             iconName = focused ? '👤' : '👥';
           }
@@ -177,6 +189,13 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
           />
         )}
       </Tab.Screen>
+      <Tab.Screen 
+        name="Moments" 
+        component={MomentsScreen}
+        options={{
+          tabBarLabel: '动态',
+        }}
+      />
       <Tab.Screen 
         name="Profile" 
         options={{

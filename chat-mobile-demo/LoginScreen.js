@@ -54,30 +54,29 @@ export default function LoginScreen({ navigation, setIsAuthenticated }) {
     setIsLoading(true);
     
     try {
-      // 模拟发送验证码
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const response = await userApi.sendVerificationCode(phoneNumber);
       
-      setIsCodeSent(true);
-      setCountdown(60);
-      Alert.alert('成功', '验证码已发送');
+      if (response.status) {
+        setIsCodeSent(true);
+        setCountdown(60);
+        
+        // 开发环境显示验证码
+        if (response.data && response.data.code) {
+          Alert.alert('验证码已发送', `验证码: ${response.data.code}\n(开发环境显示)`);
+        } else {
+          Alert.alert('成功', '验证码已发送');
+        }
+      } else {
+        Alert.alert('错误', response.message || '发送失败，请重试');
+      }
     } catch (error) {
+      console.error('发送验证码失败:', error);
       Alert.alert('错误', '发送失败，请重试');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 固定测试账号
-  const testAccounts = [
-    { phone: '13800138001', code: '123456', name: '测试用户1' },
-    { phone: '13800138002', code: '123456', name: '测试用户2' }
-  ];
-
-  // 快速切换账号
-  const switchAccount = (account) => {
-    setPhoneNumber(account.phone);
-    setVerificationCode(account.code);
-  };
 
   const handleLogin = async () => {
     if (!phoneNumber || !verificationCode) {

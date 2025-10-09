@@ -18,8 +18,8 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const { width, height } = Dimensions.get('window');
 
 export default function LoginScreen({ navigation, setIsAuthenticated }) {
-  const [phoneNumber, setPhoneNumber] = useState('13800138001'); // 默认填入测试账号
-  const [verificationCode, setVerificationCode] = useState('123456'); // 默认填入验证码
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isCodeSent, setIsCodeSent] = useState(false);
   const [countdown, setCountdown] = useState(0);
@@ -65,18 +65,6 @@ export default function LoginScreen({ navigation, setIsAuthenticated }) {
     } finally {
       setIsLoading(false);
     }
-  };
-
-  // 固定测试账号
-  const testAccounts = [
-    { phone: '13800138001', code: '123456', name: '测试用户1' },
-    { phone: '13800138002', code: '123456', name: '测试用户2' }
-  ];
-
-  // 快速切换账号
-  const switchAccount = (account) => {
-    setPhoneNumber(account.phone);
-    setVerificationCode(account.code);
   };
 
   const handleLogin = async () => {
@@ -207,27 +195,6 @@ export default function LoginScreen({ navigation, setIsAuthenticated }) {
                 {isLoading ? '登录中...' : '登录'}
               </Text>
             </TouchableOpacity>
-
-            {/* 测试账号提示 */}
-            <View style={styles.testAccountTip}>
-              <Text style={styles.testAccountTipTitle}>测试账号：</Text>
-              <View style={styles.accountButtons}>
-                <TouchableOpacity 
-                  style={styles.accountButton}
-                  onPress={() => switchAccount(testAccounts[0])}
-                >
-                  <Text style={styles.accountButtonText}>用户1</Text>
-                </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.accountButton}
-                  onPress={() => switchAccount(testAccounts[1])}
-                >
-                  <Text style={styles.accountButtonText}>用户2</Text>
-                </TouchableOpacity>
-              </View>
-              <Text style={styles.testAccountTipText}>13800138001 / 123456</Text>
-              <Text style={styles.testAccountTipText}>13800138002 / 123456</Text>
-            </View>
           </View>
 
           {/* 注册链接 */}
@@ -385,41 +352,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#007AFF',
-  },
-  testAccountTip: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 12,
-    padding: 16,
-    marginTop: 20,
-    alignItems: 'center',
-  },
-  testAccountTipTitle: {
-    fontSize: 14,
-    color: 'white',
-    fontWeight: 'bold',
-    marginBottom: 8,
-  },
-  accountButtons: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 12,
-    gap: 12,
-  },
-  accountButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  accountButtonText: {
-    fontSize: 12,
-    color: 'white',
-    fontWeight: 'bold',
-  },
-  testAccountTipText: {
-    fontSize: 12,
-    color: 'rgba(255, 255, 255, 0.8)',
-    marginBottom: 2,
   },
   footer: {
     flexDirection: 'row',

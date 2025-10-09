@@ -12,6 +12,10 @@ const momentService = {
    */
   publishMoment: async (content, images, location, token) => {
     try {
+      // 创建 AbortController 用于请求取消
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
+
       const response = await fetch(`${API_URL}/api/moments`, {
         method: 'POST',
         headers: {
@@ -22,8 +26,11 @@ const momentService = {
           content,
           images,
           location
-        })
+        }),
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       
@@ -34,6 +41,11 @@ const momentService = {
       return data;
     } catch (error) {
       console.error('[MomentService] 发布动态失败:', error);
+      
+      if (error.name === 'AbortError') {
+        throw new Error('请求超时，请检查网络连接');
+      }
+      
       throw error;
     }
   },
@@ -43,6 +55,10 @@ const momentService = {
    */
   getMomentList: async (page = 1, pageSize = 10, userId = null, token) => {
     try {
+      // 创建 AbortController 用于请求取消
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
+
       let url = `${API_URL}/api/moments?page=${page}&pageSize=${pageSize}`;
       if (userId) {
         url += `&userId=${userId}`;
@@ -52,8 +68,11 @@ const momentService = {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       
@@ -64,6 +83,11 @@ const momentService = {
       return data;
     } catch (error) {
       console.error('[MomentService] 获取动态列表失败:', error);
+      
+      if (error.name === 'AbortError') {
+        throw new Error('请求超时，请检查网络连接');
+      }
+      
       throw error;
     }
   },
@@ -73,12 +97,19 @@ const momentService = {
    */
   getMomentDetail: async (momentUuid, token) => {
     try {
+      // 创建 AbortController 用于请求取消
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000); // 15秒超时
+
       const response = await fetch(`${API_URL}/api/moments/${momentUuid}`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`
-        }
+        },
+        signal: controller.signal
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
       
@@ -89,6 +120,11 @@ const momentService = {
       return data;
     } catch (error) {
       console.error('[MomentService] 获取动态详情失败:', error);
+      
+      if (error.name === 'AbortError') {
+        throw new Error('请求超时，请检查网络连接');
+      }
+      
       throw error;
     }
   },

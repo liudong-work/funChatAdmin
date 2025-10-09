@@ -24,17 +24,6 @@ export default function HomeScreen({ navigation }) {
   const throwBottle = useRef(new Animated.Value(0)).current;
   const throwScale = useRef(new Animated.Value(1)).current;
 
-  // 模拟瓶子数据
-  const bottleMessages = [
-    { id: 1, message: "今天心情不好，有人愿意聊聊吗？", author: "孤独的旅行者", mood: "😔" },
-    { id: 2, message: "刚毕业找工作，压力好大...", author: "应届生小王", mood: "😰" },
-    { id: 3, message: "分享一首好听的歌给大家", author: "音乐爱好者", mood: "🎵" },
-    { id: 4, message: "今天天气真好，想出去走走", author: "阳光女孩", mood: "☀️" },
-    { id: 5, message: "有人一起学习编程吗？", author: "程序员小白", mood: "💻" },
-  ];
-
-
-
   // 瓶子漂浮动画
   useEffect(() => {
     const floatAnimation = Animated.loop(

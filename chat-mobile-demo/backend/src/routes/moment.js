@@ -1,8 +1,9 @@
-const express = require('express');
+import express from 'express';
+import Moment from '../models/Moment.js';
+import User from '../models/User.js';
+import { authenticateToken } from '../middleware/auth.js';
+
 const router = express.Router();
-const Moment = require('../models/Moment');
-const User = require('../models/User');
-const { authenticateToken } = require('../middleware/auth');
 
 /**
  * 发布动态
@@ -305,5 +306,5 @@ router.delete('/:uuid/like', authenticateToken, async (req, res) => {
   }
 });
 
-module.exports = router;
+export default router;
 

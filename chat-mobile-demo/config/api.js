@@ -83,4 +83,17 @@ export const getDefaultHeaders = () => {
   return API_CONFIG.DEFAULT_HEADERS;
 };
 
+// 获取图片完整URL
+export const getImageUrl = (imagePath) => {
+  if (!imagePath) return '';
+  
+  // 如果已经是完整URL，直接返回
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  
+  // 否则拼接基础URL
+  return `${API_CONFIG.BASE_URL}/uploads/${imagePath}`;
+};
+
 export default API_CONFIG;

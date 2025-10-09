@@ -1,7 +1,7 @@
-import { getApiUrl } from '../config/api';
+import { getBaseUrl } from '../config/api';
 import apiService from './apiService';
 
-const API_URL = getApiUrl();
+const API_URL = getBaseUrl();
 
 /**
  * 动态服务

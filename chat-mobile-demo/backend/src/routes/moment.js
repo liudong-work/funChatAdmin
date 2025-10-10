@@ -82,7 +82,7 @@ router.post('/publish', authenticateToken, async (req, res) => {
 });
 
 // 获取动态列表
-router.get('/list', async (req, res) => {
+router.get('/list', authenticateToken, async (req, res) => {
   try {
     const { 
       page = 1, 
@@ -90,6 +90,8 @@ router.get('/list', async (req, res) => {
       status = 'approved', // 默认只显示已审核的动态
       privacy = 'public'   // 默认只显示公开动态
     } = req.query;
+    
+    const current_user_uuid = req.user.uuid; // 当前用户UUID
 
     // 从内存中获取动态数据
     const allMoments = Array.from(moments.values())
@@ -121,6 +123,7 @@ router.get('/list', async (req, res) => {
       status: moment.status,
       likes_count: moment.likes_count,
       comments_count: moment.comments_count,
+      is_liked: moment.liked_users ? moment.liked_users.includes(current_user_uuid) : false, // 当前用户是否已点赞
       created_at: moment.created_at,
       updated_at: moment.updated_at,
       author: {
@@ -208,20 +211,199 @@ router.get('/detail/:uuid', async (req, res) => {
 router.post('/like/:uuid', authenticateToken, async (req, res) => {
   try {
     const { uuid } = req.params;
-    const user_id = req.user.id;
+    const user_uuid = req.user.uuid;
 
-    const result = await momentService.likeMoment(uuid, user_id);
+    // 从内存中获取动态
+    const moment = moments.get(uuid);
+    if (!moment) {
+      return res.status(404).json({
+        status: false,
+        message: '动态不存在'
+      });
+    }
+
+    // 初始化点赞用户列表
+    if (!moment.liked_users) {
+      moment.liked_users = [];
+    }
+
+    // 检查是否已经点赞
+    const alreadyLiked = moment.liked_users.includes(user_uuid);
+    
+    if (alreadyLiked) {
+      // 取消点赞
+      moment.liked_users = moment.liked_users.filter(u => u !== user_uuid);
+      moment.likes_count = Math.max(0, moment.likes_count - 1);
+    } else {
+      // 点赞
+      moment.liked_users.push(user_uuid);
+      moment.likes_count = moment.likes_count + 1;
+    }
+
+    moment.updated_at = new Date();
+    moments.set(uuid, moment);
+
+    log.info(`动态点赞: ${uuid}, 用户: ${user_uuid}, 操作: ${alreadyLiked ? '取消点赞' : '点赞'}`);
 
     res.json({
       status: true,
-      message: '点赞成功',
-      data: result
+      message: alreadyLiked ? '取消点赞成功' : '点赞成功',
+      data: {
+        uuid,
+        likes_count: moment.likes_count,
+        is_liked: !alreadyLiked
+      }
     });
   } catch (error) {
     log.error('点赞动态失败:', error);
     res.status(500).json({
       status: false,
       message: error.message || '点赞失败'
+    });
+  }
+});
+
+// 获取动态评论列表
+router.get('/:uuid/comments', authenticateToken, async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const { page = 1, pageSize = 20 } = req.query;
+
+    // 从内存中获取动态
+    const moment = moments.get(uuid);
+    if (!moment) {
+      return res.status(404).json({
+        status: false,
+        message: '动态不存在'
+      });
+    }
+
+    // 初始化评论列表
+    if (!moment.comments) {
+      moment.comments = [];
+    }
+
+    // 分页
+    const startIndex = (parseInt(page) - 1) * parseInt(pageSize);
+    const endIndex = startIndex + parseInt(pageSize);
+    const paginatedComments = moment.comments.slice(startIndex, endIndex);
+
+    // 格式化评论数据
+    const formattedComments = paginatedComments.map(comment => ({
+      id: comment.id,
+      uuid: comment.uuid,
+      content: comment.content,
+      created_at: comment.created_at,
+      author: {
+        id: comment.user_id,
+        phone: comment.user_phone,
+        username: comment.user_phone || `用户${comment.user_id}`,
+        nickname: comment.user_phone || `用户${comment.user_id}`,
+        avatar: '👤'
+      }
+    }));
+
+    res.json({
+      status: true,
+      data: {
+        comments: formattedComments,
+        total: moment.comments.length,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(moment.comments.length / parseInt(pageSize))
+      }
+    });
+  } catch (error) {
+    log.error('获取评论列表失败:', error);
+    res.status(500).json({
+      status: false,
+      message: '获取评论列表失败'
+    });
+  }
+});
+
+// 添加评论
+router.post('/:uuid/comments', authenticateToken, async (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const { content } = req.body;
+    const user_id = req.user.id;
+    const user_uuid = req.user.uuid;
+    const user_phone = req.user.phone;
+
+    if (!content || !content.trim()) {
+      return res.status(400).json({
+        status: false,
+        message: '评论内容不能为空'
+      });
+    }
+
+    if (content.length > 500) {
+      return res.status(400).json({
+        status: false,
+        message: '评论内容不能超过500个字符'
+      });
+    }
+
+    // 从内存中获取动态
+    const moment = moments.get(uuid);
+    if (!moment) {
+      return res.status(404).json({
+        status: false,
+        message: '动态不存在'
+      });
+    }
+
+    // 初始化评论列表
+    if (!moment.comments) {
+      moment.comments = [];
+    }
+
+    // 创建评论
+    const comment = {
+      id: Date.now() + Math.random(),
+      uuid: `comment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      user_id,
+      user_uuid,
+      user_phone,
+      content: content.trim(),
+      created_at: new Date(),
+      updated_at: new Date()
+    };
+
+    // 添加到动态的评论列表
+    moment.comments.push(comment);
+    moment.comments_count = moment.comments.length;
+    moment.updated_at = new Date();
+    moments.set(uuid, moment);
+
+    log.info(`评论添加成功: ${comment.uuid} (动态: ${uuid}, 用户: ${user_id})`);
+
+    res.status(201).json({
+      status: true,
+      message: '评论成功',
+      data: {
+        comment: {
+          id: comment.id,
+          uuid: comment.uuid,
+          content: comment.content,
+          created_at: comment.created_at,
+          author: {
+            id: comment.user_id,
+            phone: comment.user_phone,
+            username: comment.user_phone || `用户${comment.user_id}`,
+            nickname: comment.user_phone || `用户${comment.user_id}`,
+            avatar: '👤'
+          }
+        },
+        comments_count: moment.comments_count
+      }
+    });
+  } catch (error) {
+    log.error('添加评论失败:', error);
+    res.status(500).json({
+      status: false,
+      message: '添加评论失败'
     });
   }
 });

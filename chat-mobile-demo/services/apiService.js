@@ -237,6 +237,23 @@ export const userApi = {
           return apiService.authenticatedGet(`/api/moment/list?${queryString}`, token);
         },
 
+        // 点赞/取消点赞动态
+        likeMoment: (uuid, token) => 
+          apiService.authenticatedPost(`/api/moment/like/${uuid}`, {}, token),
+
+        // 获取动态评论列表
+        getComments: (uuid, params = {}, token) => {
+          const queryString = new URLSearchParams({
+            page: params.page || 1,
+            pageSize: params.pageSize || 20
+          }).toString();
+          return apiService.authenticatedGet(`/api/moment/${uuid}/comments?${queryString}`, token);
+        },
+
+        // 添加评论
+        addComment: (uuid, content, token) => 
+          apiService.authenticatedPost(`/api/moment/${uuid}/comments`, { content }, token),
+
   // 获取用户信息
   getUser: (uuid, token) => 
     apiService.authenticatedGet(API_CONFIG.ENDPOINTS.USER.GET_USER(uuid), token),

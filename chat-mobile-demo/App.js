@@ -17,6 +17,7 @@ import RegisterScreen from './RegisterScreen';
 import VoiceCallScreen from './VoiceCallScreen';
 import MomentsScreen from './MomentsScreen';
 import PublishMomentScreen from './PublishMomentScreen';
+import MomentDetailScreen from './MomentDetailScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -125,6 +126,14 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         }}
       >
         {(props) => <PublishMomentScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="MomentDetail" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <MomentDetailScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );

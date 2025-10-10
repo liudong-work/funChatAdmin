@@ -98,9 +98,41 @@ export default function MomentsScreen({ navigation }) {
     loadMoments(1, true);
   };
 
-  const handleLike = (id) => {
-    // 点赞功能（这里只是演示，实际应该调用API）
-    console.log('点赞:', id);
+  const handleLike = async (momentItem) => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        Alert.alert('错误', '请先登录');
+        return;
+      }
+
+      // 乐观更新UI
+      const updatedMoments = moments.map(m => {
+        if (m.uuid === momentItem.uuid) {
+          return {
+            ...m,
+            is_liked: !m.is_liked,
+            likes_count: m.is_liked ? m.likes_count - 1 : m.likes_count + 1
+          };
+        }
+        return m;
+      });
+      setMoments(updatedMoments);
+
+      // 调用API
+      const response = await userApi.likeMoment(momentItem.uuid, token);
+      
+      if (!response.status) {
+        // 如果失败，回滚UI
+        setMoments(moments);
+        Alert.alert('错误', response.message || '点赞失败');
+      }
+    } catch (error) {
+      console.error('点赞失败:', error);
+      // 回滚UI
+      setMoments(moments);
+      Alert.alert('错误', '网络错误，请重试');
+    }
   };
 
   const renderMomentItem = ({ item }) => (
@@ -128,13 +160,20 @@ export default function MomentsScreen({ navigation }) {
       <View style={styles.actions}>
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => handleLike(item.id)}
+          onPress={() => handleLike(item)}
         >
-          <Text style={styles.actionIcon}>👍</Text>
-          <Text style={styles.actionText}>{item.likes_count}</Text>
+          <Text style={[styles.actionIcon, item.is_liked && styles.likedIcon]}>
+            {item.is_liked ? '❤️' : '🤍'}
+          </Text>
+          <Text style={[styles.actionText, item.is_liked && styles.likedText]}>
+            {item.likes_count}
+          </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => navigation.navigate('MomentDetail', { moment: item })}
+        >
           <Text style={styles.actionIcon}>💬</Text>
           <Text style={styles.actionText}>{item.comments_count}</Text>
         </TouchableOpacity>
@@ -348,6 +387,13 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: 14,
     color: '#666',
+  },
+  likedIcon: {
+    // 已点赞的图标样式
+  },
+  likedText: {
+    color: '#FF3B30',
+    fontWeight: 'bold',
   },
   floatingPublishButton: {
     position: 'absolute',

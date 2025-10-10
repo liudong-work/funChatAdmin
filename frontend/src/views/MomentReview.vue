@@ -74,7 +74,9 @@
           <template #renderItem="{ item }">
             <a-list-item>
               <template #actions>
-                <span class="action-link"><EyeOutlined /> 查看详情</span>
+                <span class="action-link" @click="showDetailModal(item)">
+                  <EyeOutlined /> 查看详情
+                </span>
                 <a-button 
                   v-if="item.status === 'pending'" 
                   type="primary" 
@@ -188,6 +190,64 @@
         </div>
       </div>
     </a-modal>
+
+    <!-- 详情模态框 -->
+    <a-modal
+      v-model:open="detailModalVisible"
+      title="动态详情"
+      width="700px"
+      :footer="null"
+    >
+      <div v-if="currentMoment">
+        <a-descriptions :column="2" bordered>
+          <a-descriptions-item label="作者">{{ currentMoment.author.nickname }}</a-descriptions-item>
+          <a-descriptions-item label="发布时间">{{ formatDate(currentMoment.created_at) }}</a-descriptions-item>
+          <a-descriptions-item label="隐私设置">{{ getPrivacyText(currentMoment.privacy) }}</a-descriptions-item>
+          <a-descriptions-item label="当前状态">
+            <a-tag :color="getStatusColor(currentMoment.status)">
+              {{ getStatusText(currentMoment.status) }}
+            </a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item label="动态ID" :span="2">{{ currentMoment.uuid }}</a-descriptions-item>
+        </a-descriptions>
+        
+        <div class="moment-detail-content">
+          <h4>动态内容:</h4>
+          <div class="content-text">{{ currentMoment.content }}</div>
+          
+          <div v-if="currentMoment.images && currentMoment.images.length > 0" class="moment-detail-images">
+            <h4>图片 ({{ currentMoment.images.length }}张):</h4>
+            <a-image-preview-group>
+              <a-image
+                v-for="(image, index) in currentMoment.images"
+                :key="index"
+                :width="150"
+                :src="image"
+                :preview="true"
+                class="detail-image"
+              />
+            </a-image-preview-group>
+          </div>
+
+          <div v-if="currentMoment.status !== 'pending'" class="review-info-detail">
+            <h4>审核信息:</h4>
+            <p><strong>审核时间:</strong> {{ currentMoment.reviewed_at ? formatDate(currentMoment.reviewed_at) : '-' }}</p>
+            <p v-if="currentMoment.review_comment"><strong>审核意见:</strong> {{ currentMoment.review_comment }}</p>
+          </div>
+        </div>
+        
+        <div class="detail-actions">
+          <a-button @click="closeDetailModal">关闭</a-button>
+          <a-button 
+            v-if="currentMoment.status === 'pending'" 
+            type="primary" 
+            @click="showReviewModal(currentMoment)"
+          >
+            审核此动态
+          </a-button>
+        </div>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -216,6 +276,7 @@ import dayjs from 'dayjs'
 const loading = ref(false)
 const reviewing = ref(false)
 const reviewModalVisible = ref(false)
+const detailModalVisible = ref(false)
 const currentMoment = ref<Moment | null>(null)
 
 // 统计数据
@@ -334,6 +395,18 @@ const closeReviewModal = () => {
   reviewModalVisible.value = false
   currentMoment.value = null
   reviewForm.reviewComment = ''
+}
+
+// 显示详情模态框
+const showDetailModal = (moment: Moment) => {
+  currentMoment.value = moment
+  detailModalVisible.value = true
+}
+
+// 关闭详情模态框
+const closeDetailModal = () => {
+  detailModalVisible.value = false
+  currentMoment.value = null
 }
 
 // 处理审核
@@ -527,6 +600,50 @@ onMounted(() => {
 
 .review-button:active {
   transform: translateY(0) !important;
+}
+
+/* 详情模态框样式 */
+.content-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #333;
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 4px;
+  border-left: 3px solid #1890ff;
+}
+
+.detail-image {
+  margin-right: 8px;
+  margin-bottom: 8px;
+  border-radius: 4px;
+}
+
+.review-info-detail {
+  margin-top: 16px;
+  padding: 12px;
+  background: #f0f8ff;
+  border-radius: 4px;
+  border: 1px solid #d6e4ff;
+}
+
+.review-info-detail h4 {
+  margin-bottom: 8px;
+  color: #1890ff;
+}
+
+.review-info-detail p {
+  margin-bottom: 4px;
+  color: #666;
+}
+
+.detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
 }
 </style>
 

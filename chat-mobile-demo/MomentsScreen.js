@@ -137,7 +137,11 @@ export default function MomentsScreen({ navigation }) {
   };
 
   const renderMomentItem = ({ item }) => (
-    <View style={styles.momentCard}>
+    <TouchableOpacity 
+      style={styles.momentCard}
+      onPress={() => navigation.navigate('MomentDetail', { moment: item })}
+      activeOpacity={0.7}
+    >
       <View style={styles.momentHeader}>
         <View style={styles.userInfo}>
           <Text style={styles.userAvatar}>{item.author.avatar}</Text>
@@ -161,7 +165,10 @@ export default function MomentsScreen({ navigation }) {
       <View style={styles.actions}>
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => handleLike(item)}
+          onPress={(e) => {
+            e.stopPropagation(); // 阻止事件冒泡到卡片点击
+            handleLike(item);
+          }}
         >
           <Text style={[styles.actionIcon, item.is_liked && styles.likedIcon]}>
             {item.is_liked ? '❤️' : '🤍'}
@@ -173,18 +180,27 @@ export default function MomentsScreen({ navigation }) {
 
         <TouchableOpacity 
           style={styles.actionButton}
-          onPress={() => navigation.navigate('MomentDetail', { moment: item })}
+          onPress={(e) => {
+            e.stopPropagation(); // 阻止事件冒泡到卡片点击
+            navigation.navigate('MomentDetail', { moment: item });
+          }}
         >
           <Text style={styles.actionIcon}>💬</Text>
           <Text style={styles.actionText}>{item.comments_count}</Text>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.actionButton}>
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={(e) => {
+            e.stopPropagation(); // 阻止事件冒泡到卡片点击
+            // 分享功能暂时不实现
+          }}
+        >
           <Text style={styles.actionIcon}>🔄</Text>
           <Text style={styles.actionText}>分享</Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </TouchableOpacity>
   );
 
   return (

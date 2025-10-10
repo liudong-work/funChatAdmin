@@ -145,6 +145,7 @@ router.get('/list', authenticateToken, async (req, res) => {
       updated_at: moment.updated_at,
       author: {
         id: moment.user_id,
+        uuid: moment.user_uuid, // 添加用户UUID
         phone: moment.user_phone,
         username: moment.user_phone || `用户${moment.user_id}`,
         nickname: moment.user_phone || `用户${moment.user_id}`,

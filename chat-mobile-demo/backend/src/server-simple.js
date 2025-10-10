@@ -1080,6 +1080,24 @@ io.on('connection', (socket) => {
       return;
     }
 
+    // 确保用户在users Map中存在（如果不存在则创建）
+    if (!users.has(phone)) {
+      const user = {
+        id: Date.now(),
+        uuid: uuid,
+        phone,
+        username: phone,
+        nickname: `用户${phone.slice(-4)}`,
+        email: '',
+        avatar: '',
+        status: 'active',
+        created_at: new Date(),
+        lastLogin: new Date()
+      };
+      users.set(phone, user);
+      log.info(`WebSocket连接时创建用户记录: ${phone} (${uuid})`);
+    }
+
     // 将用户添加到连接映射中
     connectedUsers.set(uuid, socket);
     socket.userUuid = uuid;

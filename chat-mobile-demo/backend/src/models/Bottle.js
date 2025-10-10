@@ -15,10 +15,15 @@ const Bottle = sequelize.define('Bottle', {
     unique: true,
     comment: '瓶子UUID'
   },
-  sender_id: {
-    type: DataTypes.INTEGER,
+  sender_uuid: {
+    type: DataTypes.STRING(100),
     allowNull: false,
-    comment: '发送者ID'
+    comment: '发送者UUID'
+  },
+  receiver_uuid: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: '接收者UUID'
   },
   content: {
     type: DataTypes.TEXT,
@@ -36,24 +41,14 @@ const Bottle = sequelize.define('Bottle', {
     comment: '投放位置'
   },
   status: {
-    type: DataTypes.ENUM('floating', 'caught', 'expired'),
-    defaultValue: 'floating',
+    type: DataTypes.ENUM('sea', 'picked', 'replied', 'deleted'),
+    defaultValue: 'sea',
     comment: '瓶子状态'
   },
-  caught_by: {
-    type: DataTypes.INTEGER,
-    allowNull: true,
-    comment: '拾取者ID'
-  },
-  caught_at: {
+  picked_at: {
     type: DataTypes.DATE,
     allowNull: true,
-    comment: '拾取时间'
-  },
-  expires_at: {
-    type: DataTypes.DATE,
-    allowNull: true,
-    comment: '过期时间'
+    comment: '被捞起时间'
   }
 }, {
   tableName: 'bottles',

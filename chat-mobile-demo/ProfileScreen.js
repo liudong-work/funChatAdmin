@@ -1,19 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { userApi } from './services/apiService';
 
-export default function ProfileScreen({ onLogout }) {
+export default function ProfileScreen({ onLogout, navigation }) {
   const [userInfo, setUserInfo] = useState({
     name: '我的昵称',
     avatar: '👤',
     phone: '138****8888',
     email: 'user@example.com',
     joinDate: '2024-01-01',
+    uuid: '',
+  });
+  
+  const [followStats, setFollowStats] = useState({
+    followingCount: 0,
+    followersCount: 0,
   });
 
   // 加载用户信息
   useEffect(() => {
     loadUserInfo();
+    loadFollowStats();
   }, []);
 
   const loadUserInfo = async () => {
@@ -27,11 +35,48 @@ export default function ProfileScreen({ onLogout }) {
           phone: user.phone ? `${user.phone.slice(0, 3)}****${user.phone.slice(-4)}` : '138****8888',
           email: user.email || 'user@example.com',
           joinDate: '2024-01-01',
+          uuid: user.uuid || '',
         });
       }
     } catch (error) {
       console.error('加载用户信息失败:', error);
     }
+  };
+
+  // 加载关注统计数据
+  const loadFollowStats = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) return;
+
+      // 获取关注列表
+      const followingRes = await userApi.getFollowingList(null, { page: 1, pageSize: 1 }, token);
+      if (followingRes.status && followingRes.data) {
+        setFollowStats(prev => ({ ...prev, followingCount: followingRes.data.total || 0 }));
+      }
+
+      // 获取粉丝列表
+      const followersRes = await userApi.getFollowersList(null, { page: 1, pageSize: 1 }, token);
+      if (followersRes.status && followersRes.data) {
+        setFollowStats(prev => ({ ...prev, followersCount: followersRes.data.total || 0 }));
+      }
+    } catch (error) {
+      console.error('加载关注统计失败:', error);
+    }
+  };
+
+  // 查看关注列表
+  const handleViewFollowing = () => {
+    Alert.alert('关注列表', `你关注了 ${followStats.followingCount} 个用户`);
+    // 后续可以导航到关注列表页面
+    // navigation.navigate('FollowingList');
+  };
+
+  // 查看粉丝列表
+  const handleViewFollowers = () => {
+    Alert.alert('粉丝列表', `你有 ${followStats.followersCount} 个粉丝`);
+    // 后续可以导航到粉丝列表页面
+    // navigation.navigate('FollowersList');
   };
 
   const menuItems = [
@@ -121,17 +166,17 @@ export default function ProfileScreen({ onLogout }) {
         <Text style={styles.userPhone}>{userInfo.phone}</Text>
         
         <View style={styles.userStats}>
+          <TouchableOpacity style={styles.statItem} onPress={handleViewFollowing}>
+            <Text style={styles.statNumber}>{followStats.followingCount}</Text>
+            <Text style={styles.statLabel}>关注</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.statItem} onPress={handleViewFollowers}>
+            <Text style={styles.statNumber}>{followStats.followersCount}</Text>
+            <Text style={styles.statLabel}>粉丝</Text>
+          </TouchableOpacity>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>好友</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
-            <Text style={styles.statLabel}>群聊</Text>
-          </View>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>2</Text>
-            <Text style={styles.statLabel}>消息</Text>
+            <Text style={styles.statLabel}>动态</Text>
           </View>
         </View>
       </View>

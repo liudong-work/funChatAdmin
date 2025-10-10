@@ -74,10 +74,17 @@
           <template #renderItem="{ item }">
             <a-list-item>
               <template #actions>
-                <span><EyeOutlined /> 查看详情</span>
-                <span v-if="item.status === 'pending'" @click="showReviewModal(item)">
-                  <CheckCircleOutlined /> 审核
-                </span>
+                <span class="action-link"><EyeOutlined /> 查看详情</span>
+                <a-button 
+                  v-if="item.status === 'pending'" 
+                  type="primary" 
+                  size="small"
+                  @click="showReviewModal(item)"
+                  class="review-button"
+                >
+                  <CheckCircleOutlined />
+                  审核
+                </a-button>
               </template>
               
               <a-list-item-meta>
@@ -490,12 +497,36 @@ onMounted(() => {
 
 .ant-list-item-action > li {
   padding: 0 8px !important;
-  cursor: pointer;
-  color: #1890ff;
 }
 
-.ant-list-item-action > li:hover {
+.action-link {
+  cursor: pointer;
+  color: #1890ff;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.action-link:hover {
   color: #40a9ff;
+}
+
+.review-button {
+  background: linear-gradient(135deg, #1890ff 0%, #40a9ff 100%) !important;
+  border: none !important;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.3) !important;
+  font-weight: 600 !important;
+  transition: all 0.3s ease !important;
+}
+
+.review-button:hover {
+  background: linear-gradient(135deg, #40a9ff 0%, #1890ff 100%) !important;
+  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.4) !important;
+  transform: translateY(-1px) !important;
+}
+
+.review-button:active {
+  transform: translateY(0) !important;
 }
 </style>
 

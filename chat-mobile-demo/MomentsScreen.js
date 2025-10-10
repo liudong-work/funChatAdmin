@@ -42,7 +42,8 @@ export default function MomentsScreen({ navigation }) {
         page: pageNum,
         pageSize: 10,
         status: 'approved',
-        privacy: 'public'
+        privacy: 'public',
+        type: activeTab === 'follow' ? 'following' : 'latest' // 根据Tab类型筛选
       }, token);
 
       if (response.status) {
@@ -73,6 +74,11 @@ export default function MomentsScreen({ navigation }) {
     loadMoments(1, true);
   }, []);
 
+  // Tab切换时重新加载数据
+  useEffect(() => {
+    loadMoments(1, true);
+  }, [activeTab]);
+
   // 格式化时间
   const formatTime = (dateString) => {
     const date = new Date(dateString);
@@ -88,11 +94,6 @@ export default function MomentsScreen({ navigation }) {
     if (diffDays < 7) return `${diffDays}天前`;
     return date.toLocaleDateString();
   };
-
-  // 根据选项卡过滤数据（目前只显示最新，关注功能待实现）
-  const filteredMoments = activeTab === 'follow' 
-    ? moments.filter(m => m.isFollowing) // 暂时没有关注功能
-    : moments;
 
   const onRefresh = () => {
     loadMoments(1, true);
@@ -216,7 +217,7 @@ export default function MomentsScreen({ navigation }) {
       </View>
 
       <FlatList
-        data={filteredMoments}
+        data={moments}
         renderItem={renderMomentItem}
         keyExtractor={(item) => item.uuid || item.id}
         refreshControl={

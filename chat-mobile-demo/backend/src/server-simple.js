@@ -39,6 +39,7 @@ const connectedUsers = new Map();
 const bottles = [];
 const conversations = new Map(); // 存储对话记录
 const pushTokens = new Map(); // 存储用户推送令牌
+const follows = new Map(); // 存储关注关系 Map<follower_uuid, Set<following_uuid>>
 
 // 管理员账号（临时方案）
 const admins = new Map();
@@ -141,7 +142,9 @@ app.use(express.text({ type: '*/*', limit: '10mb' }));
 app.use('/uploads', express.static(uploadsDir));
 
 // 动态路由
-import momentRouter from './routes/moment.js';
+import momentRouter, { setGlobalFollows } from './routes/moment.js';
+// 设置全局关注数据
+setGlobalFollows(follows);
 app.use('/api/moment', momentRouter);
 
 // 管理员路由
@@ -845,6 +848,222 @@ app.post('/api/push/register-token', authenticateToken, (req, res) => {
     return res.status(500).json({ status: false, message: '注册推送令牌失败' });
   }
 });
+
+// ==================== 关注功能 API ====================
+
+// 关注/取消关注用户
+app.post('/api/follow/:target_uuid', authenticateToken, (req, res) => {
+  try {
+    const { target_uuid } = req.params;
+    const follower_uuid = req.user.uuid;
+
+    if (!target_uuid) {
+      return res.status(400).json({
+        status: false,
+        message: '目标用户UUID不能为空'
+      });
+    }
+
+    // 不能关注自己
+    if (follower_uuid === target_uuid) {
+      return res.status(400).json({
+        status: false,
+        message: '不能关注自己'
+      });
+    }
+
+    // 检查目标用户是否存在
+    const targetUser = Array.from(users.values()).find(u => u.uuid === target_uuid);
+    if (!targetUser) {
+      return res.status(404).json({
+        status: false,
+        message: '目标用户不存在'
+      });
+    }
+
+    // 获取关注列表
+    if (!follows.has(follower_uuid)) {
+      follows.set(follower_uuid, new Set());
+    }
+
+    const followingSet = follows.get(follower_uuid);
+    const isFollowing = followingSet.has(target_uuid);
+
+    if (isFollowing) {
+      // 取消关注
+      followingSet.delete(target_uuid);
+      log.info(`用户取消关注: ${follower_uuid} -> ${target_uuid}`);
+      
+      return res.json({
+        status: true,
+        message: '取消关注成功',
+        data: {
+          is_following: false,
+          followers_count: getFollowersCount(target_uuid),
+          following_count: followingSet.size
+        }
+      });
+    } else {
+      // 关注
+      followingSet.add(target_uuid);
+      log.info(`用户关注: ${follower_uuid} -> ${target_uuid}`);
+      
+      return res.json({
+        status: true,
+        message: '关注成功',
+        data: {
+          is_following: true,
+          followers_count: getFollowersCount(target_uuid),
+          following_count: followingSet.size
+        }
+      });
+    }
+  } catch (error) {
+    log.error('关注/取消关注失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '操作失败'
+    });
+  }
+});
+
+// 获取关注列表
+app.get('/api/follow/following/:user_uuid?', authenticateToken, (req, res) => {
+  try {
+    const user_uuid = req.params.user_uuid || req.user.uuid;
+    const { page = 1, pageSize = 20 } = req.query;
+
+    const followingSet = follows.get(user_uuid) || new Set();
+    const followingList = Array.from(followingSet);
+
+    // 分页
+    const startIndex = (parseInt(page) - 1) * parseInt(pageSize);
+    const endIndex = startIndex + parseInt(pageSize);
+    const paginatedList = followingList.slice(startIndex, endIndex);
+
+    // 获取用户详情
+    const followingUsers = paginatedList.map(uuid => {
+      const user = Array.from(users.values()).find(u => u.uuid === uuid);
+      return user ? {
+        uuid: user.uuid,
+        phone: user.phone,
+        username: user.username || user.phone,
+        nickname: user.phone || `用户${user.id}`,
+        avatar: '👤',
+        is_following: true,
+        followers_count: getFollowersCount(uuid)
+      } : null;
+    }).filter(Boolean);
+
+    return res.json({
+      status: true,
+      data: {
+        list: followingUsers,
+        total: followingList.length,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(followingList.length / parseInt(pageSize))
+      }
+    });
+  } catch (error) {
+    log.error('获取关注列表失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '获取关注列表失败'
+    });
+  }
+});
+
+// 获取粉丝列表
+app.get('/api/follow/followers/:user_uuid?', authenticateToken, (req, res) => {
+  try {
+    const user_uuid = req.params.user_uuid || req.user.uuid;
+    const { page = 1, pageSize = 20 } = req.query;
+    const current_user_uuid = req.user.uuid;
+
+    // 找出所有关注了该用户的人
+    const followersList = [];
+    for (const [follower, followingSet] of follows.entries()) {
+      if (followingSet.has(user_uuid)) {
+        followersList.push(follower);
+      }
+    }
+
+    // 分页
+    const startIndex = (parseInt(page) - 1) * parseInt(pageSize);
+    const endIndex = startIndex + parseInt(pageSize);
+    const paginatedList = followersList.slice(startIndex, endIndex);
+
+    // 获取用户详情
+    const followersUsers = paginatedList.map(uuid => {
+      const user = Array.from(users.values()).find(u => u.uuid === uuid);
+      const currentUserFollowingSet = follows.get(current_user_uuid) || new Set();
+      return user ? {
+        uuid: user.uuid,
+        phone: user.phone,
+        username: user.username || user.phone,
+        nickname: user.phone || `用户${user.id}`,
+        avatar: '👤',
+        is_following: currentUserFollowingSet.has(uuid),
+        followers_count: getFollowersCount(uuid)
+      } : null;
+    }).filter(Boolean);
+
+    return res.json({
+      status: true,
+      data: {
+        list: followersUsers,
+        total: followersList.length,
+        page: parseInt(page),
+        pageSize: parseInt(pageSize),
+        totalPages: Math.ceil(followersList.length / parseInt(pageSize))
+      }
+    });
+  } catch (error) {
+    log.error('获取粉丝列表失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '获取粉丝列表失败'
+    });
+  }
+});
+
+// 检查关注状态
+app.get('/api/follow/status/:target_uuid', authenticateToken, (req, res) => {
+  try {
+    const { target_uuid } = req.params;
+    const follower_uuid = req.user.uuid;
+
+    const followingSet = follows.get(follower_uuid) || new Set();
+    const is_following = followingSet.has(target_uuid);
+
+    return res.json({
+      status: true,
+      data: {
+        is_following,
+        followers_count: getFollowersCount(target_uuid),
+        following_count: followingSet.size
+      }
+    });
+  } catch (error) {
+    log.error('检查关注状态失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '检查关注状态失败'
+    });
+  }
+});
+
+// 辅助函数：获取用户的粉丝数
+function getFollowersCount(user_uuid) {
+  let count = 0;
+  for (const followingSet of follows.values()) {
+    if (followingSet.has(user_uuid)) {
+      count++;
+    }
+  }
+  return count;
+}
 
 // Socket.IO处理
 io.on('connection', (socket) => {

@@ -254,6 +254,34 @@ export const userApi = {
         addComment: (uuid, content, token) => 
           apiService.authenticatedPost(`/api/moment/${uuid}/comments`, { content }, token),
 
+  // ========== 关注功能 ==========
+  
+  // 关注/取消关注用户
+  followUser: (target_uuid, token) => 
+    apiService.authenticatedPost(`/api/follow/${target_uuid}`, {}, token),
+  
+  // 获取关注列表
+  getFollowingList: (user_uuid, params = {}, token) => {
+    const queryString = new URLSearchParams({
+      page: params.page || 1,
+      pageSize: params.pageSize || 20
+    }).toString();
+    return apiService.authenticatedGet(`/api/follow/following/${user_uuid || ''}?${queryString}`, token);
+  },
+  
+  // 获取粉丝列表
+  getFollowersList: (user_uuid, params = {}, token) => {
+    const queryString = new URLSearchParams({
+      page: params.page || 1,
+      pageSize: params.pageSize || 20
+    }).toString();
+    return apiService.authenticatedGet(`/api/follow/followers/${user_uuid || ''}?${queryString}`, token);
+  },
+  
+  // 检查关注状态
+  checkFollowStatus: (target_uuid, token) => 
+    apiService.authenticatedGet(`/api/follow/status/${target_uuid}`, token),
+
   // 获取用户信息
   getUser: (uuid, token) => 
     apiService.authenticatedGet(API_CONFIG.ENDPOINTS.USER.GET_USER(uuid), token),

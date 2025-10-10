@@ -28,10 +28,53 @@ export default function MomentDetailScreen({ route, navigation }) {
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
   const [showImagePreview, setShowImagePreview] = useState(false);
   const [previewImage, setPreviewImage] = useState(null);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
 
   useEffect(() => {
     loadComments();
+    checkFollowStatus();
   }, []);
+
+  // 检查关注状态
+  const checkFollowStatus = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await userApi.checkFollowStatus(momentData.author.uuid, token);
+      if (response.status) {
+        setIsFollowing(response.data.is_following);
+      }
+    } catch (error) {
+      console.error('检查关注状态失败:', error);
+    }
+  };
+
+  // 关注/取消关注
+  const handleFollow = async () => {
+    try {
+      setIsFollowLoading(true);
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        Alert.alert('错误', '请先登录');
+        return;
+      }
+
+      const response = await userApi.followUser(momentData.author.uuid, token);
+      if (response.status) {
+        setIsFollowing(response.data.is_following);
+        Alert.alert('成功', response.message);
+      } else {
+        Alert.alert('错误', response.message || '操作失败');
+      }
+    } catch (error) {
+      console.error('关注操作失败:', error);
+      Alert.alert('错误', '网络错误，请重试');
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
 
   // 加载评论列表
   const loadComments = async () => {
@@ -185,8 +228,14 @@ export default function MomentDetailScreen({ route, navigation }) {
                 <Text style={styles.time}>{formatTime(momentData.created_at)}</Text>
               </View>
             </View>
-            <TouchableOpacity style={styles.followButton}>
-              <Text style={styles.followButtonText}>关注</Text>
+            <TouchableOpacity 
+              style={[styles.followButton, isFollowing && styles.followingButton]}
+              onPress={handleFollow}
+              disabled={isFollowLoading}
+            >
+              <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
+                {isFollowLoading ? '...' : (isFollowing ? '已关注' : '关注')}
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -395,10 +444,16 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 20,
   },
+  followingButton: {
+    backgroundColor: '#E0E0E0',
+  },
   followButtonText: {
     color: 'white',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  followingButtonText: {
+    color: '#666',
   },
   content: {
     fontSize: 16,

@@ -5,6 +5,14 @@ import { log } from '../config/logger.js';
 // 内存存储动态数据
 const moments = new Map();
 
+// 全局关注数据（由 server-simple.js 注入）
+let globalFollows = null;
+
+// 设置全局关注数据
+export const setGlobalFollows = (follows) => {
+  globalFollows = follows;
+};
+
 // 导出动态数据供管理员使用
 export const getMoments = () => moments;
 
@@ -88,7 +96,8 @@ router.get('/list', authenticateToken, async (req, res) => {
       page = 1, 
       pageSize = 10, 
       status = 'approved', // 默认只显示已审核的动态
-      privacy = 'public'   // 默认只显示公开动态
+      privacy = 'public',   // 默认只显示公开动态
+      type = 'latest'       // 动态类型: latest(最新) / following(关注)
     } = req.query;
     
     const current_user_uuid = req.user.uuid; // 当前用户UUID
@@ -106,6 +115,14 @@ router.get('/list', authenticateToken, async (req, res) => {
     // 隐私筛选
     if (privacy && privacy !== 'all') {
       filteredMoments = filteredMoments.filter(moment => moment.privacy === privacy);
+    }
+
+    // 关注筛选
+    if (type === 'following' && globalFollows) {
+      const followingSet = globalFollows.get(current_user_uuid) || new Set();
+      filteredMoments = filteredMoments.filter(moment => 
+        followingSet.has(moment.user_uuid) || moment.user_uuid === current_user_uuid
+      );
     }
 
     // 分页

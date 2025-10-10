@@ -875,6 +875,8 @@ app.post('/api/follow/:target_uuid', authenticateToken, (req, res) => {
     // 检查目标用户是否存在
     const targetUser = Array.from(users.values()).find(u => u.uuid === target_uuid);
     if (!targetUser) {
+      log.error(`目标用户不存在: ${target_uuid}`);
+      log.error(`当前用户列表: ${Array.from(users.values()).map(u => ({ phone: u.phone, uuid: u.uuid }))}`);
       return res.status(404).json({
         status: false,
         message: '目标用户不存在'

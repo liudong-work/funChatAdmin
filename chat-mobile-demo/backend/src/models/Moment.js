@@ -8,78 +8,91 @@ const Moment = sequelize.define('Moment', {
     autoIncrement: true
   },
   uuid: {
-    type: DataTypes.STRING,
+    type: DataTypes.STRING(50),
     allowNull: false,
-    unique: true
+    unique: true,
+    comment: '动态UUID'
   },
   user_id: {
     type: DataTypes.INTEGER,
     allowNull: false,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
+    comment: '用户ID'
   },
   content: {
     type: DataTypes.TEXT,
-    allowNull: false
+    allowNull: false,
+    comment: '动态内容'
   },
   images: {
     type: DataTypes.JSON,
     allowNull: true,
-    defaultValue: []
+    comment: '图片列表'
   },
-  privacy: {
+  location: {
+    type: DataTypes.STRING(255),
+    allowNull: true,
+    comment: '位置'
+  },
+  visibility: {
     type: DataTypes.ENUM('public', 'friends', 'private'),
-    allowNull: false,
-    defaultValue: 'public'
+    defaultValue: 'public',
+    comment: '可见性'
   },
   status: {
-    type: DataTypes.ENUM('pending', 'approved', 'rejected'),
-    allowNull: false,
-    defaultValue: 'pending'
+    type: DataTypes.ENUM('pending', 'approved', 'rejected', 'published', 'draft', 'deleted'),
+    defaultValue: 'pending',
+    comment: '状态'
   },
   likes_count: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 0
+    defaultValue: 0,
+    comment: '点赞数'
   },
   comments_count: {
     type: DataTypes.INTEGER,
-    allowNull: false,
-    defaultValue: 0
+    defaultValue: 0,
+    comment: '评论数'
   },
-  created_at: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW
-  },
-  updated_at: {
-    type: DataTypes.DATE,
-    allowNull: false,
-    defaultValue: DataTypes.NOW
+  shares_count: {
+    type: DataTypes.INTEGER,
+    defaultValue: 0,
+    comment: '分享数'
   },
   reviewed_at: {
     type: DataTypes.DATE,
-    allowNull: true
+    allowNull: true,
+    comment: '审核时间'
   },
   reviewed_by: {
     type: DataTypes.INTEGER,
     allowNull: true,
-    references: {
-      model: 'users',
-      key: 'id'
-    }
+    comment: '审核人ID'
   },
   review_comment: {
     type: DataTypes.TEXT,
-    allowNull: true
+    allowNull: true,
+    comment: '审核备注'
   }
 }, {
   tableName: 'moments',
   timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at'
+  underscored: true,
+  paranoid: true,
+  indexes: [
+    {
+      unique: true,
+      fields: ['uuid']
+    },
+    {
+      fields: ['user_id']
+    },
+    {
+      fields: ['status']
+    },
+    {
+      fields: ['created_at']
+    }
+  ]
 });
 
 export default Moment;

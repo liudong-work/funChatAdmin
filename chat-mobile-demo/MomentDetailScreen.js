@@ -88,7 +88,7 @@ export default function MomentDetailScreen({ route, navigation }) {
 
       const response = await userApi.getComments(momentData.uuid, {}, token);
       if (response.status) {
-        setComments(response.data.comments);
+        setComments(response.data.list || []);
       } else {
         Alert.alert('错误', response.message || '加载评论失败');
       }
@@ -301,7 +301,7 @@ export default function MomentDetailScreen({ route, navigation }) {
         <View style={styles.commentSection}>
           <Text style={styles.commentTitle}>评论</Text>
           
-          {comments.length === 0 ? (
+          {(!comments || comments.length === 0) ? (
             <View style={styles.emptyComments}>
               <Text style={styles.emptyCommentIcon}>💬</Text>
               <Text style={styles.emptyCommentText}>还没有评论,来和TA互动一下吧~</Text>

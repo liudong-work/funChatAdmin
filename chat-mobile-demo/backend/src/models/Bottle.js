@@ -70,13 +70,13 @@ const Bottle = sequelize.define('Bottle', {
       unique: true
     },
     {
-      fields: ['sender_id']
+      fields: ['sender_uuid']
+    },
+    {
+      fields: ['receiver_uuid']
     },
     {
       fields: ['status']
-    },
-    {
-      fields: ['caught_by']
     }
   ]
 });

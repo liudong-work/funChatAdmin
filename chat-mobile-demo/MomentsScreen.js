@@ -41,13 +41,13 @@ export default function MomentsScreen({ navigation }) {
       const response = await userApi.getMoments({
         page: pageNum,
         pageSize: 10,
-        status: 'approved',
+        status: 'published',
         privacy: 'public',
         type: activeTab === 'follow' ? 'following' : 'latest' // 根据Tab类型筛选
       }, token);
 
       if (response.status) {
-        const newMoments = response.data.list;
+        const newMoments = response.data.list || [];
         
         if (isRefresh || pageNum === 1) {
           setMoments(newMoments);

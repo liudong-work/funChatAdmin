@@ -68,7 +68,7 @@ export default function HomeScreen({ navigation }) {
         const apiBottle = {
           id: res.data.uuid,
           message: res.data.content,
-          author: '陌生人',
+          author: res.data.sender_nickname || '陌生人',
           mood: res.data.mood || '🍀',
           sender_uuid: res.data.sender_uuid,
         };

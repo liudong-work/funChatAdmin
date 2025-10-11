@@ -1,242 +1,223 @@
-# 📚 数据库迁移指南
+# 数据库迁移指南
 
 ## 📋 概述
 
-本项目已从**内存存储**迁移到**MySQL数据库**，实现数据持久化存储。
+项目已成功从内存存储迁移到MySQL数据库。本指南将帮助你了解新的数据库架构和使用方法。
 
-## 🗄️ 数据库信息
+## 🗄️ 数据库架构
 
-- **数据库类型**: MySQL 8.0+
-- **ORM框架**: Sequelize
-- **数据库名**: drift_bottle
-- **字符集**: utf8mb4
+### 已创建的表
 
-## 🚀 快速开始
+| 表名 | 说明 | 主要字段 |
+|------|------|---------|
+| `users` | 用户表 | id, uuid, phone, nickname, avatar, bio, status |
+| `moments` | 动态表 | id, uuid, user_id, content, images, likes_count, comments_count |
+| `comments` | 评论表 | id, uuid, moment_id, user_id, content, reply_to_id |
+| `likes` | 点赞表 | id, user_id, target_type, target_id |
+| `follows` | 关注表 | id, follower_id, following_id, status |
+| `messages` | 消息表 | id, uuid, sender_id, receiver_id, content, is_read |
+| `bottles` | 漂流瓶表 | id, uuid, sender_uuid, receiver_uuid, content, status |
 
-### 1. 安装MySQL
+### 模型关联
 
-#### macOS (使用Homebrew)
+- **User ↔ Moment**: 一对多（一个用户可以发布多条动态）
+- **User ↔ Comment**: 一对多（一个用户可以发布多条评论）
+- **Moment ↔ Comment**: 一对多（一条动态可以有多条评论）
+- **User ↔ User (Follow)**: 多对多（用户之间的关注关系）
+- **User ↔ Message**: 一对多（用户之间的消息）
+
+## 🚀 启动服务器
+
+### 使用新的数据库服务器
+
 ```bash
-brew install mysql
-brew services start mysql
+cd backend
+node src/server-with-db.js
 ```
 
-#### 使用Docker
-```bash
-docker run --name mysql \
-  -e MYSQL_ROOT_PASSWORD=password \
-  -p 3306:3306 \
-  -d mysql:8.0
-```
-
-### 2. 创建数据库
-
-```bash
-# 登录MySQL
-mysql -u root -p
-
-# 执行初始化脚本
-source /Users/liudong/Desktop/myGitProgect/appdemo/chat-mobile-demo/backend/init-database.sql
-```
-
-或直接执行：
-```bash
-mysql -u root -p < backend/init-database.sql
-```
-
-### 3. 配置环境变量
-
-编辑 `backend/.env` 文件，设置数据库连接信息：
-
-```env
-# MySQL 数据库配置
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_NAME=drift_bottle
-DB_USER=root
-DB_PASSWORD=your_password_here  # 设置你的MySQL密码
-```
-
-### 4. 启动服务器
+### 使用旧的内存服务器（兼容）
 
 ```bash
 cd backend
 node src/server-simple.js
 ```
 
-服务器会自动：
-1. 连接数据库
-2. 同步数据模型
-3. 创建/更新表结构
+## 🔧 配置
 
-## 📊 数据库表结构
+### 环境变量 (.env)
 
-### 核心表
+```env
+# 数据库配置
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_NAME=drift_bottle
+DB_USER=root
+DB_PASSWORD=12345678
 
-| 表名 | 说明 | 主要字段 |
-|------|------|---------|
-| `users` | 用户表 | uuid, phone, username, status |
-| `bottles` | 漂流瓶表 | uuid, content, sender_uuid, receiver_uuid, status |
-| `conversations` | 对话表 | uuid, user1_uuid, user2_uuid |
-| `messages` | 消息表 | uuid, conversation_uuid, sender_uuid, content, type |
-| `moments` | 动态表 | uuid, user_uuid, content, images, status |
-| `admins` | 管理员表 | id, username, password, role |
-| `verification_codes` | 验证码表 | phone, code, type, expires_at |
+# 应用配置
+NODE_ENV=development
+PORT=8889
+HOST=0.0.0.0
 
-### 表关系
-
-```
-users (1) ----< (N) bottles (sender_uuid)
-users (1) ----< (N) moments (user_uuid)
-users (1) ----< (N) messages (sender_uuid)
-conversations (1) ----< (N) messages (conversation_uuid)
-bottles (1) ----< (N) messages (bottle_uuid)
+# JWT配置
+JWT_SECRET=drift_bottle_jwt_secret_key_2024
+JWT_EXPIRES_IN=7d
 ```
 
-## 🔄 数据迁移状态
+## 📦 数据库初始化
 
-### ✅ 已完成
-- [x] 安装MySQL依赖包 (mysql2, sequelize)
-- [x] 创建数据库配置文件
-- [x] 设计数据库表结构
-- [x] 创建Sequelize数据模型
-- [x] 定义模型关联关系
+### 首次设置
 
-### 🔄 进行中
-- [ ] 迁移漂流瓶API到数据库存储
-- [ ] 迁移用户API到数据库存储
-- [ ] 迁移消息API到数据库存储
-- [ ] 迁移动态API到数据库存储
+1. 确保MySQL服务器正在运行
+2. 创建数据库（如果尚未创建）:
+   ```bash
+   mysql -u root -p -e "CREATE DATABASE drift_bottle CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+   ```
 
-### ⏳ 待完成
-- [ ] 测试数据库功能
-- [ ] 验证数据持久化
-- [ ] 性能优化
-- [ ] 数据备份方案
+3. 运行数据库初始化脚本:
+   ```bash
+   node init-database.js
+   ```
 
-## 📝 使用说明
+### 重置数据库
 
-### 查询示例
+如果需要重置数据库：
 
-```javascript
-// 导入模型
-import { User, Bottle, Message, Moment } from './models/index.js';
+```bash
+# 删除并重新创建数据库
+mysql -u root -p12345678 -e "DROP DATABASE drift_bottle; CREATE DATABASE drift_bottle CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 
-// 创建用户
-const user = await User.create({
-  phone: '13800138000',
-  username: '测试用户'
-});
-
-// 查询用户
-const users = await User.findAll({
-  where: { status: 'active' },
-  limit: 10
-});
-
-// 创建漂流瓶
-const bottle = await Bottle.create({
-  sender_uuid: user.uuid,
-  content: '这是一个漂流瓶',
-  mood: 'happy',
-  status: 'sea'
-});
-
-// 查询漂流瓶（包含发送者信息）
-const bottles = await Bottle.findAll({
-  where: { status: 'sea' },
-  include: [{ model: User, as: 'sender' }],
-  limit: 10
-});
+# 重新初始化
+node init-database.js
 ```
 
-### 事务示例
+## 🔄 API变化
 
-```javascript
-import sequelize from './config/database.js';
+### 新增的数据库API
 
-const t = await sequelize.transaction();
+所有API都已迁移到使用数据库，主要包括：
 
-try {
-  // 在事务中执行多个操作
-  const user = await User.create({ phone: '13800138000' }, { transaction: t });
-  const bottle = await Bottle.create({ sender_uuid: user.uuid, content: 'Hello' }, { transaction: t });
-  
-  // 提交事务
-  await t.commit();
-} catch (error) {
-  // 回滚事务
-  await t.rollback();
-  throw error;
-}
+#### 用户认证
+- `POST /api/auth/register` - 用户注册
+- `POST /api/auth/login` - 用户登录
+- `GET /api/user/profile` - 获取用户信息
+- `PUT /api/user/profile` - 更新用户信息
+
+#### 关注功能
+- `POST /api/follow/:target_uuid` - 关注/取消关注
+- `GET /api/follow/following/:user_uuid?` - 获取关注列表
+- `GET /api/follow/followers/:user_uuid?` - 获取粉丝列表
+- `GET /api/follow/status/:target_uuid` - 检查关注状态
+
+#### 动态功能
+- `POST /api/moments/publish` - 发布动态
+- `GET /api/moments/list` - 获取动态列表
+- `GET /api/moments/:moment_uuid` - 获取动态详情
+- `POST /api/moments/:moment_uuid/like` - 点赞/取消点赞
+- `POST /api/moments/:moment_uuid/comment` - 评论动态
+- `GET /api/moments/user/:user_uuid` - 获取用户动态列表
+
+#### WebSocket消息
+- 所有WebSocket消息都会自动保存到数据库
+- 消息状态会实时更新（sent → delivered → read）
+
+## 🎯 主要改进
+
+### 1. **数据持久化**
+- 所有数据现在都存储在MySQL数据库中
+- 服务器重启后数据不会丢失
+
+### 2. **性能优化**
+- 使用数据库索引提高查询性能
+- 支持分页查询，避免一次性加载大量数据
+
+### 3. **数据一致性**
+- 使用外键约束保证数据完整性
+- 支持事务处理
+
+### 4. **可扩展性**
+- 易于添加新的字段和表
+- 支持复杂的查询和关联
+
+## 🔍 查询数据
+
+### 使用MySQL客户端
+
+```bash
+# 连接数据库
+mysql -u root -p12345678 drift_bottle
+
+# 查询用户
+SELECT * FROM users;
+
+# 查询动态
+SELECT m.*, u.nickname as author_name 
+FROM moments m 
+JOIN users u ON m.user_id = u.id 
+ORDER BY m.created_at DESC 
+LIMIT 10;
+
+# 查询关注关系
+SELECT 
+  u1.nickname as follower,
+  u2.nickname as following
+FROM follows f
+JOIN users u1 ON f.follower_id = u1.id
+JOIN users u2 ON f.following_id = u2.id
+WHERE f.status = 'active';
 ```
 
-## ⚠️ 注意事项
+## 📝 注意事项
 
-1. **首次运行**：
-   - 确保MySQL服务已启动
-   - 确保数据库 `drift_bottle` 已创建
-   - 确保`.env`文件中的数据库密码正确
+1. **数据迁移**: 旧的内存数据不会自动迁移到数据库，需要用户重新注册和创建数据
+2. **密码管理**: 确保 `.env` 文件的安全，不要提交到Git仓库
+3. **备份**: 定期备份数据库
+4. **索引**: 根据实际查询需求可能需要添加更多索引
 
-2. **数据迁移**：
-   - 旧的内存数据不会自动迁移
-   - 首次启动后，所有数据表将为空
-   - 用户需要重新注册
+## 🐛 故障排查
 
-3. **性能优化**：
-   - 已添加必要的索引
-   - 使用连接池管理数据库连接
-   - 建议定期清理过期数据
+### 数据库连接失败
 
-4. **备份建议**：
-   - 定期备份数据库
-   - 建议使用MySQL的自动备份功能
-   - 保留至少7天的备份
+```bash
+# 检查MySQL服务状态
+ps aux | grep mysql
 
-## 🔧 故障排除
-
-### 连接失败
+# 测试数据库连接
+mysql -u root -p12345678 -e "SELECT 1;"
 ```
-❌ 数据库连接失败: Error: connect ECONNREFUSED 127.0.0.1:3306
-```
-
-**解决方案**：
-1. 检查MySQL是否运行：`brew services list` 或 `docker ps`
-2. 检查端口是否正确：默认3306
-3. 检查密码是否正确
 
 ### 表不存在
-```
-❌ Table 'drift_bottle.users' doesn't exist
-```
 
-**解决方案**：
-1. 执行初始化脚本：`mysql -u root -p < backend/init-database.sql`
-2. 或让Sequelize自动创建：`sequelize.sync({ force: true })`（注意：这会删除所有数据）
-
-### 权限问题
-```
-❌ Access denied for user 'root'@'localhost'
+```bash
+# 重新运行初始化脚本
+node init-database.js
 ```
 
-**解决方案**：
-1. 检查用户名和密码
-2. 授予权限：`GRANT ALL PRIVILEGES ON drift_bottle.* TO 'root'@'localhost';`
+### 性能问题
 
-## 📚 相关文档
+```bash
+# 查看慢查询
+mysql -u root -p12345678 -e "SHOW PROCESSLIST;"
 
-- [Sequelize官方文档](https://sequelize.org/)
-- [MySQL官方文档](https://dev.mysql.com/doc/)
-- [项目API文档](./API_DOCUMENTATION.md)
+# 分析表
+mysql -u root -p12345678 drift_bottle -e "ANALYZE TABLE users, moments, comments, follows;"
+```
 
-## 🆘 获取帮助
+## 📚 相关文件
 
-如遇到问题，请：
-1. 检查本文档的故障排除部分
-2. 查看服务器日志：`backend/logs/drift-bottle.log`
-3. 查看MySQL日志
+- `src/server-with-db.js` - 新的数据库服务器
+- `src/server-simple.js` - 旧的内存服务器（兼容）
+- `src/models/index.js` - 数据库模型定义
+- `src/routes/moment-db.js` - 动态路由（数据库版本）
+- `init-database.js` - 数据库初始化脚本
+- `.env` - 环境变量配置
 
----
+## 🎉 总结
 
-最后更新：2025-10-10
+数据库迁移已完成！现在你可以：
+- ✅ 使用MySQL存储所有数据
+- ✅ 数据持久化，服务器重启不丢失
+- ✅ 更好的性能和可扩展性
+- ✅ 支持复杂的查询和关联
 
+如有问题，请查看日志文件：`logs/drift-bottle.log`

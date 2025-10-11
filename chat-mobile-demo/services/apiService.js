@@ -239,7 +239,7 @@ export const userApi = {
 
         // 点赞/取消点赞动态
         likeMoment: (uuid, token) => 
-          apiService.authenticatedPost(`/api/moment/like/${uuid}`, {}, token),
+          apiService.authenticatedPost(`/api/moment/${uuid}/like`, {}, token),
 
         // 获取动态评论列表
         getComments: (uuid, params = {}, token) => {
@@ -252,7 +252,7 @@ export const userApi = {
 
         // 添加评论
         addComment: (uuid, content, token) => 
-          apiService.authenticatedPost(`/api/moment/${uuid}/comments`, { content }, token),
+          apiService.authenticatedPost(`/api/moment/${uuid}/comment`, { content }, token),
 
   // ========== 关注功能 ==========
   

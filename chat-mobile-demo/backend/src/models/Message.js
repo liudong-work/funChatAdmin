@@ -3,87 +3,74 @@ import sequelize from '../config/database.js';
 
 const Message = sequelize.define('Message', {
   id: {
-    type: DataTypes.BIGINT,
-    autoIncrement: true,
+    type: DataTypes.INTEGER,
     primaryKey: true,
-    comment: '消息ID'
+    autoIncrement: true
   },
   uuid: {
-    type: DataTypes.STRING(100),
+    type: DataTypes.STRING(50),
     allowNull: false,
     unique: true,
     comment: '消息UUID'
   },
-  conversation_uuid: {
-    type: DataTypes.STRING(100),
+  sender_id: {
+    type: DataTypes.INTEGER,
     allowNull: false,
-    comment: '对话UUID'
+    comment: '发送者ID'
   },
-  sender_uuid: {
-    type: DataTypes.STRING(100),
+  receiver_id: {
+    type: DataTypes.INTEGER,
     allowNull: false,
-    comment: '发送者UUID'
+    comment: '接收者ID'
   },
-  receiver_uuid: {
-    type: DataTypes.STRING(100),
-    allowNull: false,
-    comment: '接收者UUID'
+  message_type: {
+    type: DataTypes.ENUM('text', 'image', 'audio', 'video', 'file'),
+    defaultValue: 'text',
+    comment: '消息类型'
   },
   content: {
     type: DataTypes.TEXT,
     allowNull: true,
     comment: '消息内容'
   },
-  type: {
-    type: DataTypes.ENUM('text', 'image', 'audio', 'video', 'file', 'bottle'),
-    defaultValue: 'text',
-    comment: '消息类型'
+  file_url: {
+    type: DataTypes.STRING(500),
+    allowNull: true,
+    comment: '文件URL'
+  },
+  is_read: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+    comment: '是否已读'
+  },
+  read_at: {
+    type: DataTypes.DATE,
+    allowNull: true,
+    comment: '阅读时间'
   },
   status: {
     type: DataTypes.ENUM('sent', 'delivered', 'read', 'deleted'),
     defaultValue: 'sent',
     comment: '消息状态'
-  },
-  bottle_uuid: {
-    type: DataTypes.STRING(100),
-    allowNull: true,
-    comment: '关联瓶子UUID'
-  },
-  media_url: {
-    type: DataTypes.STRING(500),
-    allowNull: true,
-    comment: '媒体文件URL'
   }
 }, {
   tableName: 'messages',
   timestamps: true,
-  createdAt: 'created_at',
-  updatedAt: 'updated_at',
-  deletedAt: 'deleted_at',
+  underscored: true,
   paranoid: true,
-  hooks: {
-    beforeCreate: (message) => {
-      if (!message.uuid) {
-        message.uuid = `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      }
-    }
-  },
   indexes: [
     {
-      fields: ['uuid'],
-      unique: true
+      unique: true,
+      fields: ['uuid']
     },
     {
-      fields: ['conversation_uuid']
+      fields: ['sender_id']
     },
     {
-      fields: ['sender_uuid']
+      fields: ['receiver_id']
     },
     {
-      fields: ['receiver_uuid']
-    },
-    {
-      fields: ['bottle_uuid']
+      fields: ['is_read']
     },
     {
       fields: ['created_at']
@@ -92,4 +79,3 @@ const Message = sequelize.define('Message', {
 });
 
 export default Message;
-

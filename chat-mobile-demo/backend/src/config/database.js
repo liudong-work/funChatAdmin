@@ -46,5 +46,5 @@ export const syncDatabase = async () => {
     return false;
   }
 };
-
 export default sequelize;
+

@@ -1,0 +1,95 @@
+# MySQL数据库连接信息
+
+## 基本信息
+主机地址 (Host): 127.0.0.1 或 localhost
+端口 (Port): 3306
+用户名 (Username): root
+密码 (Password): 12345678
+数据库 (Database): drift_bottle
+
+## 使用不同客户端连接（完全免费）
+
+### 1. MySQL Workbench (官方，推荐⭐⭐⭐⭐⭐)
+1. 打开MySQL Workbench
+2. 点击 "+" 创建新连接
+3. 填入以下信息：
+   - Connection Name: drift_bottle
+   - Hostname: 127.0.0.1
+   - Port: 3306
+   - Username: root
+   - Password: 点击"Store in Keychain"输入 12345678
+   - Default Schema: drift_bottle
+4. 点击 "Test Connection" 测试
+5. 点击 "OK" 保存
+
+### 2. Sequel Pro (Mac专用，完全免费⭐⭐⭐⭐)
+1. 打开Sequel Pro
+2. 选择 "Standard" 标签
+3. 填入：
+   - Host: 127.0.0.1
+   - Username: root
+   - Password: 12345678
+   - Database: drift_bottle
+   - Port: 3306
+4. 点击 "Connect"
+
+### 3. DBeaver Community Edition (跨平台，完全免费⭐⭐⭐⭐)
+1. 打开DBeaver
+2. 点击 "Database" -> "New Database Connection"
+3. 选择 "MySQL"
+4. 填入：
+   - Server Host: localhost
+   - Port: 3306
+   - Database: drift_bottle
+   - Username: root
+   - Password: 12345678
+5. 点击 "Test Connection"
+6. 点击 "Finish"
+
+## 常用查询语句
+
+-- 查看所有表
+SHOW TABLES;
+
+-- 查看所有用户
+SELECT id, uuid, phone, nickname, avatar, status, created_at FROM users;
+
+-- 查看所有动态
+SELECT m.id, m.uuid, m.content, m.likes_count, m.comments_count, 
+       u.nickname as author, m.created_at 
+FROM moments m 
+LEFT JOIN users u ON m.user_id = u.id 
+ORDER BY m.created_at DESC;
+
+-- 查看关注关系
+SELECT 
+    u1.nickname as follower_name,
+    u2.nickname as following_name,
+    f.created_at
+FROM follows f
+LEFT JOIN users u1 ON f.follower_id = u1.id
+LEFT JOIN users u2 ON f.following_id = u2.id
+WHERE f.status = 'active'
+ORDER BY f.created_at DESC;
+
+-- 查看所有消息
+SELECT 
+    m.id,
+    sender.nickname as from_user,
+    receiver.nickname as to_user,
+    m.content,
+    m.is_read,
+    m.created_at
+FROM messages m
+LEFT JOIN users sender ON m.sender_id = sender.id
+LEFT JOIN users receiver ON m.receiver_id = receiver.id
+ORDER BY m.created_at DESC;
+
+-- 统计信息
+SELECT 
+    (SELECT COUNT(*) FROM users) as total_users,
+    (SELECT COUNT(*) FROM moments) as total_moments,
+    (SELECT COUNT(*) FROM comments) as total_comments,
+    (SELECT COUNT(*) FROM follows WHERE status='active') as total_follows,
+    (SELECT COUNT(*) FROM messages) as total_messages;
+

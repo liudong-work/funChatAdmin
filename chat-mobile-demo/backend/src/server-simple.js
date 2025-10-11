@@ -147,26 +147,7 @@ import momentRouter, { setGlobalFollows } from './routes/moment.js';
 setGlobalFollows(follows);
 app.use('/api/moment', momentRouter);
 
-// 管理员路由
-import adminRouter, { setGlobalUsers } from './routes/admin.js';
-import adminMomentRouter from './routes/adminMoment.js';
-app.use('/api/admin', adminRouter);
-app.use('/api/admin/moments', adminMomentRouter);
-
-// 设置全局用户存储引用
-setGlobalUsers(users);
-
-// 健康检查
-app.get('/health', (req, res) => {
-  res.json({
-    status: true,
-    message: '漂流瓶服务器运行正常',
-    timestamp: new Date().toISOString(),
-    version: config.app.version
-  });
-});
-
-// 管理员登录接口
+// 管理员登录接口（必须在通用admin路由之前）
 app.post('/api/admin/login', (req, res) => {
   try {
     const { username, password } = req.body;
@@ -217,6 +198,25 @@ app.post('/api/admin/login', (req, res) => {
     });
   }
 });
+
+// 健康检查
+app.get('/health', (req, res) => {
+  res.json({
+    status: true,
+    message: '漂流瓶服务器运行正常',
+    timestamp: new Date().toISOString(),
+    version: config.app.version
+  });
+});
+
+// 管理员路由（在login接口之后）
+import adminRouter, { setGlobalUsers } from './routes/admin.js';
+import adminMomentRouter from './routes/adminMoment.js';
+app.use('/api/admin', adminRouter);
+app.use('/api/admin/moments', adminMomentRouter);
+
+// 设置全局用户存储引用
+setGlobalUsers(users);
 
 // 文件上传接口 - 使用 formidable
 app.post('/api/file', authenticateToken, async (req, res) => {

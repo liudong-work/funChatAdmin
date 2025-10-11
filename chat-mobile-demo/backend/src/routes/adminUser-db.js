@@ -82,13 +82,19 @@ router.get('/users', adminAuth, async (req, res) => {
     // 查询用户数据
     const { count, rows: users } = await User.findAndCountAll({
       where: whereCondition,
-      attributes: ['id', 'uuid', 'phone', 'username', 'nickname', 'email', 'avatar', 'status', 'created_at', 'last_login'],
-      order: [['created_at', 'DESC']],
+      attributes: ['id', 'uuid', 'phone', 'username', 'nickname', 'email', 'avatar', 'status', 'createdAt', 'last_login'],
+      order: [['createdAt', 'DESC']],
       offset,
       limit
     });
     
     log.info(`[管理] 数据库查询结果: 找到 ${count} 条用户记录`);
+    log.info(`[管理] 第一个用户原始数据:`, users[0] ? {
+      id: users[0].id,
+      username: users[0].username,
+      createdAt: users[0].createdAt,
+      last_login: users[0].last_login
+    } : '无用户数据');
     
     // 格式化数据
     const formattedUsers = users.map(user => ({
@@ -100,7 +106,7 @@ router.get('/users', adminAuth, async (req, res) => {
       email: user.email,
       avatar: user.avatar || '👤',
       status: user.status,
-      createdAt: user.created_at,
+      createdAt: user.createdAt,
       lastLogin: user.last_login
     }));
     
@@ -210,7 +216,7 @@ router.get('/users/:id', adminAuth, async (req, res) => {
       avatar: user.avatar || '👤',
       bio: user.bio,
       status: user.status,
-      createdAt: user.created_at,
+      createdAt: user.createdAt,
       lastLogin: user.last_login
     };
     
@@ -270,7 +276,7 @@ router.put('/users/:id', adminAuth, async (req, res) => {
         email: user.email,
         avatar: user.avatar,
         status: user.status,
-        createdAt: user.created_at,
+        createdAt: user.createdAt,
         lastLogin: user.last_login
       }
     });

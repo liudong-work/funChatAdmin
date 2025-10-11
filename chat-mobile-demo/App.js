@@ -18,6 +18,7 @@ import VoiceCallScreen from './VoiceCallScreen';
 import MomentsScreen from './MomentsScreen';
 import PublishMomentScreen from './PublishMomentScreen';
 import MomentDetailScreen from './MomentDetailScreen';
+import UserProfileScreen from './UserProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -134,6 +135,14 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         }}
       >
         {(props) => <MomentDetailScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="UserProfile" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <UserProfileScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );

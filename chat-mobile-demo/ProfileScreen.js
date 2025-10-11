@@ -155,12 +155,15 @@ export default function ProfileScreen({ onLogout, navigation }) {
       </View>
 
       <View style={styles.profileCard}>
-        <View style={styles.avatarContainer}>
+        <TouchableOpacity 
+          style={styles.avatarContainer}
+          onPress={() => navigation.navigate('UserProfile', { userUuid: userInfo.uuid })}
+        >
           <Text style={styles.avatar}>{userInfo.avatar}</Text>
-          <TouchableOpacity style={styles.editAvatarButton}>
-            <Text style={styles.editAvatarText}>编辑</Text>
-          </TouchableOpacity>
-        </View>
+          <View style={styles.editAvatarButton}>
+            <Text style={styles.editAvatarText}>查看</Text>
+          </View>
+        </TouchableOpacity>
         
         <Text style={styles.userName}>{userInfo.name}</Text>
         <Text style={styles.userPhone}>{userInfo.phone}</Text>

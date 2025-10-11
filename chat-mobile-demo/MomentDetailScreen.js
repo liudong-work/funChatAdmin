@@ -222,9 +222,13 @@ export default function MomentDetailScreen({ route, navigation }) {
         <View style={styles.momentCard}>
           <View style={styles.momentHeader}>
             <View style={styles.userInfo}>
-              <Text style={styles.userAvatar}>👤</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('UserProfile', { userUuid: momentData.author.uuid })}>
+                <Text style={styles.userAvatar}>👤</Text>
+              </TouchableOpacity>
               <View>
-                <Text style={styles.userName}>{momentData.author.nickname}</Text>
+                <TouchableOpacity onPress={() => navigation.navigate('UserProfile', { userUuid: momentData.author.uuid })}>
+                  <Text style={styles.userName}>{momentData.author.nickname}</Text>
+                </TouchableOpacity>
                 <Text style={styles.time}>{formatTime(momentData.created_at)}</Text>
               </View>
             </View>

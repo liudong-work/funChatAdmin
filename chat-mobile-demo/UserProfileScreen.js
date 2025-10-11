@@ -194,12 +194,12 @@ export default function UserProfileScreen({ route, navigation }) {
 
   // 查看关注列表
   const handleViewFollowing = () => {
-    navigation.navigate('FollowingList', { userUuid: userInfo.uuid });
+    navigation.navigate('FollowList', { type: 'following', userUuid: userInfo.uuid });
   };
 
   // 查看粉丝列表
   const handleViewFollowers = () => {
-    navigation.navigate('FollowersList', { userUuid: userInfo.uuid });
+    navigation.navigate('FollowList', { type: 'followers', userUuid: userInfo.uuid });
   };
 
   // 编辑个人资料

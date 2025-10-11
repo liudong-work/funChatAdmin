@@ -19,6 +19,8 @@ import MomentsScreen from './MomentsScreen';
 import PublishMomentScreen from './PublishMomentScreen';
 import MomentDetailScreen from './MomentDetailScreen';
 import UserProfileScreen from './UserProfileScreen';
+import FollowListScreen from './FollowListScreen';
+import EditProfileScreen from './EditProfileScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -143,6 +145,22 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         }}
       >
         {(props) => <UserProfileScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="FollowList" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <FollowListScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="EditProfile" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <EditProfileScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );

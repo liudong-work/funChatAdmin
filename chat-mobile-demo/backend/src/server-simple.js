@@ -84,9 +84,15 @@ const generateToken = (user) => {
 // 验证JWT token
 const verifyToken = (token) => {
   try {
-    return jwt.verify(token, config.jwt.secret);
+    const decoded = jwt.verify(token, config.jwt.secret);
+    log.debug('Token验证成功:', { userId: decoded.uuid, phone: decoded.phone });
+    return decoded;
   } catch (error) {
-    log.error('Token验证失败:', error);
+    log.error('Token验证失败:', { 
+      error: error.message, 
+      token: token ? token.substring(0, 20) + '...' : 'null',
+      expired: error.name === 'TokenExpiredError'
+    });
     return null;
   }
 };

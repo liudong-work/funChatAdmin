@@ -88,10 +88,18 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
             name: conv.otherUser.nickname,
             avatar: conv.otherUser.avatar,
             lastMessage: conv.lastMessage.content,
-            lastTime: new Date(conv.lastMessage.created_at).toLocaleTimeString('zh-CN', { 
-              hour: '2-digit', 
-              minute: '2-digit' 
-            }),
+            lastTime: (() => {
+              try {
+                const date = new Date(conv.lastMessage.created_at);
+                return isNaN(date.getTime()) ? '--:--' : date.toLocaleTimeString('zh-CN', { 
+                  hour: '2-digit', 
+                  minute: '2-digit' 
+                });
+              } catch (error) {
+                console.warn('[Messages] 时间格式化错误:', error);
+                return '--:--';
+              }
+            })(),
             unreadCount: conv.unreadCount || 0,
           };
         });
@@ -123,7 +131,14 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
         updated[existingIndex] = {
           ...updated[existingIndex],
           lastMessage,
-          lastTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          lastTime: (() => {
+            try {
+              return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            } catch (error) {
+              console.warn('[Messages] 当前时间格式化错误:', error);
+              return '--:--';
+            }
+          })(),
           unreadCount: (updated[existingIndex].unreadCount || 0) + 1,
         };
         // 移到最前面
@@ -136,7 +151,14 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
           name: senderName || '陌生人',
           avatar: '👤',
           lastMessage,
-          lastTime: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
+          lastTime: (() => {
+            try {
+              return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+            } catch (error) {
+              console.warn('[Messages] 当前时间格式化错误:', error);
+              return '--:--';
+            }
+          })(),
           unreadCount: 1,
         };
         return [newUser, ...prev];

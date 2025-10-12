@@ -305,10 +305,10 @@ export default function App() {
     console.log('处理新消息:', data);
     if (data && data.message) {
       const original = data.message;
-      // 在消息内容后追加测试标记，便于观察是否同步
+      // 处理消息数据
       const processed = {
         ...original,
-        content: `${original?.content || ''} [同步测试]`,
+        content: original?.content || '',
       };
       
       // 消息列表预览更新

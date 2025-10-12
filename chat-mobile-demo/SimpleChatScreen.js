@@ -52,10 +52,20 @@ export default function SimpleChatScreen() {
   };
 
   const formatTime = (date) => {
-    return date.toLocaleTimeString('zh-CN', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+    try {
+      const dateObj = new Date(date);
+      if (isNaN(dateObj.getTime())) {
+        console.warn('[SimpleChat] 无效的日期:', date);
+        return '--:--';
+      }
+      return dateObj.toLocaleTimeString('zh-CN', { 
+        hour: '2-digit', 
+        minute: '2-digit' 
+      });
+    } catch (error) {
+      console.error('[SimpleChat] 时间格式化错误:', error, '原始日期:', date);
+      return '--:--';
+    }
   };
 
   return (

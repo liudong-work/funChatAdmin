@@ -266,7 +266,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.replyButtonText}>回复</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.throwBackButton} onPress={resetFishing}>
-              <Text style={styles.throwBackButtonText}>扔回海里</Text>
+              <Text style={styles.throwBackButtonText}>重新捞瓶子</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

@@ -639,7 +639,15 @@ app.post('/api/message/send', authenticateToken, async (req, res) => {
   try {
     const { receiverId, content } = req.body;
     
+    log.info(`[SEND] 收到发送消息请求:`, {
+      senderUuid: req.user.uuid,
+      receiverId: receiverId,
+      content: content?.substring(0, 20) + '...',
+      hasContent: !!content
+    });
+    
     if (!receiverId || !content) {
+      log.warn('[SEND] 参数不完整:', { receiverId, content: !!content });
       return res.status(400).json({
         status: false,
         message: '参数不完整'
@@ -671,6 +679,13 @@ app.post('/api/message/send', authenticateToken, async (req, res) => {
       receiver_id: receiver.id,
       content: content.trim(),
       status: 'sent'
+    });
+    
+    log.info(`[SEND] 消息创建成功:`, {
+      messageUuid: message.uuid,
+      senderId: sender.id,
+      receiverId: receiver.id,
+      content: message.content
     });
 
     // 通过WebSocket发送消息

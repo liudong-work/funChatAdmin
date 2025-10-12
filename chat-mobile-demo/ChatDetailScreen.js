@@ -730,9 +730,18 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       }
 
       const currentUser = JSON.parse(userInfo);
+      
+      console.log('[SEND] 准备发送消息:', {
+        receiverId: user.sender_uuid || user.id,
+        content: inputText.trim(),
+        currentUserUuid: currentUser.uuid,
+        hasToken: !!token
+      });
 
       // 调用后端API发送消息
       const response = await messageApi.sendMessage(user.sender_uuid || user.id, inputText.trim(), token);
+      
+      console.log('[SEND] 后端响应:', response);
       
       if (response.status) {
         // 发送成功，添加到本地消息列表
@@ -809,9 +818,12 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     console.log('[ChatDetail] 消息对齐检查:', {
                       messageId: message.id,
                       messageUserId: message.user.id,
+                      messageUserIdType: typeof message.user.id,
                       currentUserUuid: currentUserUuid,
+                      currentUserUuidType: typeof currentUserUuid,
                       isMyMessage: isMyMessage,
-                      messageText: message.text?.substring(0, 20) + '...'
+                      messageText: message.text?.substring(0, 20) + '...',
+                      messageUserName: message.user.name
                     });
                     
                     // 调试日志：检查消息数据

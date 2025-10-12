@@ -57,27 +57,44 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
       const token = await AsyncStorage.getItem('authToken');
       const userInfo = await AsyncStorage.getItem('userInfo');
       
+      console.log('[MESSAGES] 调试信息:', {
+        hasToken: !!token,
+        hasUserInfo: !!userInfo,
+        userInfoContent: userInfo
+      });
+      
       if (!token || !userInfo) {
         console.warn('未找到认证信息，无法加载消息列表');
         return;
       }
 
       const user = JSON.parse(userInfo);
+      console.log('[MESSAGES] 解析后的用户信息:', user);
+      console.log('[MESSAGES] 用户UUID:', user.uuid);
+      
+      if (!user.uuid) {
+        console.error('[MESSAGES] 用户信息缺少UUID字段:', user);
+        return;
+      }
+      
       const response = await messageApi.getConversations(user.uuid, token);
       
       if (response.status && response.data.conversations) {
         // 转换后端数据格式为前端需要的格式
-        const conversationUsers = response.data.conversations.map(conv => ({
-          id: conv.other_user.uuid,
-          name: conv.other_user.nickname,
-          avatar: conv.other_user.avatar,
-          lastMessage: conv.last_message.content,
-          lastTime: new Date(conv.last_message.created_at).toLocaleTimeString('zh-CN', { 
-            hour: '2-digit', 
-            minute: '2-digit' 
-          }),
-          unreadCount: conv.unread_count || 0,
-        }));
+        const conversationUsers = response.data.conversations.map(conv => {
+          console.log('[MESSAGES] 处理对话数据:', conv);
+          return {
+            id: conv.otherUser.uuid,
+            name: conv.otherUser.nickname,
+            avatar: conv.otherUser.avatar,
+            lastMessage: conv.lastMessage.content,
+            lastTime: new Date(conv.lastMessage.created_at).toLocaleTimeString('zh-CN', { 
+              hour: '2-digit', 
+              minute: '2-digit' 
+            }),
+            unreadCount: conv.unreadCount || 0,
+          };
+        });
         
         setUsers(conversationUsers);
         console.log('消息列表加载成功:', conversationUsers.length, '个对话');

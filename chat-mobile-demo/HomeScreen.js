@@ -254,8 +254,8 @@ export default function HomeScreen({ navigation }) {
                   sender_uuid: currentBottle.sender_uuid,
                   bottleMessage: currentBottle.message,
                 };
-                // 关闭弹窗
-                setCurrentBottle(null);
+                // 不关闭弹窗，让用户可以继续看到瓶子内容
+                // setCurrentBottle(null); // 注释掉这行
                 // ChatDetail 在 Messages 栈中，需通过父Tab跳到嵌套栈的目标页
                 navigation && navigation.navigate && navigation.navigate('Messages', {
                   screen: 'ChatDetail',

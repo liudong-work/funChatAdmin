@@ -45,6 +45,37 @@ export default function HomeScreen({ navigation }) {
     return () => floatAnimation.stop();
   }, []);
 
+  // 从AsyncStorage加载当前瓶子
+  useEffect(() => {
+    const loadCurrentBottle = async () => {
+      try {
+        const savedBottle = await AsyncStorage.getItem('currentBottle');
+        if (savedBottle) {
+          setCurrentBottle(JSON.parse(savedBottle));
+        }
+      } catch (error) {
+        console.error('加载瓶子失败:', error);
+      }
+    };
+    loadCurrentBottle();
+  }, []);
+
+  // 当currentBottle变化时，保存到AsyncStorage
+  useEffect(() => {
+    const saveCurrentBottle = async () => {
+      try {
+        if (currentBottle) {
+          await AsyncStorage.setItem('currentBottle', JSON.stringify(currentBottle));
+        } else {
+          await AsyncStorage.removeItem('currentBottle');
+        }
+      } catch (error) {
+        console.error('保存瓶子失败:', error);
+      }
+    };
+    saveCurrentBottle();
+  }, [currentBottle]);
+
   // 捞瓶子动画
   const startFishing = async () => {
     if (requesting) return;

@@ -715,34 +715,47 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
       });
     }
 
+    // 先将UUID转换为数据库ID
+    const currentUser = await User.findOne({ where: { uuid: userId }, attributes: ['id', 'uuid'] });
+    if (!currentUser) {
+      return res.status(404).json({
+        status: false,
+        message: '用户不存在'
+      });
+    }
+
+    log.info(`[MESSAGE] 查询用户 ${currentUser.id} (${userId.slice(-8)}) 的对话列表`);
+
     // 获取所有与当前用户相关的对话（使用子查询避免GROUP BY问题）
     const conversations = await Message.findAll({
       where: {
         [Op.or]: [
-          { sender_id: userId },
-          { receiver_id: userId }
+          { sender_id: currentUser.id },
+          { receiver_id: currentUser.id }
         ]
       },
       include: [
         {
           model: User,
           as: 'sender',
-          attributes: ['uuid', 'nickname', 'avatar']
+          attributes: ['id', 'uuid', 'nickname', 'avatar']
         },
         {
           model: User,
           as: 'receiver',
-          attributes: ['uuid', 'nickname', 'avatar']
+          attributes: ['id', 'uuid', 'nickname', 'avatar']
         }
       ],
       order: [['created_at', 'DESC']]
     });
 
+    log.info(`[MESSAGE] 找到 ${conversations.length} 条消息记录`);
+
     // 整理对话列表（去重并获取最新消息）
     const conversationMap = new Map();
     conversations.forEach(msg => {
-      const otherUserId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
-      const otherUser = msg.sender_id === userId ? msg.receiver : msg.sender;
+      const otherUserId = msg.sender_id === currentUser.id ? msg.receiver_id : msg.sender_id;
+      const otherUser = msg.sender_id === currentUser.id ? msg.receiver : msg.sender;
       
       if (!conversationMap.has(otherUserId)) {
         conversationMap.set(otherUserId, {

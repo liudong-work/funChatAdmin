@@ -1158,8 +1158,26 @@ app.post('/api/bottle/fish', authenticateToken, async (req, res) => {
       picked_at: new Date()
     });
 
-    // 获取发送者信息
+    // 获取发送者和接收者的信息
     const sender = await User.findOne({ where: { uuid: bottle.sender_uuid } });
+    const receiver = await User.findOne({ where: { uuid: myUuid } });
+
+    // 自动创建一条瓶子消息记录到对话历史中
+    if (sender && receiver) {
+      try {
+        await Message.create({
+          sender_id: sender.id,
+          receiver_id: receiver.id,
+          content: `🌊 漂流瓶消息: ${bottle.content}`,
+          type: 'text',
+          status: 'sent'
+        });
+        log.info(`[BOTTLE] 瓶子消息已添加到对话历史: ${sender.id} -> ${receiver.id}`);
+      } catch (msgError) {
+        log.error('[BOTTLE] 创建瓶子消息失败:', msgError);
+        // 不影响捞瓶子的主流程，只记录错误
+      }
+    }
 
     return res.status(200).json({
       status: true,

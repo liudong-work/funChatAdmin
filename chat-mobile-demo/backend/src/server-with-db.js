@@ -789,17 +789,30 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
       });
     }
 
+    // 先将UUID转换为数据库ID
+    const user1 = await User.findOne({ where: { uuid: userId1 }, attributes: ['id', 'uuid'] });
+    const user2 = await User.findOne({ where: { uuid: userId2 }, attributes: ['id', 'uuid'] });
+    
+    if (!user1 || !user2) {
+      return res.status(404).json({
+        status: false,
+        message: '用户不存在'
+      });
+    }
+
+    log.info(`[MESSAGE] 查询对话历史: ${user1.id} (${userId1.slice(-8)}) <-> ${user2.id} (${userId2.slice(-8)})`);
+
     // 获取两个用户之间的所有消息
     const messages = await Message.findAll({
       where: {
         [Op.or]: [
           {
-            sender_id: userId1,
-            receiver_id: userId2
+            sender_id: user1.id,
+            receiver_id: user2.id
           },
           {
-            sender_id: userId2,
-            receiver_id: userId1
+            sender_id: user2.id,
+            receiver_id: user1.id
           }
         ]
       },
@@ -807,16 +820,31 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
         {
           model: User,
           as: 'sender',
-          attributes: ['uuid', 'nickname', 'avatar']
+          attributes: ['id', 'uuid', 'nickname', 'avatar']
         }
       ],
       order: [['created_at', 'ASC']]
     });
 
+    log.info(`[MESSAGE] 找到 ${messages.length} 条消息`);
+
+    // 格式化消息，确保字段正确
+    const formattedMessages = messages.map(msg => ({
+      uuid: msg.uuid,
+      content: msg.content,
+      message_type: msg.message_type,
+      sender_uuid: msg.sender ? msg.sender.uuid : null,
+      created_at: msg.created_at,
+      status: msg.status,
+      type: msg.message_type // 前端需要的字段
+    }));
+
     return res.status(200).json({
       status: true,
       message: '获取成功',
-      data: messages
+      data: {
+        messages: formattedMessages
+      }
     });
   } catch (error) {
     log.error('获取对话失败:', error);

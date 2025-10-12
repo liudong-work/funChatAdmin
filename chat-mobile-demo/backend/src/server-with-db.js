@@ -690,13 +690,29 @@ app.post('/api/message/send', authenticateToken, async (req, res) => {
 
     // 通过WebSocket发送消息
     const receiverSocket = connectedUsers.get(receiverId);
+    log.info(`[SEND] WebSocket推送检查:`, {
+      receiverId: receiverId,
+      hasReceiverSocket: !!receiverSocket,
+      connectedUsersCount: connectedUsers.size,
+      connectedUserIds: Array.from(connectedUsers.keys())
+    });
+    
     if (receiverSocket) {
-      receiverSocket.emit('new_message', {
-        messageUuid: message.uuid,
-        senderId: req.user.uuid,
-        content: message.content,
-        timestamp: message.created_at
-      });
+      const wsMessage = {
+        message: {
+          uuid: message.uuid,
+          sender_uuid: req.user.uuid,
+          receiver_uuid: receiverId,
+          content: message.content,
+          created_at: message.created_at,
+          type: 'text'
+        }
+      };
+      
+      receiverSocket.emit('new_message', wsMessage);
+      log.info(`[SEND] WebSocket消息已推送:`, wsMessage);
+    } else {
+      log.warn(`[SEND] 接收者不在线，无法推送消息: ${receiverId}`);
     }
 
     return res.status(201).json({

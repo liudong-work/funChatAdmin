@@ -277,7 +277,18 @@ export default function HomeScreen({ navigation }) {
             <TouchableOpacity
               style={styles.replyButton}
               onPress={() => {
-                if (!currentBottle) return;
+                if (!currentBottle) {
+                  console.log('[BOTTLE] 没有currentBottle，无法回复');
+                  Alert.alert('提示', '瓶子信息丢失，请重新捞瓶子');
+                  return;
+                }
+                
+                console.log('[BOTTLE] 准备回复瓶子:', {
+                  sender_uuid: currentBottle.sender_uuid,
+                  author: currentBottle.author,
+                  message: currentBottle.message
+                });
+                
                 const chatUser = {
                   id: currentBottle.sender_uuid || Date.now(),
                   name: currentBottle.author || '陌生人',
@@ -285,13 +296,22 @@ export default function HomeScreen({ navigation }) {
                   sender_uuid: currentBottle.sender_uuid,
                   bottleMessage: currentBottle.message,
                 };
+                
+                console.log('[BOTTLE] 跳转到聊天页面, chatUser:', chatUser);
+                
                 // 不关闭弹窗，让用户可以继续看到瓶子内容
                 // setCurrentBottle(null); // 注释掉这行
                 // ChatDetail 在 Messages 栈中，需通过父Tab跳到嵌套栈的目标页
-                navigation && navigation.navigate && navigation.navigate('Messages', {
-                  screen: 'ChatDetail',
-                  params: { user: chatUser },
-                });
+                if (navigation && navigation.navigate) {
+                  navigation.navigate('Messages', {
+                    screen: 'ChatDetail',
+                    params: { user: chatUser },
+                  });
+                  console.log('[BOTTLE] 导航命令已执行');
+                } else {
+                  console.error('[BOTTLE] navigation 对象不可用');
+                  Alert.alert('错误', '页面跳转失败');
+                }
               }}
             >
               <Text style={styles.replyButtonText}>回复</Text>

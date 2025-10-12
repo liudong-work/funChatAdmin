@@ -10,6 +10,14 @@ import { getBaseUrl } from './config/api.js';
 export default function ChatDetailScreen({ route, navigation, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
   const { user } = route.params;
   
+  console.log('[ChatDetail] 组件加载，接收到的user参数:', {
+    id: user?.id,
+    name: user?.name,
+    sender_uuid: user?.sender_uuid,
+    bottleMessage: user?.bottleMessage,
+    hasBottleMessage: !!user?.bottleMessage
+  });
+  
   // 辅助函数：处理图片 URL
   const getImageUrl = (url) => {
     if (!url) {

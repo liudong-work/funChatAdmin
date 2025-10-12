@@ -59,8 +59,12 @@ admins.set('admin', {
 
 // 创建上传目录
 const uploadsDir = path.join(process.cwd(), 'uploads');
+const avatarsDir = path.join(uploadsDir, 'avatars');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
+}
+if (!fs.existsSync(avatarsDir)) {
+  fs.mkdirSync(avatarsDir, { recursive: true });
 }
 
 // ========== 中间件配置 ==========
@@ -628,6 +632,101 @@ app.post('/api/admin/login', (req, res) => {
       error: error.message
     });
   }
+});
+
+// 头像上传API
+app.post('/api/user/avatar', authenticateToken, async (req, res) => {
+  const form = formidable({
+    uploadDir: avatarsDir,
+    keepExtensions: true,
+    maxFileSize: 5 * 1024 * 1024, // 5MB
+    filter: ({ name, originalFilename, mimetype }) => {
+      // 只允许图片文件
+      return mimetype && mimetype.includes('image/');
+    }
+  });
+
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      log.error('头像上传失败:', err);
+      return res.status(500).json({
+        status: false,
+        message: '头像上传失败'
+      });
+    }
+
+    const file = files.avatar || files.file;
+    if (!file) {
+      return res.status(400).json({
+        status: false,
+        message: '请选择头像文件'
+      });
+    }
+
+    try {
+      // 获取用户信息
+      const user = await User.findOne({ where: { uuid: req.user.uuid } });
+      if (!user) {
+        return res.status(404).json({
+          status: false,
+          message: '用户不存在'
+        });
+      }
+
+      // 生成新的文件名
+      const ext = path.extname(file.originalFilename || '');
+      const newFilename = `avatar_${user.uuid}_${Date.now()}${ext}`;
+      const newPath = path.join(avatarsDir, newFilename);
+
+      // 重命名文件
+      fs.rename(file.filepath, newPath, async (renameErr) => {
+        if (renameErr) {
+          log.error('头像文件重命名失败:', renameErr);
+          return res.status(500).json({
+            status: false,
+            message: '头像保存失败'
+          });
+        }
+
+        try {
+          // 删除旧头像文件（如果存在且不是默认emoji）
+          if (user.avatar && !user.avatar.startsWith('👤') && !user.avatar.startsWith('http')) {
+            const oldAvatarPath = path.join(uploadsDir, user.avatar.replace('/uploads/', ''));
+            if (fs.existsSync(oldAvatarPath)) {
+              fs.unlinkSync(oldAvatarPath);
+            }
+          }
+
+          // 更新用户头像URL
+          const avatarUrl = `/uploads/avatars/${newFilename}`;
+          await user.update({ avatar: avatarUrl });
+
+          log.info(`用户头像更新成功: ${user.uuid} -> ${avatarUrl}`);
+
+          res.json({
+            status: true,
+            message: '头像上传成功',
+            data: {
+              avatar: avatarUrl,
+              filename: newFilename
+            }
+          });
+        } catch (updateErr) {
+          log.error('更新用户头像失败:', updateErr);
+          res.status(500).json({
+            status: false,
+            message: '头像更新失败'
+          });
+        }
+      });
+    } catch (error) {
+      log.error('头像上传处理失败:', error);
+      res.status(500).json({
+        status: false,
+        message: '头像上传失败'
+      });
+    }
+  });
 });
 
 // ========== 管理用户API ==========

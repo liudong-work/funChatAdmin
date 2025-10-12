@@ -342,6 +342,44 @@ export const messageApi = {
   // 获取消息列表
   getMessages: (conversationId, token) => 
     apiService.authenticatedGet(API_CONFIG.ENDPOINTS.MESSAGE.GET_MESSAGES(conversationId), token),
+
+  // 头像上传
+  uploadAvatar: async (fileUri, fileName, mimeType, token) => {
+    try {
+      console.log('[AvatarAPI] 开始上传头像:', { fileUri, fileName, mimeType, hasToken: !!token });
+      
+      const formData = new FormData();
+      formData.append('avatar', {
+        uri: fileUri,
+        name: fileName || 'avatar.jpg',
+        type: mimeType || 'image/jpeg',
+      });
+
+      const url = buildUrl('/api/user/avatar');
+      console.log('[AvatarAPI] 上传URL:', url);
+
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+          // 不设置 Content-Type，让 fetch 自动设置
+        },
+        body: formData,
+      });
+
+      const result = await res.json();
+      console.log('[AvatarAPI] 上传结果:', { status: res.status, result });
+
+      if (!res.ok) {
+        throw new Error(result.message || `上传失败: ${res.status}`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[AvatarAPI] 上传失败:', error);
+      throw error;
+    }
+  },
 };
 
 // 文件上传API（用于语音等多媒体）

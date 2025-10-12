@@ -1,4 +1,5 @@
 import { DataTypes } from 'sequelize';
+import { v4 as uuidv4 } from 'uuid';
 import sequelize from '../config/database.js';
 
 const Message = sequelize.define('Message', {
@@ -58,6 +59,13 @@ const Message = sequelize.define('Message', {
   timestamps: true,
   underscored: true,
   paranoid: true,
+  hooks: {
+    beforeCreate: (message) => {
+      if (!message.uuid) {
+        message.uuid = uuidv4();
+      }
+    }
+  },
   indexes: [
     {
       unique: true,

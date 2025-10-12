@@ -1165,11 +1165,13 @@ app.post('/api/bottle/fish', authenticateToken, async (req, res) => {
     // 自动创建一条瓶子消息记录到对话历史中
     if (sender && receiver) {
       try {
+        const { v4: uuidv4 } = await import('uuid');
         await Message.create({
+          uuid: uuidv4(),
           sender_id: sender.id,
           receiver_id: receiver.id,
           content: `🌊 漂流瓶消息: ${bottle.content}`,
-          type: 'text',
+          message_type: 'text',
           status: 'sent'
         });
         log.info(`[BOTTLE] 瓶子消息已添加到对话历史: ${sender.id} -> ${receiver.id}`);

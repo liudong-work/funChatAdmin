@@ -188,17 +188,6 @@ export default function MomentsScreen({ navigation }) {
           <Text style={styles.actionIcon}>💬</Text>
           <Text style={styles.actionText}>{item.comments_count}</Text>
         </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={(e) => {
-            e.stopPropagation(); // 阻止事件冒泡到卡片点击
-            // 分享功能暂时不实现
-          }}
-        >
-          <Text style={styles.actionIcon}>🔄</Text>
-          <Text style={styles.actionText}>分享</Text>
-        </TouchableOpacity>
       </View>
     </TouchableOpacity>
   );

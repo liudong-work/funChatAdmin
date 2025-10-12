@@ -7,6 +7,19 @@ import { Moment, User } from '../models/index.js';
 
 const router = express.Router();
 
+// 状态映射函数：将英文状态转换为中文显示
+const getStatusText = (status) => {
+  const statusMap = {
+    'pending': '待审核',
+    'approved': '已通过',
+    'rejected': '已拒绝',
+    'published': '已发布',
+    'draft': '草稿',
+    'deleted': '已删除'
+  };
+  return statusMap[status] || status;
+};
+
 // 管理员认证中间件
 const adminAuth = (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -68,6 +81,7 @@ router.get('/pending', adminAuth, async (req, res) => {
       images: moment.images ? (typeof moment.images === 'string' ? JSON.parse(moment.images) : moment.images) : [],
       privacy: moment.visibility,
       status: moment.status,
+      statusText: getStatusText(moment.status),
       user_id: moment.user_id,
       created_at: moment.created_at,
       updated_at: moment.updated_at,
@@ -161,6 +175,7 @@ router.get('/all', adminAuth, async (req, res) => {
         images: images,
         privacy: moment.visibility,
         status: moment.status,
+        statusText: getStatusText(moment.status),
         user_id: moment.user_id,
         created_at: moment.created_at,
         updated_at: moment.updated_at,
@@ -295,6 +310,7 @@ router.get('/detail/:uuid', adminAuth, async (req, res) => {
       images: moment.images ? (typeof moment.images === 'string' ? JSON.parse(moment.images) : moment.images) : [],
       privacy: moment.visibility,
       status: moment.status,
+      statusText: getStatusText(moment.status),
       user_id: moment.user_id,
       created_at: moment.created_at,
       updated_at: moment.updated_at,

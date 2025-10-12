@@ -765,7 +765,9 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
     return res.status(200).json({
       status: true,
       message: '获取成功',
-      data: conversationList
+      data: {
+        conversations: conversationList
+      }
     });
   } catch (error) {
     log.error('获取对话列表失败:', error);

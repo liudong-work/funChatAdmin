@@ -326,8 +326,11 @@ export default function HomeScreen({ navigation }) {
       {/* 扔瓶子模态框 */}
       {showThrowModal && (
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <View style={styles.modalContent}>
+          <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>🍾 扔一个瓶子到海里</Text>
+            <Text style={styles.modalSubtitle}>写下你的心声，让它在海洋中漂流</Text>
+          </View>
             
 
             <View style={styles.messageInput}>
@@ -460,14 +463,13 @@ const styles = StyleSheet.create({
     top: height * 0.4,
     right: 20,
     flexDirection: 'column',
-    gap: 20,
   },
   
   // 功能按钮
   actionButton: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -477,6 +479,7 @@ const styles = StyleSheet.create({
     elevation: 12,
     borderWidth: 3,
     borderColor: 'rgba(255, 255, 255, 0.3)',
+    marginBottom: 20,
   },
   throwButton: {
     backgroundColor: '#4CAF50', // Green for throw
@@ -485,7 +488,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#FF9800', // Orange for fish
   },
   buttonIcon: {
-    fontSize: 30,
+    fontSize: 32,
     marginBottom: 4,
   },
   buttonText: {
@@ -505,17 +508,17 @@ const styles = StyleSheet.create({
     left: 20,
     right: 20,
     backgroundColor: 'white',
-    borderRadius: 20,
+    borderRadius: 24,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.25,
+    shadowRadius: 16,
+    elevation: 12,
     overflow: 'hidden',
   },
   bottleHeader: {
     backgroundColor: '#81C784',
-    padding: 15,
+    padding: 20,
     flexDirection: 'row',
     alignItems: 'center',
   },
@@ -529,7 +532,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
   bottleContent: {
-    padding: 20,
+    padding: 24,
     alignItems: 'center',
   },
   bottleMood: {
@@ -596,28 +599,40 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: 'white',
     margin: 20,
-    borderRadius: 20,
-    padding: 20,
+    borderRadius: 24,
+    padding: 0,
     maxHeight: '80%',
     width: '90%',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
+    shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.3,
-    shadowRadius: 20,
-    elevation: 10,
+    shadowRadius: 24,
+    elevation: 12,
+    overflow: 'hidden',
+  },
+  modalHeader: {
+    backgroundColor: '#F8F9FA',
+    padding: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E9ECEF',
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
     color: '#333',
     textAlign: 'center',
-    marginBottom: 20,
+    marginBottom: 8,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
   },
   
   
   // 消息输入
   messageInput: {
-    marginBottom: 20,
+    padding: 24,
   },
   inputLabel: {
     fontSize: 16,
@@ -625,13 +640,14 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
   textInput: {
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: 10,
-    padding: 15,
+    borderWidth: 2,
+    borderColor: '#E9ECEF',
+    borderRadius: 16,
+    padding: 16,
     fontSize: 16,
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: 'top',
+    backgroundColor: '#F8F9FA',
   },
   charCount: {
     fontSize: 12,
@@ -647,14 +663,15 @@ const styles = StyleSheet.create({
   // 模态框操作按钮
   modalActions: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    padding: 24,
+    backgroundColor: '#F8F9FA',
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginRight: 10,
+    backgroundColor: '#E9ECEF',
+    paddingVertical: 14,
+    borderRadius: 24,
+    marginRight: 12,
     alignItems: 'center',
   },
   cancelButtonText: {
@@ -665,9 +682,9 @@ const styles = StyleSheet.create({
   confirmButton: {
     flex: 1,
     backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginLeft: 10,
+    paddingVertical: 14,
+    borderRadius: 24,
+    marginLeft: 12,
     alignItems: 'center',
   },
   confirmButtonDisabled: {

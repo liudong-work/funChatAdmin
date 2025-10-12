@@ -1001,6 +1001,7 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
 
     // 获取所有与当前用户相关的对话（使用子查询避免GROUP BY问题）
     const conversations = await Message.findAll({
+      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'status', 'created_at', 'updated_at'],
       where: {
         [Op.or]: [
           { sender_id: currentUser.id },
@@ -1046,7 +1047,51 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
       }
     });
 
-    const conversationList = Array.from(conversationMap.values());
+    const conversationList = Array.from(conversationMap.values()).map(conv => {
+      // 获取原始消息对象（可能是Sequelize实例）
+      const rawMessage = conv.lastMessage;
+      const messageData = rawMessage.get ? rawMessage.get({ plain: true }) : rawMessage;
+      
+      log.info('[MESSAGE] 处理消息对象:', {
+        hasGet: !!rawMessage.get,
+        created_at_raw: rawMessage.created_at,
+        created_at_plain: messageData.created_at,
+        created_at_type: typeof messageData.created_at
+      });
+      
+      return {
+        otherUserId: conv.otherUserId,
+        otherUser: {
+          id: conv.otherUser.id,
+          uuid: conv.otherUser.uuid,
+          nickname: conv.otherUser.nickname,
+          avatar: conv.otherUser.avatar
+        },
+        lastMessage: {
+          uuid: messageData.uuid,
+          content: messageData.content,
+          created_at: messageData.created_at instanceof Date 
+            ? messageData.created_at.toISOString() 
+            : messageData.created_at,
+          sender_uuid: rawMessage.sender_id === currentUser.id ? currentUser.uuid : conv.otherUser.uuid
+        },
+        unreadCount: conv.unreadCount
+      };
+    });
+
+    // 添加调试日志，查看返回的数据结构
+    if (conversationList.length > 0) {
+      log.info('[MESSAGE] 返回对话列表示例:', {
+        count: conversationList.length,
+        firstConv: {
+          otherUserId: conversationList[0].otherUserId,
+          otherUserUuid: conversationList[0].otherUser?.uuid,
+          lastMessageContent: conversationList[0].lastMessage?.content,
+          lastMessageCreatedAt: conversationList[0].lastMessage?.created_at,
+          lastMessageCreatedAtType: typeof conversationList[0].lastMessage?.created_at
+        }
+      });
+    }
 
     return res.status(200).json({
       status: true,
@@ -1092,6 +1137,7 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
 
     // 获取两个用户之间的所有消息
     const messages = await Message.findAll({
+      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'status', 'created_at', 'updated_at'],
       where: {
         [Op.or]: [
           {
@@ -1117,15 +1163,31 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
     log.info(`[MESSAGE] 找到 ${messages.length} 条消息`);
 
     // 格式化消息，确保字段正确
-    const formattedMessages = messages.map(msg => ({
-      uuid: msg.uuid,
-      content: msg.content,
-      message_type: msg.message_type,
-      sender_uuid: msg.sender ? msg.sender.uuid : null,
-      created_at: msg.created_at,
-      status: msg.status,
-      type: msg.message_type // 前端需要的字段
-    }));
+    const formattedMessages = messages.map((msg, index) => {
+      const messageData = msg.get ? msg.get({ plain: true }) : msg;
+      
+      // 仅为前几条消息添加调试日志
+      if (index < 2) {
+        log.info(`[MESSAGE] 格式化消息 ${index}:`, {
+          uuid: messageData.uuid,
+          hasCreatedAt: !!messageData.created_at,
+          created_at: messageData.created_at,
+          created_at_type: typeof messageData.created_at
+        });
+      }
+      
+      return {
+        uuid: messageData.uuid,
+        content: messageData.content,
+        message_type: messageData.message_type,
+        sender_uuid: messageData.sender ? messageData.sender.uuid : null,
+        created_at: messageData.created_at instanceof Date 
+          ? messageData.created_at.toISOString() 
+          : messageData.created_at,
+        status: messageData.status,
+        type: messageData.message_type // 前端需要的字段
+      };
+    });
 
     return res.status(200).json({
       status: true,

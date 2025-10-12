@@ -91,7 +91,10 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
             lastTime: (() => {
               try {
                 const date = new Date(conv.lastMessage.created_at);
-                return isNaN(date.getTime()) ? '--:--' : date.toLocaleTimeString('zh-CN', { 
+                if (isNaN(date.getTime())) {
+                  return '--:--';
+                }
+                return date.toLocaleTimeString('zh-CN', { 
                   hour: '2-digit', 
                   minute: '2-digit' 
                 });

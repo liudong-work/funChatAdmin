@@ -9,6 +9,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import jwt from 'jsonwebtoken';
+import esClient, { MessageSearch, initializeIndexes } from './config/elasticsearch.js';
 
 // 导入配置
 import { config } from './config/config.js';
@@ -729,6 +730,112 @@ app.post('/api/user/avatar', authenticateToken, async (req, res) => {
   });
 });
 
+// 消息搜索API
+app.get('/api/message/search', authenticateToken, async (req, res) => {
+  try {
+    const {
+      q: query,
+      sender_id,
+      receiver_id,
+      message_type,
+      start_date,
+      end_date,
+      from = 0,
+      size = 20
+    } = req.query;
+
+    log.info(`[SEARCH] 消息搜索请求:`, {
+      query,
+      sender_id,
+      receiver_id,
+      message_type,
+      from,
+      size
+    });
+
+    const searchOptions = {
+      senderId: sender_id,
+      receiverId: receiver_id,
+      messageType: message_type,
+      startDate: start_date,
+      endDate: end_date,
+      from: parseInt(from),
+      size: parseInt(size)
+    };
+
+    const result = await MessageSearch.searchMessages(query, searchOptions);
+
+    res.json({
+      status: true,
+      message: '搜索成功',
+      data: {
+        total: result.total,
+        messages: result.messages,
+        pagination: {
+          from: parseInt(from),
+          size: parseInt(size),
+          hasMore: result.total > parseInt(from) + parseInt(size)
+        }
+      }
+    });
+  } catch (error) {
+    log.error('消息搜索失败:', error);
+    res.status(500).json({
+      status: false,
+      message: '搜索失败',
+      error: error.message
+    });
+  }
+});
+
+// 获取对话历史（从ES）
+app.get('/api/message/history/:userId1/:userId2', authenticateToken, async (req, res) => {
+  try {
+    const { userId1, userId2 } = req.params;
+    const { from = 0, size = 50 } = req.query;
+
+    // 验证权限
+    if (req.user.uuid !== userId1 && req.user.uuid !== userId2) {
+      return res.status(403).json({
+        status: false,
+        message: '无权限查看此对话'
+      });
+    }
+
+    log.info(`[HISTORY] 获取对话历史:`, {
+      userId1,
+      userId2,
+      from,
+      size
+    });
+
+    const messages = await MessageSearch.getConversationHistory(userId1, userId2, {
+      from: parseInt(from),
+      size: parseInt(size)
+    });
+
+    res.json({
+      status: true,
+      message: '获取成功',
+      data: {
+        messages,
+        pagination: {
+          from: parseInt(from),
+          size: parseInt(size),
+          hasMore: messages.length === parseInt(size)
+        }
+      }
+    });
+  } catch (error) {
+    log.error('获取对话历史失败:', error);
+    res.status(500).json({
+      status: false,
+      message: '获取对话历史失败',
+      error: error.message
+    });
+  }
+});
+
 // ========== 管理用户API ==========
 app.use('/api/admin', adminUserRoutes);
 
@@ -786,6 +893,42 @@ app.post('/api/message/send', authenticateToken, async (req, res) => {
       receiverId: receiver.id,
       content: message.content
     });
+
+    // 存储消息到Elasticsearch
+    try {
+      const esResult = await MessageSearch.saveMessage({
+        message_id: message.id,
+        uuid: message.uuid,
+        conversation_id: `${sender.id}_${receiver.id}`,
+        sender_id: sender.id.toString(),
+        sender_uuid: sender.uuid,
+        receiver_id: receiver.id.toString(),
+        receiver_uuid: receiver.uuid,
+        content: message.content,
+        message_type: 'text',
+        media_url: null,
+        media_type: null,
+        media_size: null,
+        media_name: null,
+        status: message.status,
+        is_read: false,
+        read_at: null,
+        created_at: message.created_at
+      });
+      
+      if (esResult) {
+        log.info(`[SEND] 消息已同步到ES: ${message.uuid}`);
+      } else {
+        log.error(`[SEND] ES同步返回false: ${message.uuid}`);
+      }
+    } catch (esError) {
+      log.error(`[SEND] 消息同步到ES失败:`, {
+        messageUuid: message.uuid,
+        error: esError.message,
+        stack: esError.stack
+      });
+      // 不影响主流程，继续执行
+    }
 
     // 通过WebSocket发送消息
     const receiverSocket = connectedUsers.get(receiverId);
@@ -1542,6 +1685,10 @@ async function startServer() {
       log.error('❌ 数据库连接失败，无法启动服务器');
       process.exit(1);
     }
+
+    // 初始化Elasticsearch
+    log.info('🔄 初始化Elasticsearch...');
+    await initializeIndexes();
 
     // 启动服务器
     server.listen(config.app.port, config.app.host, () => {

@@ -8,7 +8,8 @@ export interface Moment {
   content: string
   images: string[]
   privacy: 'public' | 'friends' | 'private'
-  status: 'pending' | 'approved' | 'rejected'
+  status: 'pending' | 'approved' | 'rejected' | 'published' | 'draft' | 'deleted'
+  statusText?: string
   user_id: number
   created_at: string
   updated_at: string

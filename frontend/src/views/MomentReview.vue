@@ -94,7 +94,7 @@
                   <a-space>
                     <span>{{ item.author.nickname }}</span>
                     <a-tag :color="getStatusColor(item.status)">
-                      {{ getStatusText(item.status) }}
+                      {{ item.statusText || getStatusText(item.status) }}
                     </a-tag>
                     <a-tag color="blue">
                       {{ getPrivacyText(item.privacy) }}
@@ -149,7 +149,7 @@
           <a-descriptions-item label="隐私设置">{{ getPrivacyText(currentMoment.privacy) }}</a-descriptions-item>
           <a-descriptions-item label="当前状态">
             <a-tag :color="getStatusColor(currentMoment.status)">
-              {{ getStatusText(currentMoment.status) }}
+              {{ currentMoment.statusText || getStatusText(currentMoment.status) }}
             </a-tag>
           </a-descriptions-item>
         </a-descriptions>
@@ -205,7 +205,7 @@
           <a-descriptions-item label="隐私设置">{{ getPrivacyText(currentMoment.privacy) }}</a-descriptions-item>
           <a-descriptions-item label="当前状态">
             <a-tag :color="getStatusColor(currentMoment.status)">
-              {{ getStatusText(currentMoment.status) }}
+              {{ currentMoment.statusText || getStatusText(currentMoment.status) }}
             </a-tag>
           </a-descriptions-item>
           <a-descriptions-item label="动态ID" :span="2">{{ currentMoment.uuid }}</a-descriptions-item>
@@ -440,7 +440,10 @@ const getStatusText = (status: string) => {
   const statusMap = {
     pending: '待审核',
     approved: '已通过',
-    rejected: '已拒绝'
+    rejected: '已拒绝',
+    published: '已发布',
+    draft: '草稿',
+    deleted: '已删除'
   }
   return statusMap[status as keyof typeof statusMap] || status
 }
@@ -449,7 +452,10 @@ const getStatusColor = (status: string) => {
   const colorMap = {
     pending: 'orange',
     approved: 'green',
-    rejected: 'red'
+    rejected: 'red',
+    published: 'blue',
+    draft: 'default',
+    deleted: 'gray'
   }
   return colorMap[status as keyof typeof colorMap] || 'default'
 }

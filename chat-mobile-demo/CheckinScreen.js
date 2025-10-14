@@ -89,7 +89,7 @@ const CheckinScreen = ({ navigation }) => {
     }
   };
 
-  // 渲染本周签到日历
+  // 渲染本周签到日历（花瓣样式）
   const renderWeekCalendar = () => {
     const days = ['日', '一', '二', '三', '四', '五', '六'];
     const today = new Date().getDay();
@@ -100,33 +100,37 @@ const CheckinScreen = ({ navigation }) => {
     return (
       <View style={styles.calendarContainer}>
         <Text style={styles.calendarTitle}>本周签到</Text>
-        <View style={styles.weekDays}>
-          {days.map((day, index) => {
-            const isToday = index === today;
-            const isChecked = isToday && todayCheckedIn;
-            
-            return (
-              <View key={index} style={styles.dayItem}>
-                <Text style={[
-                  styles.dayText,
-                  isToday && styles.todayText
+        <View style={styles.flowerContainer}>
+          <View style={styles.flowerCenter}>
+            <Text style={styles.flowerCenterText}>签到</Text>
+          </View>
+          <View style={styles.petalsContainer}>
+            {days.map((day, index) => {
+              const isToday = index === today;
+              const isChecked = isToday && todayCheckedIn;
+              
+              return (
+                <View key={index} style={[
+                  styles.petal,
+                  { transform: [{ rotate: `${index * 51.4}deg` }] }
                 ]}>
-                  {day}
-                </Text>
-                <View style={[
-                  styles.dayCircle,
-                  isChecked && styles.checkedCircle,
-                  isToday && !isChecked && styles.todayCircle
-                ]}>
-                  {isChecked ? (
-                    <Text style={styles.checkMark}>✓</Text>
-                  ) : (
-                    <Text style={styles.defaultIcon}>📅</Text>
-                  )}
+                  <View style={[
+                    styles.petalInner,
+                    isChecked && styles.petalChecked,
+                    isToday && !isChecked && styles.petalToday
+                  ]}>
+                    <Text style={[
+                      styles.petalText,
+                      isChecked && styles.petalTextChecked
+                    ]}>
+                      {day}
+                    </Text>
+                    {isChecked && <Text style={styles.petalCheckMark}>✓</Text>}
+                  </View>
                 </View>
-              </View>
-            );
-          })}
+              );
+            })}
+          </View>
         </View>
       </View>
     );
@@ -342,47 +346,89 @@ const styles = StyleSheet.create({
     color: '#333',
     marginBottom: 16,
   },
-  weekDays: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  dayItem: {
+  flowerContainer: {
     alignItems: 'center',
-    flex: 1,
+    justifyContent: 'center',
+    height: 200,
+    position: 'relative',
   },
-  dayText: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 8,
-  },
-  todayText: {
-    color: '#3b82f6',
-    fontWeight: '600',
-  },
-  dayCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 2,
-    borderColor: '#e5e7eb',
+  flowerCenter: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f8fafc',
+    borderWidth: 3,
+    borderColor: '#e2e8f0',
     justifyContent: 'center',
     alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  todayCircle: {
-    borderColor: '#3b82f6',
+  flowerCenterText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
   },
-  checkedCircle: {
+  petalsContainer: {
+    position: 'absolute',
+    width: 200,
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  petal: {
+    position: 'absolute',
+    width: 40,
+    height: 60,
+    alignItems: 'center',
+    justifyContent: 'flex-start',
+    top: 10,
+  },
+  petalInner: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#f1f5f9',
+    borderWidth: 2,
+    borderColor: '#e2e8f0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  petalChecked: {
     backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    borderColor: '#2563eb',
+    shadowColor: '#3b82f6',
+    shadowOpacity: 0.3,
   },
-  checkMark: {
-    fontSize: 20,
+  petalToday: {
+    borderColor: '#3b82f6',
+    borderWidth: 3,
+  },
+  petalText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  petalTextChecked: {
+    color: '#fff',
+  },
+  petalCheckMark: {
+    position: 'absolute',
+    fontSize: 12,
     color: '#fff',
     fontWeight: 'bold',
-  },
-  defaultIcon: {
-    fontSize: 16,
-    opacity: 0.6,
+    top: -2,
+    right: -2,
   },
   rulesCard: {
     backgroundColor: '#fff',

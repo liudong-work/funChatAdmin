@@ -89,48 +89,40 @@ const CheckinScreen = ({ navigation }) => {
     }
   };
 
-  // 渲染本周签到日历（花瓣样式）
+  // 渲染本周签到日历（任务中心风格）
   const renderWeekCalendar = () => {
-    const days = ['日', '一', '二', '三', '四', '五', '六'];
-    const today = new Date().getDay();
-    const continuousDays = pointsInfo?.continuous_days || 0;
-    const lastCheckinDate = pointsInfo?.last_checkin_date;
+    const days = ['今天', '明天', '10/16', '10/17', '10/18', '10/19', '10/20'];
+    const rewards = ['✓', '+20', '🎁', '+40', '+50', '🎁', '🎁'];
+    const today = 0; // 今天是第一个
     const todayCheckedIn = pointsInfo?.is_checked_in_today;
 
     return (
       <View style={styles.calendarContainer}>
-        <Text style={styles.calendarTitle}>本周签到</Text>
-        <View style={styles.flowerContainer}>
-          <View style={styles.flowerCenter}>
-            <Text style={styles.flowerCenterText}>签到</Text>
-          </View>
-          <View style={styles.petalsContainer}>
-            {days.map((day, index) => {
-              const isToday = index === today;
-              const isChecked = isToday && todayCheckedIn;
-              
-              return (
-                <View key={index} style={[
-                  styles.petal,
-                  { transform: [{ rotate: `${index * 51.4}deg` }] }
+        <View style={styles.weekDays}>
+          {days.map((day, index) => {
+            const isToday = index === today;
+            const isChecked = isToday && todayCheckedIn;
+            
+            return (
+              <View key={index} style={styles.dayItem}>
+                <View style={[
+                  styles.dayCircle,
+                  isChecked && styles.checkedCircle,
+                  isToday && !isChecked && styles.todayCircle
                 ]}>
-                  <View style={[
-                    styles.petalInner,
-                    isChecked && styles.petalChecked,
-                    isToday && !isChecked && styles.petalToday
-                  ]}>
-                    <Text style={[
-                      styles.petalText,
-                      isChecked && styles.petalTextChecked
-                    ]}>
-                      {day}
+                  {isChecked ? (
+                    <Text style={styles.checkMark}>✓</Text>
+                  ) : (
+                    <Text style={styles.rewardIcon}>
+                      {index === 1 ? '🐚' : index === 3 ? '🐚' : index === 4 ? '🐚' : '🎁'}
                     </Text>
-                    {isChecked && <Text style={styles.petalCheckMark}>✓</Text>}
-                  </View>
+                  )}
                 </View>
-              );
-            })}
-          </View>
+                <Text style={styles.dayText}>{day}</Text>
+                <Text style={styles.rewardText}>{rewards[index]}</Text>
+              </View>
+            );
+          })}
         </View>
       </View>
     );
@@ -150,77 +142,121 @@ const CheckinScreen = ({ navigation }) => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#fff" />
+      <StatusBar barStyle="light-content" backgroundColor="#3b82f6" />
       
       <ScrollView 
         style={styles.scrollView}
         showsVerticalScrollIndicator={false}
       >
-        {/* 头部卡片 */}
-        <View style={styles.headerCard}>
-          <View style={styles.pointsInfo}>
-            <Text style={styles.pointsLabel}>我的积分</Text>
-            <Text style={styles.pointsValue}>{pointsInfo?.points || 0}</Text>
-            <Text style={styles.totalPoints}>
-              累计获得 {pointsInfo?.total_points || 0} 积分
-            </Text>
+        {/* 货币显示栏 */}
+        <View style={styles.currencyBar}>
+          <View style={styles.currencyItem}>
+            <Text style={styles.starIcon}>⭐</Text>
+            <Text style={styles.currencyValue}>0</Text>
           </View>
-          
-          <View style={styles.streakInfo}>
-            <Text style={styles.streakLabel}>连续签到</Text>
-            <Text style={styles.streakValue}>{pointsInfo?.continuous_days || 0}</Text>
-            <Text style={styles.streakUnit}>天</Text>
+          <View style={styles.currencyItem}>
+            <Text style={styles.shellIcon}>🐚</Text>
+            <Text style={styles.currencyValue}>{pointsInfo?.points || 0}</Text>
           </View>
         </View>
 
-        {/* 签到按钮 */}
-        <TouchableOpacity
-          style={[
-            styles.checkinButton,
-            (pointsInfo?.is_checked_in_today || checking) && styles.checkinButtonDisabled
-          ]}
-          onPress={handleCheckin}
-          disabled={pointsInfo?.is_checked_in_today || checking}
-        >
-          {checking ? (
-            <ActivityIndicator size="small" color="#fff" />
-          ) : (
-            <>
-              <Text style={styles.checkinButtonText}>
-                {pointsInfo?.is_checked_in_today ? '今日已签到' : '立即签到'}
-              </Text>
-              {!pointsInfo?.is_checked_in_today && (
-                <Text style={styles.checkinButtonSubtext}>每日可获得 5 积分</Text>
-              )}
-            </>
-          )}
-        </TouchableOpacity>
-
-        {/* 本周签到日历 */}
-        {renderWeekCalendar()}
-
-        {/* 签到奖励规则 */}
-        <View style={styles.rulesCard}>
-          <Text style={styles.rulesTitle}>签到奖励规则</Text>
-          <View style={styles.ruleItem}>
-            <Text style={styles.ruleIcon}>🎁</Text>
-            <View style={styles.ruleContent}>
-              <Text style={styles.ruleText}>每日签到</Text>
-              <Text style={styles.ruleSubtext}>获得 5 积分</Text>
+        {/* 签到卡片 */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>签到 (1/7)</Text>
+            <View style={styles.cardActions}>
+              <TouchableOpacity style={styles.actionButton}>
+                <Text style={styles.actionButtonText}>补签列表</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[
+                  styles.actionButton,
+                  styles.checkinButton,
+                  (pointsInfo?.is_checked_in_today || checking) && styles.checkinButtonDisabled
+                ]}
+                onPress={handleCheckin}
+                disabled={pointsInfo?.is_checked_in_today || checking}
+              >
+                {checking ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <Text style={styles.checkinButtonText}>
+                    {pointsInfo?.is_checked_in_today ? '已签到' : '立即签到'}
+                  </Text>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={styles.ruleItem}>
-            <Text style={styles.ruleIcon}>⭐</Text>
-            <View style={styles.ruleContent}>
-              <Text style={styles.ruleText}>连续签到 3 天</Text>
-              <Text style={styles.ruleSubtext}>额外奖励 5 积分</Text>
+          
+          <Text style={styles.streakText}>
+            已经连续签到{pointsInfo?.continuous_days || 0}天
+          </Text>
+
+          {/* 签到日历 */}
+          {renderWeekCalendar()}
+        </View>
+
+        {/* 宝箱奖励卡片 */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>宝箱 (0/5)</Text>
+            <Text style={styles.activityValue}>当前活跃值0</Text>
+          </View>
+          
+          <View style={styles.treasureProgress}>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: '0%' }]} />
+              {[30, 60, 100, 150, 200].map((value, index) => (
+                <View key={index} style={[
+                  styles.treasureChest,
+                  { left: `${(index * 25)}%` }
+                ]}>
+                  <Text style={styles.chestIcon}>📦</Text>
+                  <Text style={styles.chestValue}>{value}</Text>
+                </View>
+              ))}
             </View>
           </View>
-          <View style={styles.ruleItem}>
-            <Text style={styles.ruleIcon}>🌟</Text>
-            <View style={styles.ruleContent}>
-              <Text style={styles.ruleText}>连续签到 7 天</Text>
-              <Text style={styles.ruleSubtext}>额外奖励 10 积分</Text>
+        </View>
+
+        {/* 任务卡片 */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Text style={styles.cardTitle}>任务 (0/3)</Text>
+          </View>
+          
+          <View style={styles.taskList}>
+            <View style={styles.taskItem}>
+              <Text style={styles.taskIcon}>🏠</Text>
+              <View style={styles.taskContent}>
+                <Text style={styles.taskTitle}>每日签到</Text>
+                <Text style={styles.taskReward}>贝壳+5 经验值+10</Text>
+              </View>
+              <TouchableOpacity style={styles.taskButton}>
+                <Text style={styles.taskButtonText}>去完成</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.taskItem}>
+              <Text style={styles.taskIcon}>💬</Text>
+              <View style={styles.taskContent}>
+                <Text style={styles.taskTitle}>发送1条消息</Text>
+                <Text style={styles.taskReward}>贝壳+10 经验值+20</Text>
+              </View>
+              <TouchableOpacity style={styles.taskButton}>
+                <Text style={styles.taskButtonText}>去完成</Text>
+              </TouchableOpacity>
+            </View>
+            
+            <View style={styles.taskItem}>
+              <Text style={styles.taskIcon}>🌊</Text>
+              <View style={styles.taskContent}>
+                <Text style={styles.taskTitle}>扔1个漂流瓶</Text>
+                <Text style={styles.taskReward}>贝壳+15 经验值+30</Text>
+              </View>
+              <TouchableOpacity style={styles.taskButton}>
+                <Text style={styles.taskButtonText}>去完成</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -232,7 +268,7 @@ const CheckinScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#f0f4f8',
   },
   loadingContainer: {
     flex: 1,
@@ -247,228 +283,211 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
-  headerCard: {
+  currencyBar: {
     backgroundColor: '#fff',
-    margin: 16,
-    padding: 24,
-    borderRadius: 16,
     flexDirection: 'row',
     justifyContent: 'space-between',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  pointsInfo: {
-    flex: 1,
-  },
-  pointsLabel: {
-    fontSize: 14,
-    color: '#666',
+    paddingHorizontal: 20,
+    paddingVertical: 12,
     marginBottom: 8,
-  },
-  pointsValue: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: '#3b82f6',
-    marginBottom: 4,
-  },
-  totalPoints: {
-    fontSize: 12,
-    color: '#999',
-  },
-  streakInfo: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingLeft: 24,
-    borderLeftWidth: 1,
-    borderLeftColor: '#e5e7eb',
-  },
-  streakLabel: {
-    fontSize: 12,
-    color: '#666',
-    marginBottom: 4,
-  },
-  streakValue: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    color: '#f59e0b',
-  },
-  streakUnit: {
-    fontSize: 12,
-    color: '#999',
-  },
-  checkinButton: {
-    backgroundColor: '#3b82f6',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 16,
-    alignItems: 'center',
-    shadowColor: '#3b82f6',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  checkinButtonDisabled: {
-    backgroundColor: '#9ca3af',
     shadowColor: '#000',
-    shadowOpacity: 0.1,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  checkinButtonText: {
+  currencyItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  starIcon: {
     fontSize: 20,
-    fontWeight: 'bold',
-    color: '#fff',
+    marginRight: 8,
   },
-  checkinButtonSubtext: {
-    fontSize: 14,
-    color: '#fff',
-    marginTop: 4,
-    opacity: 0.9,
+  shellIcon: {
+    fontSize: 18,
+    marginRight: 8,
   },
-  calendarContainer: {
+  currencyValue: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+  },
+  card: {
     backgroundColor: '#fff',
     marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 16,
+    marginBottom: 12,
+    borderRadius: 12,
+    padding: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.08,
     shadowRadius: 8,
-    elevation: 3,
+    elevation: 2,
   },
-  calendarTitle: {
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  cardTitle: {
     fontSize: 16,
     fontWeight: '600',
     color: '#333',
-    marginBottom: 16,
   },
-  flowerContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: 200,
-    position: 'relative',
+  cardActions: {
+    flexDirection: 'row',
+    gap: 8,
   },
-  flowerCenter: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f8fafc',
-    borderWidth: 3,
+  actionButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
     borderColor: '#e2e8f0',
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 10,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
-  flowerCenterText: {
-    fontSize: 14,
-    fontWeight: '600',
+  actionButtonText: {
+    fontSize: 12,
     color: '#64748b',
   },
-  petalsContainer: {
-    position: 'absolute',
-    width: 200,
-    height: 200,
-    alignItems: 'center',
-    justifyContent: 'center',
+  checkinButton: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
   },
-  petal: {
-    position: 'absolute',
+  checkinButtonDisabled: {
+    backgroundColor: '#9ca3af',
+    borderColor: '#9ca3af',
+  },
+  checkinButtonText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  streakText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 16,
+  },
+  activityValue: {
+    fontSize: 12,
+    color: '#666',
+  },
+  calendarContainer: {
+    marginTop: 8,
+  },
+  weekDays: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  dayItem: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  dayCircle: {
     width: 40,
-    height: 60,
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    top: 10,
-  },
-  petalInner: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#f1f5f9',
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f8fafc',
     borderWidth: 2,
     borderColor: '#e2e8f0',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
+    marginBottom: 8,
   },
-  petalChecked: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#2563eb',
-    shadowColor: '#3b82f6',
-    shadowOpacity: 0.3,
-  },
-  petalToday: {
+  todayCircle: {
     borderColor: '#3b82f6',
-    borderWidth: 3,
+    backgroundColor: '#eff6ff',
   },
-  petalText: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#64748b',
-    textAlign: 'center',
+  checkedCircle: {
+    backgroundColor: '#3b82f6',
+    borderColor: '#3b82f6',
   },
-  petalTextChecked: {
-    color: '#fff',
-  },
-  petalCheckMark: {
-    position: 'absolute',
-    fontSize: 12,
+  checkMark: {
+    fontSize: 18,
     color: '#fff',
     fontWeight: 'bold',
-    top: -2,
-    right: -2,
   },
-  rulesCard: {
-    backgroundColor: '#fff',
-    marginHorizontal: 16,
-    marginBottom: 16,
-    padding: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  rulesTitle: {
+  rewardIcon: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 16,
   },
-  ruleItem: {
+  dayText: {
+    fontSize: 12,
+    color: '#333',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  rewardText: {
+    fontSize: 10,
+    color: '#666',
+    textAlign: 'center',
+  },
+  treasureProgress: {
+    marginTop: 16,
+  },
+  progressBar: {
+    height: 8,
+    backgroundColor: '#e2e8f0',
+    borderRadius: 4,
+    position: 'relative',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#fbbf24',
+    borderRadius: 4,
+  },
+  treasureChest: {
+    position: 'absolute',
+    top: -12,
+    alignItems: 'center',
+    transform: [{ translateX: -12 }],
+  },
+  chestIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  chestValue: {
+    fontSize: 10,
+    color: '#666',
+    fontWeight: '500',
+  },
+  taskList: {
+    marginTop: 8,
+  },
+  taskItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
   },
-  ruleIcon: {
-    fontSize: 24,
+  taskIcon: {
+    fontSize: 20,
     marginRight: 12,
   },
-  ruleContent: {
+  taskContent: {
     flex: 1,
   },
-  ruleText: {
+  taskTitle: {
     fontSize: 14,
     fontWeight: '500',
     color: '#333',
     marginBottom: 2,
   },
-  ruleSubtext: {
+  taskReward: {
     fontSize: 12,
     color: '#666',
+  },
+  taskButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  taskButtonText: {
+    fontSize: 12,
+    color: '#3b82f6',
   },
 });
 

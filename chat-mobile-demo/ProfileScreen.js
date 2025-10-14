@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { userApi } from './services/apiService';
+import { userApi, pointsApi } from './services/apiService';
 
 export default function ProfileScreen({ onLogout, navigation }) {
   const [userInfo, setUserInfo] = useState({
@@ -18,10 +18,17 @@ export default function ProfileScreen({ onLogout, navigation }) {
     followersCount: 0,
   });
 
+  const [pointsInfo, setPointsInfo] = useState({
+    points: 0,
+    continuous_days: 0,
+    is_checked_in_today: false,
+  });
+
   // 加载用户信息
   useEffect(() => {
     loadUserInfo();
     loadFollowStats();
+    loadPointsInfo();
   }, []);
 
   const loadUserInfo = async () => {
@@ -40,6 +47,21 @@ export default function ProfileScreen({ onLogout, navigation }) {
       }
     } catch (error) {
       console.error('加载用户信息失败:', error);
+    }
+  };
+
+  // 加载积分信息
+  const loadPointsInfo = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) return;
+      
+      const response = await pointsApi.getPointsInfo(token);
+      if (response && response.status) {
+        setPointsInfo(response.data);
+      }
+    } catch (error) {
+      console.error('加载积分信息失败:', error);
     }
   };
 
@@ -80,6 +102,7 @@ export default function ProfileScreen({ onLogout, navigation }) {
   };
 
   const menuItems = [
+    { id: 0, title: '每日签到', icon: '📅', action: 'checkin' },
     { id: 1, title: '个人信息', icon: '👤', action: 'profile' },
     { id: 2, title: '账号设置', icon: '⚙️', action: 'settings' },
     { id: 3, title: '主题设置', icon: '🎨', action: 'theme' },
@@ -91,6 +114,9 @@ export default function ProfileScreen({ onLogout, navigation }) {
 
   const handleMenuPress = (action) => {
     switch (action) {
+      case 'checkin':
+        navigation.navigate('Checkin');
+        break;
       case 'theme':
         Alert.alert(
           '主题设置',
@@ -183,6 +209,29 @@ export default function ProfileScreen({ onLogout, navigation }) {
           </View>
         </View>
       </View>
+
+      {/* 签到卡片 */}
+      <TouchableOpacity 
+        style={styles.checkinCard}
+        onPress={() => navigation.navigate('Checkin')}
+      >
+        <View style={styles.checkinLeft}>
+          <Text style={styles.checkinIcon}>📅</Text>
+          <View style={styles.checkinInfo}>
+            <Text style={styles.checkinTitle}>每日签到</Text>
+            <Text style={styles.checkinSubtitle}>
+              {pointsInfo.is_checked_in_today ? '今日已签到' : '点击签到领积分'}
+            </Text>
+          </View>
+        </View>
+        <View style={styles.checkinRight}>
+          <Text style={styles.pointsValue}>{pointsInfo.points}</Text>
+          <Text style={styles.pointsLabel}>积分</Text>
+          {pointsInfo.continuous_days > 0 && (
+            <Text style={styles.streakText}>连续{pointsInfo.continuous_days}天</Text>
+          )}
+        </View>
+      </TouchableOpacity>
 
       <View style={styles.menuSection}>
         {menuItems.map((item) => (
@@ -380,5 +429,63 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  // 签到卡片样式
+  checkinCard: {
+    backgroundColor: 'white',
+    marginHorizontal: 15,
+    marginBottom: 15,
+    borderRadius: 12,
+    padding: 20,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#3b82f6',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 4,
+    borderLeftWidth: 4,
+    borderLeftColor: '#3b82f6',
+  },
+  checkinLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  checkinIcon: {
+    fontSize: 36,
+    marginRight: 15,
+  },
+  checkinInfo: {
+    flex: 1,
+  },
+  checkinTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  checkinSubtitle: {
+    fontSize: 13,
+    color: '#666',
+  },
+  checkinRight: {
+    alignItems: 'flex-end',
+  },
+  pointsValue: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#3b82f6',
+  },
+  pointsLabel: {
+    fontSize: 12,
+    color: '#999',
+  },
+  streakText: {
+    fontSize: 11,
+    color: '#f59e0b',
+    marginTop: 4,
+    fontWeight: '600',
   },
 });

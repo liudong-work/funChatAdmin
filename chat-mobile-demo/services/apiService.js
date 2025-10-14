@@ -326,6 +326,21 @@ export const bottleApi = {
     apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.THROW_BACK, { bottleUuid }, token),
 };
 
+// 积分和签到相关API
+export const pointsApi = {
+  // 获取积分信息
+  getPointsInfo: (token) =>
+    apiService.authenticatedGet(API_CONFIG.ENDPOINTS.POINTS.GET_INFO, token),
+  
+  // 每日签到
+  checkin: (token) =>
+    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.POINTS.CHECKIN, {}, token),
+  
+  // 获取签到历史
+  getCheckinHistory: (page, limit, token) =>
+    apiService.authenticatedGet(`${API_CONFIG.ENDPOINTS.POINTS.CHECKIN_HISTORY}?page=${page}&limit=${limit}`, token),
+};
+
 // 消息相关API
 export const messageApi = {
   // 发送消息

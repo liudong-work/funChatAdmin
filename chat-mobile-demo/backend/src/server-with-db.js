@@ -17,7 +17,7 @@ import { log } from './config/logger.js';
 import { testConnection } from './config/database.js';
 
 // 导入模型
-import { User, Moment, Comment, Like, Follow, Message, Bottle } from './models/index.js';
+import { User, Moment, Comment, Like, Follow, Message, Bottle, UserPoints, CheckinRecord } from './models/index.js';
 import { Op } from 'sequelize';
 
 // 导入中间件
@@ -1773,6 +1773,167 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString(),
     uptime: process.uptime()
   });
+});
+
+// ========== 积分和签到相关API ==========
+
+// 获取用户积分信息
+app.get('/api/points/info', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    
+    // 查找或创建用户积分记录
+    let userPoints = await UserPoints.findOne({ where: { user_id: userId } });
+    
+    if (!userPoints) {
+      userPoints = await UserPoints.create({
+        user_id: userId,
+        points: 0,
+        total_points: 0,
+        continuous_days: 0
+      });
+    }
+    
+    // 检查今天是否已签到
+    const today = new Date().toISOString().split('T')[0];
+    const todayCheckin = await CheckinRecord.findOne({
+      where: {
+        user_id: userId,
+        checkin_date: today
+      }
+    });
+    
+    return res.status(200).json({
+      status: true,
+      data: {
+        points: userPoints.points,
+        total_points: userPoints.total_points,
+        continuous_days: userPoints.continuous_days,
+        last_checkin_date: userPoints.last_checkin_date,
+        is_checked_in_today: !!todayCheckin
+      }
+    });
+  } catch (error) {
+    log.error('获取积分信息失败:', error);
+    return res.status(500).json({ status: false, message: '获取积分信息失败' });
+  }
+});
+
+// 每日签到
+app.post('/api/points/checkin', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 检查今天是否已签到
+    const existingCheckin = await CheckinRecord.findOne({
+      where: {
+        user_id: userId,
+        checkin_date: today
+      }
+    });
+    
+    if (existingCheckin) {
+      return res.status(400).json({ 
+        status: false, 
+        message: '今天已经签到过了' 
+      });
+    }
+    
+    // 查找或创建用户积分记录
+    let userPoints = await UserPoints.findOne({ where: { user_id: userId } });
+    
+    if (!userPoints) {
+      userPoints = await UserPoints.create({
+        user_id: userId,
+        points: 0,
+        total_points: 0,
+        continuous_days: 0
+      });
+    }
+    
+    // 计算连续签到天数
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    let continuousDays = 1;
+    if (userPoints.last_checkin_date === yesterdayStr) {
+      // 连续签到
+      continuousDays = userPoints.continuous_days + 1;
+    }
+    
+    // 计算签到获得的积分（基础积分5，连续签到额外奖励）
+    let pointsEarned = 5;
+    if (continuousDays >= 7) {
+      pointsEarned += 10; // 连续7天额外10积分
+    } else if (continuousDays >= 3) {
+      pointsEarned += 5; // 连续3天额外5积分
+    }
+    
+    // 更新用户积分
+    await userPoints.update({
+      points: userPoints.points + pointsEarned,
+      total_points: userPoints.total_points + pointsEarned,
+      continuous_days: continuousDays,
+      last_checkin_date: today
+    });
+    
+    // 创建签到记录
+    await CheckinRecord.create({
+      user_id: userId,
+      checkin_date: today,
+      points_earned: pointsEarned,
+      continuous_days: continuousDays
+    });
+    
+    log.info(`[CHECKIN] 用户 ${userId} 签到成功，连续${continuousDays}天，获得${pointsEarned}积分`);
+    
+    return res.status(200).json({
+      status: true,
+      message: '签到成功',
+      data: {
+        points_earned: pointsEarned,
+        continuous_days: continuousDays,
+        total_points: userPoints.points,
+        bonus_message: continuousDays >= 7 ? '连续签到7天，额外奖励10积分！' : 
+                      continuousDays >= 3 ? '连续签到3天，额外奖励5积分！' : null
+      }
+    });
+  } catch (error) {
+    log.error('签到失败:', error);
+    return res.status(500).json({ status: false, message: '签到失败' });
+  }
+});
+
+// 获取签到历史记录
+app.get('/api/points/checkin-history', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { page = 1, limit = 30 } = req.query;
+    
+    const offset = (page - 1) * limit;
+    
+    const { count, rows: records } = await CheckinRecord.findAndCountAll({
+      where: { user_id: userId },
+      order: [['checkin_date', 'DESC']],
+      limit: parseInt(limit),
+      offset: parseInt(offset)
+    });
+    
+    return res.status(200).json({
+      status: true,
+      data: {
+        total: count,
+        page: parseInt(page),
+        limit: parseInt(limit),
+        records
+      }
+    });
+  } catch (error) {
+    log.error('获取签到历史失败:', error);
+    return res.status(500).json({ status: false, message: '获取签到历史失败' });
+  }
 });
 
 // ========== 错误处理 ==========

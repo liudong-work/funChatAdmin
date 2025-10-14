@@ -20,13 +20,20 @@ const API_CONFIG = {
       GET_FRIENDS: (uuid) => `/api/user/${uuid}/friends`,
     },
     
-    // 漂流瓶相关 (待实现)
+    // 漂流瓶相关
     BOTTLE: {
       THROW: '/api/bottle/throw',
       FISH: '/api/bottle/fish',
       GET_MY_BOTTLES: (uuid) => `/api/bottle/user/${uuid}`,
       REPLY: '/api/bottle/reply',
       THROW_BACK: '/api/bottle/throw-back',
+    },
+    
+    // 积分和签到相关
+    POINTS: {
+      GET_INFO: '/api/points/info',
+      CHECKIN: '/api/points/checkin',
+      CHECKIN_HISTORY: '/api/points/checkin-history',
     },
     
     // 消息相关

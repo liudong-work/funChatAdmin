@@ -6,6 +6,12 @@ import Like from './Like.js';
 import Follow from './Follow.js';
 import Message from './Message.js';
 import Bottle from './Bottle.js';
+import UserPointsModel from './UserPoints.js';
+import CheckinRecordModel from './CheckinRecord.js';
+
+// 初始化积分相关模型
+const UserPoints = UserPointsModel(sequelize);
+const CheckinRecord = CheckinRecordModel(sequelize);
 
 // ========== 定义模型关联 ==========
 
@@ -115,6 +121,26 @@ User.hasMany(Bottle, {
   as: 'received_bottles'
 });
 
+// UserPoints 关系 (一对一)
+User.hasOne(UserPoints, {
+  foreignKey: 'user_id',
+  as: 'points'
+});
+UserPoints.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
+// CheckinRecord 关系 (一对多)
+User.hasMany(CheckinRecord, {
+  foreignKey: 'user_id',
+  as: 'checkin_records'
+});
+CheckinRecord.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
 // ========== 同步数据库 ==========
 export const syncDatabase = async (options = {}) => {
   try {
@@ -136,7 +162,9 @@ export {
   Like,
   Follow,
   Message,
-  Bottle
+  Bottle,
+  UserPoints,
+  CheckinRecord
 };
 
 export default {
@@ -148,5 +176,7 @@ export default {
   Follow,
   Message,
   Bottle,
+  UserPoints,
+  CheckinRecord,
   syncDatabase
 };

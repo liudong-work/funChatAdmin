@@ -118,7 +118,11 @@ const CheckinScreen = ({ navigation }) => {
                   isChecked && styles.checkedCircle,
                   isToday && !isChecked && styles.todayCircle
                 ]}>
-                  {isChecked && <Text style={styles.checkMark}>✓</Text>}
+                  {isChecked ? (
+                    <Text style={styles.checkMark}>✓</Text>
+                  ) : (
+                    <Text style={styles.defaultIcon}>📅</Text>
+                  )}
                 </View>
               </View>
             );
@@ -375,6 +379,10 @@ const styles = StyleSheet.create({
     fontSize: 20,
     color: '#fff',
     fontWeight: 'bold',
+  },
+  defaultIcon: {
+    fontSize: 16,
+    opacity: 0.6,
   },
   rulesCard: {
     backgroundColor: '#fff',

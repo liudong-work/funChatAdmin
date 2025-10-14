@@ -21,6 +21,7 @@ import MomentDetailScreen from './MomentDetailScreen';
 import UserProfileScreen from './UserProfileScreen';
 import FollowListScreen from './FollowListScreen';
 import EditProfileScreen from './EditProfileScreen';
+import CheckinScreen from './CheckinScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -161,6 +162,22 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         }}
       >
         {(props) => <EditProfileScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="Checkin" 
+        options={{
+          headerShown: true,
+          title: '每日签到',
+          headerStyle: {
+            backgroundColor: '#3b82f6',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      >
+        {(props) => <CheckinScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );

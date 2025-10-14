@@ -11,6 +11,11 @@ import {
   StatusBar,
   SafeAreaView,
   Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  Keyboard,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Rect } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -364,34 +369,50 @@ const HomeScreen = ({ navigation }) => {
         animationType="fade"
         onRequestClose={() => setIsModalVisible(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>写下你的心愿</Text>
-              <TextInput
-              style={styles.messageInput}
-              placeholder="在这里写下你想说的话..."
-              value={bottleMessage}
-              onChangeText={setBottleMessage}
-                multiline
-                maxLength={200}
-              />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
-                onPress={() => setIsModalVisible(false)}
-              >
-                <Text style={styles.cancelButtonText}>取消</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.modalButton, styles.confirmButton]}
-                onPress={handleThrowBottle}
-                disabled={!bottleMessage.trim()}
-              >
-                <Text style={styles.confirmButtonText}>扔出瓶子</Text>
-              </TouchableOpacity>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalOverlay}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <View style={styles.modalContent}>
+                <Text style={styles.modalTitle}>写下你的心愿</Text>
+                <ScrollView 
+                  style={styles.modalScrollView}
+                  keyboardShouldPersistTaps="handled"
+                  showsVerticalScrollIndicator={false}
+                >
+                  <TextInput
+                    style={styles.messageInput}
+                    placeholder="在这里写下你想说的话..."
+                    value={bottleMessage}
+                    onChangeText={setBottleMessage}
+                    multiline
+                    maxLength={200}
+                  />
+                </ScrollView>
+                <View style={styles.modalActions}>
+                  <TouchableOpacity
+                    style={[styles.modalButton, styles.cancelButton]}
+                    onPress={() => {
+                      Keyboard.dismiss();
+                      setIsModalVisible(false);
+                    }}
+                  >
+                    <Text style={styles.cancelButtonText}>取消</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.modalButton, styles.confirmButton]}
+                    onPress={handleThrowBottle}
+                    disabled={!bottleMessage.trim()}
+                  >
+                    <Text style={styles.confirmButtonText}>扔出瓶子</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </View>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* 找到的瓶子 */}
@@ -558,14 +579,18 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 20,
     padding: 24,
-    width: '100%',
-    maxWidth: 400,
+    width: width - 40,
+    maxHeight: '80%',
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#1e3a8a',
     textAlign: 'center',
+    marginBottom: 20,
+  },
+  modalScrollView: {
+    maxHeight: 200,
     marginBottom: 20,
   },
   messageInput: {
@@ -576,11 +601,9 @@ const styles = StyleSheet.create({
     fontSize: 16,
     textAlignVertical: 'top',
     minHeight: 120,
-    marginBottom: 20,
   },
   modalActions: {
     flexDirection: 'row',
-    gap: 12,
   },
   modalButton: {
     flex: 1,
@@ -590,9 +613,11 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     backgroundColor: '#f3f4f6',
+    marginRight: 6,
   },
   confirmButton: {
     backgroundColor: '#3b82f6',
+    marginLeft: 6,
   },
   cancelButtonText: {
     color: '#6b7280',

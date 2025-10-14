@@ -1,30 +1,34 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Animated, Dimensions, TextInput, Alert } from 'react-native';
+import {
+  View,
+  Text,
+  StyleSheet,
+  Dimensions,
+  TouchableOpacity,
+  TextInput,
+  Modal,
+  Animated,
+  StatusBar,
+  SafeAreaView,
+  Alert,
+} from 'react-native';
+import Svg, { Path, Defs, LinearGradient, Stop, Circle, Rect } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { bottleApi } from './services/apiService.js';
+import { bottleApi } from './services/apiService';
 
 const { width, height } = Dimensions.get('window');
 
-export default function HomeScreen({ navigation }) {
-  const [isFishing, setIsFishing] = useState(false);
+const HomeScreen = ({ navigation }) => {
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [bottleMessage, setBottleMessage] = useState('');
+  const [foundBottle, setFoundBottle] = useState(null);
   const [isThrowing, setIsThrowing] = useState(false);
-  const [bottles, setBottles] = useState([]);
-  const [currentBottle, setCurrentBottle] = useState(null);
-  const [showThrowModal, setShowThrowModal] = useState(false);
-  const [throwMessage, setThrowMessage] = useState('');
-  const [requesting, setRequesting] = useState(false);
+  const [isPicking, setIsPicking] = useState(false);
   
   // 动画值
   const bottleFloat = useRef(new Animated.Value(0)).current;
-  const fishingRod = useRef(new Animated.Value(0)).current;
-  const bottleScale = useRef(new Animated.Value(1)).current;
-  const bottleOpacity = useRef(new Animated.Value(1)).current;
-  
-  // 扔瓶子动画值
-  const throwBottle = useRef(new Animated.Value(0)).current;
-  const throwScale = useRef(new Animated.Value(1)).current;
 
-  // 瓶子漂浮动画
+  // 瓶子浮动动画
   useEffect(() => {
     const floatAnimation = Animated.loop(
       Animated.sequence([
@@ -41,669 +45,634 @@ export default function HomeScreen({ navigation }) {
       ])
     );
     floatAnimation.start();
-
-    return () => floatAnimation.stop();
   }, []);
 
-  // 从AsyncStorage加载当前瓶子
-  useEffect(() => {
-    const loadCurrentBottle = async () => {
-      try {
-        const savedBottle = await AsyncStorage.getItem('currentBottle');
-        if (savedBottle) {
-          setCurrentBottle(JSON.parse(savedBottle));
-        }
-      } catch (error) {
-        console.error('加载瓶子失败:', error);
-      }
-    };
-    loadCurrentBottle();
-  }, []);
+  // 波浪路径生成 - 使用静态路径避免动画值类型问题
+  const getWavePath1 = () => `M0,${height * 0.6} Q${width * 0.25},${height * 0.6 - 15} ${width * 0.5},${height * 0.6} T${width},${height * 0.6} L${width},${height} L0,${height} Z`;
+  const getWavePath2 = () => `M0,${height * 0.6} Q${width * 0.25},${height * 0.6 - 10} ${width * 0.5},${height * 0.6} T${width},${height * 0.6} L${width},${height} L0,${height} Z`;
+  const getWavePath3 = () => `M0,${height * 0.6} Q${width * 0.25},${height * 0.6 - 8} ${width * 0.5},${height * 0.6} T${width},${height * 0.6} L${width},${height} L0,${height} Z`;
 
-  // 当currentBottle变化时，保存到AsyncStorage
-  useEffect(() => {
-    const saveCurrentBottle = async () => {
-      try {
-        if (currentBottle) {
-          await AsyncStorage.setItem('currentBottle', JSON.stringify(currentBottle));
-        } else {
-          await AsyncStorage.removeItem('currentBottle');
-        }
-      } catch (error) {
-        console.error('保存瓶子失败:', error);
-      }
-    };
-    saveCurrentBottle();
-  }, [currentBottle]);
+  // 瓶子变换
+  const bottleTransform = {
+    transform: [
+      {
+        translateY: bottleFloat.interpolate({
+          inputRange: [0, 1],
+          outputRange: [0, -10],
+        }),
+      },
+    ],
+  };
 
-  // 捞瓶子动画
-  const startFishing = async () => {
-    if (requesting) return;
-    setRequesting(true);
-    setIsFishing(true);
-
-    // 钓鱼竿动画
-    Animated.sequence([
-      Animated.timing(fishingRod, { toValue: 1, duration: 800, useNativeDriver: true }),
-      Animated.timing(fishingRod, { toValue: 0, duration: 800, useNativeDriver: true }),
-    ]).start();
-
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      if (!token) {
-        Alert.alert('提示', '请先登录');
-        return;
-      }
-      const res = await bottleApi.fishBottle(token);
-      if (res.status && res.data) {
-        const apiBottle = {
-          id: res.data.uuid,
-          message: res.data.content,
-          author: res.data.sender_nickname || '陌生人',
-          mood: res.data.mood || '🍀',
-          sender_uuid: res.data.sender_uuid,
-        };
-        setCurrentBottle(apiBottle);
-
-        // 瓶子出现动画
-        bottleScale.setValue(0);
-        bottleOpacity.setValue(0);
-        Animated.parallel([
-          Animated.spring(bottleScale, { toValue: 1, tension: 100, friction: 8, useNativeDriver: true }),
-          Animated.timing(bottleOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
-        ]).start();
-      } else {
-        Alert.alert('提示', res.message || '暂时没有可捞的瓶子');
-      }
-    } catch (e) {
-      Alert.alert('错误', '捞瓶子失败，请稍后再试');
-    } finally {
-      setIsFishing(false);
-      setRequesting(false);
+  // 扔瓶子
+  const handleThrowBottle = async () => {
+    if (!bottleMessage.trim()) {
+      Alert.alert('提示', '请输入瓶子内容');
+      return;
     }
-  };
-
-  // 重新捞瓶子
-  const resetFishing = () => {
-    setCurrentBottle(null);
-    bottleScale.setValue(1);
-    bottleOpacity.setValue(1);
-  };
-
-  // 扔瓶子功能
-  const startThrowing = () => {
-    setShowThrowModal(true);
-  };
-
-  const throwBottleToOcean = async () => {
-    if (!throwMessage.trim() || throwMessage.trim().length < 6 || requesting) return;
-    setRequesting(true);
-    setIsThrowing(true);
-    setShowThrowModal(false);
 
     try {
+      setIsThrowing(true);
+      
+      // 获取用户token
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        Alert.alert('提示', '请先登录');
-        return;
-      }
-      const res = await bottleApi.throwBottle(throwMessage.trim(), '', token);
-      if (res.status) {
-        Alert.alert('成功', '已经把你的心声扔进大海');
-      } else {
-        Alert.alert('提示', res.message || '扔瓶子失败');
-      }
-    } catch (e) {
-      Alert.alert('错误', '扔瓶子失败，请稍后再试');
-    } finally {
-      // 扔瓶子动画
-      Animated.sequence([
-        Animated.timing(throwBottle, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(throwScale, { toValue: 0, duration: 400, useNativeDriver: true }),
-      ]).start(() => {
+        Alert.alert('错误', '请先登录');
         setIsThrowing(false);
-        throwBottle.setValue(0);
-        throwScale.setValue(1);
-        setThrowMessage('');
-      });
-      setRequesting(false);
+        return;
+      }
+
+      // 调用扔瓶子API
+      const response = await bottleApi.throwBottle(bottleMessage.trim(), '', token);
+      
+      if (response && response.status) {
+        Alert.alert('成功', '瓶子已扔入大海！', [
+          {
+            text: '确定',
+            onPress: () => {
+              setIsModalVisible(false);
+              setBottleMessage('');
+            }
+          }
+        ]);
+      } else {
+        Alert.alert('失败', response?.message || '扔瓶子失败，请重试');
+      }
+    } catch (error) {
+      console.error('扔瓶子错误:', error);
+      Alert.alert('错误', '网络错误，请检查网络连接');
+    } finally {
+      setIsThrowing(false);
     }
   };
 
-  const cancelThrowing = () => {
-    setShowThrowModal(false);
-    setThrowMessage('');
+  // 捡瓶子
+  const handlePickBottle = async () => {
+    try {
+      setIsPicking(true);
+      
+      // 获取用户token
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        Alert.alert('错误', '请先登录');
+        setIsPicking(false);
+        return;
+      }
+
+      // 调用捡瓶子API
+      const response = await bottleApi.fishBottle(token);
+      
+      if (response && response.status) {
+        if (response.data) {
+          // 成功捡到瓶子
+          const bottleData = response.data;
+          setFoundBottle({
+            message: bottleData.content,
+            sender: bottleData.sender_nickname || `用户${bottleData.sender_uuid?.slice(-4)}`,
+            sender_uuid: bottleData.sender_uuid,
+            time: new Date(bottleData.created_at).toLocaleString('zh-CN'),
+            mood: bottleData.mood,
+            bottleUuid: bottleData.uuid
+          });
+        } else {
+          Alert.alert('提示', response.message || '当前海里没有可捞的瓶子');
+        }
+      } else {
+        Alert.alert('失败', response?.message || '捞瓶子失败，请重试');
+      }
+    } catch (error) {
+      console.error('捡瓶子错误:', error);
+      Alert.alert('错误', '网络错误，请检查网络连接');
+    } finally {
+      setIsPicking(false);
+    }
   };
 
+  // 关闭找到的瓶子
+  const closeFoundBottle = () => {
+    setFoundBottle(null);
+  };
 
-  // 瓶子漂浮变换
-  const bottleTransform = bottleFloat.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -20],
-  });
+  // 回复瓶子 - 跳转到消息列表
+  const replyToBottle = () => {
+    if (!foundBottle) return;
+    
+    // 关闭瓶子卡片
+    setFoundBottle(null);
+    
+    // 跳转到消息列表，并传递发送者信息
+    navigation.navigate('Messages', {
+      screen: 'MessagesList',
+      params: {
+        startChatWith: {
+          uuid: foundBottle.sender_uuid,
+          nickname: foundBottle.sender
+        }
+      }
+    });
+  };
 
-  // 钓鱼竿变换
-  const rodTransform = fishingRod.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -30],
-  });
+  // 扔回海里
+  const throwBackToSea = async () => {
+    if (!foundBottle) return;
+    
+    Alert.alert(
+      '确认',
+      '确定要将这个瓶子扔回海里吗？',
+      [
+        {
+          text: '取消',
+          style: 'cancel'
+        },
+        {
+          text: '确定',
+          onPress: async () => {
+            try {
+              const token = await AsyncStorage.getItem('authToken');
+              if (!token) {
+                Alert.alert('错误', '请先登录');
+                return;
+              }
 
-  // 扔瓶子变换
-  const throwTransform = throwBottle.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, -200],
-  });
+              const response = await bottleApi.throwBackBottle(foundBottle.bottleUuid, token);
+              
+              if (response && response.status) {
+                setFoundBottle(null);
+                Alert.alert('成功', response.message || '瓶子已扔回海里');
+              } else {
+                Alert.alert('失败', response?.message || '扔回海里失败，请重试');
+              }
+            } catch (error) {
+              console.error('扔回海里错误:', error);
+              Alert.alert('错误', '网络错误，请检查网络连接');
+            }
+          }
+        }
+      ]
+    );
+  };
 
   return (
-    <View style={styles.container}>
-      {/* 海洋背景 */}
-      <View style={styles.backgroundContainer}>
-        {/* 天空渐变背景 */}
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
+      
+      {/* 背景渐变 */}
+      <View style={styles.background}>
+        {/* 天空渐变 */}
         <View style={styles.skyGradient} />
         
-        {/* 海洋渐变背景 */}
+        {/* 海洋渐变 */}
         <View style={styles.oceanGradient} />
         
-        
-        {/* 漂浮的瓶子装饰 */}
-        <Animated.View 
-          style={[
-            styles.floatingBottles,
-            {
-              transform: [{ translateY: bottleTransform }],
-            }
-          ]}
-        >
-          <Text style={styles.bottleEmoji}>🍾</Text>
-          <Text style={styles.bottleEmoji}>🍾</Text>
-          <Text style={styles.bottleEmoji}>🍾</Text>
-        </Animated.View>
-      </View>
-
-      {/* 标题 */}
-      <View style={styles.titleContainer}>
-        <Text style={styles.title}>🌊 漂流瓶</Text>
-        <Text style={styles.subtitle}>把心事装进瓶子，让大海传递</Text>
-      </View>
-
-      {/* 功能按钮 */}
-      <View style={styles.buttonContainer}>
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.throwButton]}
-          onPress={startThrowing}
-          disabled={isThrowing}
-        >
-          <Text style={styles.buttonIcon}>🍾</Text>
-          <Text style={styles.buttonText}>
-            {isThrowing ? '正在扔瓶子...' : '扔瓶子'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          style={[styles.actionButton, styles.fishButton]}
-          onPress={startFishing}
-          disabled={isFishing}
-        >
-          <Text style={styles.buttonIcon}>🍾</Text>
-          <Text style={styles.buttonText}>
-            {isFishing ? '正在捞瓶子...' : '捞瓶子'}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* 捞到的瓶子 */}
-      {currentBottle && (
-        <Animated.View 
-          style={[
-            styles.bottleCard,
-            {
-              transform: [{ scale: bottleScale }],
-              opacity: bottleOpacity,
-            }
-          ]}
-        >
-          <View style={styles.bottleHeader}>
-            <Text style={styles.bottleIcon}>🍾</Text>
-            <Text style={styles.bottleTitle}>捞到一个瓶子！</Text>
+        {/* 波浪层 */}
+        <View style={styles.waveContainer}>
+          <View style={styles.waveLayer}>
+            <Svg height={height * 0.4} width={width} style={styles.waveSvg}>
+              <Defs>
+                <LinearGradient id="waveGradient1" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor="#3b82f6" stopOpacity="0.8" />
+                  <Stop offset="100%" stopColor="#1e40af" stopOpacity="0.6" />
+                </LinearGradient>
+              </Defs>
+              <Path
+                d={getWavePath1()}
+                fill="url(#waveGradient1)"
+              />
+            </Svg>
           </View>
           
-          <View style={styles.bottleContent}>
-            <Text style={styles.bottleMood}>{currentBottle.mood}</Text>
-            <Text style={styles.bottleMessage}>"{currentBottle.message}"</Text>
-            <Text style={styles.bottleAuthor}>— {currentBottle.author}</Text>
+          <View style={styles.waveLayer}>
+            <Svg height={height * 0.35} width={width} style={styles.waveSvg}>
+              <Defs>
+                <LinearGradient id="waveGradient2" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor="#60a5fa" stopOpacity="0.6" />
+                  <Stop offset="100%" stopColor="#3b82f6" stopOpacity="0.4" />
+                </LinearGradient>
+              </Defs>
+              <Path
+                d={getWavePath2()}
+                fill="url(#waveGradient2)"
+              />
+            </Svg>
           </View>
+          
+          <View style={styles.waveLayer}>
+            <Svg height={height * 0.3} width={width} style={styles.waveSvg}>
+              <Defs>
+                <LinearGradient id="waveGradient3" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <Stop offset="0%" stopColor="#93c5fd" stopOpacity="0.4" />
+                  <Stop offset="100%" stopColor="#60a5fa" stopOpacity="0.2" />
+                </LinearGradient>
+              </Defs>
+              <Path
+                d={getWavePath3()}
+                fill="url(#waveGradient3)"
+              />
+            </Svg>
+          </View>
+        </View>
+      </View>
 
-          <View style={styles.bottleActions}>
-            <TouchableOpacity
-              style={styles.replyButton}
-              onPress={() => {
-                if (!currentBottle) {
-                  console.log('[BOTTLE] 没有currentBottle，无法回复');
-                  Alert.alert('提示', '瓶子信息丢失，请重新捞瓶子');
-                  return;
-                }
-                
-                console.log('[BOTTLE] 准备回复瓶子:', {
-                  sender_uuid: currentBottle.sender_uuid,
-                  author: currentBottle.author,
-                  message: currentBottle.message
-                });
-                
-                const chatUser = {
-                  id: currentBottle.sender_uuid || Date.now(),
-                  name: currentBottle.author || '陌生人',
-                  avatar: '👤',
-                  sender_uuid: currentBottle.sender_uuid,
-                  bottleMessage: currentBottle.message,
-                };
-                
-                console.log('[BOTTLE] 跳转到聊天页面, chatUser:', chatUser);
-                
-                // 不关闭弹窗，让用户可以继续看到瓶子内容
-                // setCurrentBottle(null); // 注释掉这行
-                // ChatDetail 在 Messages 栈中，需通过父Tab跳到嵌套栈的目标页
-                if (navigation && navigation.navigate) {
-                  navigation.navigate('Messages', {
-                    screen: 'ChatDetail',
-                    params: { user: chatUser },
-                  });
-                  console.log('[BOTTLE] 导航命令已执行');
-                } else {
-                  console.error('[BOTTLE] navigation 对象不可用');
-                  Alert.alert('错误', '页面跳转失败');
-                }
-              }}
-            >
-              <Text style={styles.replyButtonText}>回复</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.throwBackButton} onPress={resetFishing}>
-              <Text style={styles.throwBackButtonText}>重新捞瓶子</Text>
-            </TouchableOpacity>
+      {/* 主内容 */}
+      <View style={styles.content}>
+      {/* 标题 */}
+        <View style={styles.header}>
+          <Text style={styles.title}>漂流瓶</Text>
+          <TouchableOpacity style={styles.menuButton}>
+            <View style={styles.menuIcon}>
+              <View style={styles.menuLine} />
+              <View style={styles.menuLine} />
+            </View>
+          </TouchableOpacity>
+        </View>
+
+        {/* 中央瓶子 */}
+        <View style={styles.bottleContainer}>
+          <Animated.View style={[styles.bottle, bottleTransform]}>
+            <Svg width="80" height="120" viewBox="0 0 80 120">
+              {/* 瓶子主体 */}
+              <Path
+                d="M20 20 L20 100 Q20 110 30 110 L50 110 Q60 110 60 100 L60 20 Q60 10 50 10 L30 10 Q20 10 20 20 Z"
+                fill="rgba(255,255,255,0.3)"
+                stroke="rgba(255,255,255,0.6)"
+                strokeWidth="2"
+              />
+              {/* 软木塞 */}
+              <Rect x="25" y="15" width="30" height="8" fill="#8b4513" />
+              {/* 液体 */}
+              <Rect x="25" y="85" width="30" height="15" fill="rgba(135,206,250,0.6)" />
+              {/* 高光 */}
+              <Path
+                d="M25 25 L25 95 Q25 100 30 100 L50 100"
+                fill="none"
+                stroke="rgba(255,255,255,0.8)"
+                strokeWidth="1"
+              />
+            </Svg>
+          </Animated.View>
+      </View>
+
+        {/* 操作按钮 */}
+        <View style={styles.actionContainer}>
+        <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={() => setIsModalVisible(true)}
+          disabled={isThrowing}
+        >
+            <View style={styles.buttonIcon}>
+              <Svg width="24" height="24" viewBox="0 0 24 24">
+                <Path
+                  d="M12 2 L12 8 M8 4 L16 4 M8 8 L16 8 M6 12 L18 12 M6 16 L18 16 M6 20 L18 20"
+                  stroke="white"
+                  strokeWidth="2"
+                  fill="none"
+                />
+              </Svg>
+            </View>
+          <Text style={styles.buttonText}>
+              {isThrowing ? '扔瓶子中...' : '扔一个瓶子'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity 
+            style={styles.actionButton}
+            onPress={handlePickBottle}
+            disabled={isPicking}
+          >
+            <View style={styles.buttonIcon}>
+              <Svg width="24" height="24" viewBox="0 0 24 24">
+                <Path
+                  d="M12 2 C8 2 6 6 6 10 C6 14 8 18 12 18 C16 18 18 14 18 10 C18 6 16 2 12 2 Z M12 6 C13.1 6 14 6.9 14 8 C14 9.1 13.1 10 12 10 C10.9 10 10 9.1 10 8 C10 6.9 10.9 6 12 6 Z"
+                  stroke="white"
+                  strokeWidth="2"
+                  fill="none"
+                />
+              </Svg>
+            </View>
+          <Text style={styles.buttonText}>
+              {isPicking ? '捡瓶子中...' : '捡一个瓶子'}
+          </Text>
+        </TouchableOpacity>
+      </View>
           </View>
-        </Animated.View>
-      )}
+          
 
       {/* 扔瓶子模态框 */}
-      {showThrowModal && (
+      <Modal
+        visible={isModalVisible}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setIsModalVisible(false)}
+      >
         <View style={styles.modalOverlay}>
-        <View style={styles.modalContent}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>🍾 扔一个瓶子到海里</Text>
-            <Text style={styles.modalSubtitle}>写下你的心声，让它在海洋中漂流</Text>
-          </View>
-            
-
-            <View style={styles.messageInput}>
-              <Text style={styles.inputLabel}>写下你的心声：</Text>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>写下你的心愿</Text>
               <TextInput
-                style={styles.textInput}
-                placeholder="分享你的心情、想法或故事...（至少6个字）"
-                value={throwMessage}
-                onChangeText={setThrowMessage}
+              style={styles.messageInput}
+              placeholder="在这里写下你想说的话..."
+              value={bottleMessage}
+              onChangeText={setBottleMessage}
                 multiline
                 maxLength={200}
-                textAlignVertical="top"
               />
-              <Text style={[styles.charCount, throwMessage.trim().length < 6 && styles.charCountWarning]}>
-                {throwMessage.length}/200 {throwMessage.trim().length < 6 ? `(至少需要6个字)` : ''}
-              </Text>
-            </View>
-
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelButton} onPress={cancelThrowing}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setIsModalVisible(false)}
+              >
                 <Text style={styles.cancelButtonText}>取消</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={[styles.confirmButton, (!throwMessage.trim() || throwMessage.trim().length < 6) && styles.confirmButtonDisabled]}
-                onPress={throwBottleToOcean}
-                disabled={!throwMessage.trim() || throwMessage.trim().length < 6}
+                style={[styles.modalButton, styles.confirmButton]}
+                onPress={handleThrowBottle}
+                disabled={!bottleMessage.trim()}
               >
-                <Text style={styles.confirmButtonText}>🌊 扔到海里</Text>
+                <Text style={styles.confirmButtonText}>扔出瓶子</Text>
               </TouchableOpacity>
             </View>
           </View>
         </View>
-      )}
+      </Modal>
 
-      {/* 扔瓶子动画 */}
-      {isThrowing && (
-        <Animated.View 
-          style={[
-            styles.throwingBottle,
-            {
-              transform: [
-                { translateY: throwTransform },
-                { scale: throwScale }
-              ],
-            }
-          ]}
+      {/* 找到的瓶子 */}
+      {foundBottle && (
+        <Modal
+          visible={!!foundBottle}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={closeFoundBottle}
         >
-          <Text style={styles.throwingBottleEmoji}>🍾</Text>
-        </Animated.View>
+          <View style={styles.modalOverlay}>
+            <View style={styles.foundBottleCard}>
+              <View style={styles.foundBottleHeader}>
+                <Text style={styles.foundBottleTitle}>捡到一个瓶子！</Text>
+                <TouchableOpacity onPress={closeFoundBottle}>
+                  <Text style={styles.closeButton}>×</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={styles.foundBottleContent}>
+                <Text style={styles.foundBottleMessage}>{foundBottle.message}</Text>
+                {foundBottle.mood && (
+                  <Text style={styles.foundBottleMood}>心情：{foundBottle.mood}</Text>
+                )}
+                <Text style={styles.foundBottleInfo}>
+                  {foundBottle.sender} · {foundBottle.time}
+                </Text>
+              </View>
+              <View style={styles.foundBottleActions}>
+                <TouchableOpacity
+                  style={[styles.foundBottleButton, styles.replyButton]}
+                  onPress={replyToBottle}
+                >
+                  <Text style={styles.replyButtonText}>回复</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.foundBottleButton, styles.throwBackButton]}
+                  onPress={throwBackToSea}
+                >
+                  <Text style={styles.throwBackButtonText}>扔回海里</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       )}
-
-
-    </View>
+    </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#87CEEB', // Sky blue
+    backgroundColor: '#1e3a8a',
   },
-  // 背景容器
-  backgroundContainer: {
-    flex: 1,
-    position: 'relative',
-  },
-  
-  // 天空渐变
-  skyGradient: {
-    flex: 1,
-    backgroundColor: '#87CEEB', // Sky blue
-  },
-  
-  // 海洋渐变
-  oceanGradient: {
-    height: height * 0.4,
-    backgroundColor: '#1E88E5', // Ocean blue
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-  },
-  
-  
-  // 漂浮的瓶子
-  floatingBottles: {
-    position: 'absolute',
-    top: height * 0.6 - 20, // 海平面上方一点
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-  },
-  bottleEmoji: {
-    fontSize: 40,
-    opacity: 0.6,
-  },
-  
-  // 标题区域
-  titleContainer: {
-    position: 'absolute',
-    top: height * 0.15,
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    color: 'white',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 2, height: 2 },
-    textShadowRadius: 4,
-    marginBottom: 8,
-  },
-  subtitle: {
-    fontSize: 18,
-    color: 'white',
-    opacity: 0.9,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  
-  // 按钮容器
-  buttonContainer: {
-    position: 'absolute',
-    top: height * 0.4,
-    right: 20,
-    flexDirection: 'column',
-  },
-  
-  // 功能按钮
-  actionButton: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 12,
-    borderWidth: 3,
-    borderColor: 'rgba(255, 255, 255, 0.3)',
-    marginBottom: 20,
-  },
-  throwButton: {
-    backgroundColor: '#4CAF50', // Green for throw
-  },
-  fishButton: {
-    backgroundColor: '#FF9800', // Orange for fish
-  },
-  buttonIcon: {
-    fontSize: 32,
-    marginBottom: 4,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 2,
-  },
-  
-  // 捞到的瓶子卡片
-  bottleCard: {
-    position: 'absolute',
-    top: height * 0.3,
-    left: 20,
-    right: 20,
-    backgroundColor: 'white',
-    borderRadius: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 16,
-    elevation: 12,
-    overflow: 'hidden',
-  },
-  bottleHeader: {
-    backgroundColor: '#81C784',
-    padding: 20,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  bottleIcon: {
-    fontSize: 24,
-    marginRight: 10,
-  },
-  bottleTitle: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  bottleContent: {
-    padding: 24,
-    alignItems: 'center',
-  },
-  bottleMood: {
-    fontSize: 40,
-    marginBottom: 15,
-  },
-  bottleMessage: {
-    fontSize: 16,
-    color: '#333',
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 15,
-    fontStyle: 'italic',
-  },
-  bottleAuthor: {
-    fontSize: 14,
-    color: '#666',
-    fontStyle: 'italic',
-  },
-  bottleActions: {
-    flexDirection: 'row',
-    padding: 15,
-    backgroundColor: '#F5F5F5',
-  },
-  replyButton: {
-    flex: 1,
-    backgroundColor: '#4CAF50',
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginRight: 10,
-    alignItems: 'center',
-  },
-  replyButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  throwBackButton: {
-    flex: 1,
-    backgroundColor: '#2196F3',
-    paddingVertical: 12,
-    borderRadius: 20,
-    marginLeft: 10,
-    alignItems: 'center',
-  },
-  throwBackButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  
-  // 模态框样式
-  modalOverlay: {
+  background: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+  },
+  skyGradient: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: height * 0.6,
+    backgroundColor: '#1e40af',
+  },
+  oceanGradient: {
+    position: 'absolute',
+    top: height * 0.4,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#1e3a8a',
+  },
+  waveContainer: {
+    position: 'absolute',
+    top: height * 0.4,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  waveLayer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+  },
+  waveSvg: {
+    position: 'absolute',
+    bottom: 0,
+  },
+  content: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingTop: 20,
+    paddingBottom: 40,
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: 'white',
+  },
+  menuButton: {
+    padding: 8,
+  },
+  menuIcon: {
+    width: 24,
+    height: 16,
+    justifyContent: 'space-between',
+  },
+  menuLine: {
+    height: 2,
+    backgroundColor: 'white',
+    borderRadius: 1,
+  },
+  bottleContainer: {
+    alignItems: 'center',
+    marginVertical: 40,
+  },
+  bottle: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionContainer: {
+    marginTop: 40,
+    marginBottom: 60,
+    gap: 16,
+  },
+  actionButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.3)',
+  },
+  buttonIcon: {
+    marginRight: 12,
+  },
+  buttonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    zIndex: 1000,
+    padding: 20,
   },
   modalContent: {
     backgroundColor: 'white',
-    margin: 20,
-    borderRadius: 24,
-    padding: 0,
-    maxHeight: '80%',
-    width: '90%',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 12 },
-    shadowOpacity: 0.3,
-    shadowRadius: 24,
-    elevation: 12,
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    backgroundColor: '#F8F9FA',
+    borderRadius: 20,
     padding: 24,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E9ECEF',
+    width: '100%',
+    maxWidth: 400,
   },
   modalTitle: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1e3a8a',
     textAlign: 'center',
-    marginBottom: 8,
+    marginBottom: 20,
   },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#666',
-    textAlign: 'center',
-  },
-  
-  
-  // 消息输入
   messageInput: {
-    padding: 24,
-  },
-  inputLabel: {
-    fontSize: 16,
-    color: '#333',
-    marginBottom: 10,
-  },
-  textInput: {
-    borderWidth: 2,
-    borderColor: '#E9ECEF',
-    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    borderRadius: 12,
     padding: 16,
     fontSize: 16,
-    minHeight: 120,
     textAlignVertical: 'top',
-    backgroundColor: '#F8F9FA',
+    minHeight: 120,
+    marginBottom: 20,
   },
-  charCount: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'right',
-    marginTop: 5,
-  },
-  charCountWarning: {
-    color: '#FF5722',
-    fontWeight: 'bold',
-  },
-  
-  // 模态框操作按钮
   modalActions: {
     flexDirection: 'row',
-    padding: 24,
-    backgroundColor: '#F8F9FA',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
   },
   cancelButton: {
-    flex: 1,
-    backgroundColor: '#E9ECEF',
-    paddingVertical: 14,
-    borderRadius: 24,
-    marginRight: 12,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    color: '#666',
-    fontSize: 16,
-    fontWeight: 'bold',
+    backgroundColor: '#f3f4f6',
   },
   confirmButton: {
-    flex: 1,
-    backgroundColor: '#4CAF50',
-    paddingVertical: 14,
-    borderRadius: 24,
-    marginLeft: 12,
-    alignItems: 'center',
+    backgroundColor: '#3b82f6',
   },
-  confirmButtonDisabled: {
-    backgroundColor: '#E0E0E0',
+  cancelButtonText: {
+    color: '#6b7280',
+    fontSize: 16,
+    fontWeight: '600',
   },
   confirmButtonText: {
     color: 'white',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  foundBottleCard: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 400,
+  },
+  foundBottleHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  foundBottleTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
+    color: '#1e3a8a',
   },
-  
-  // 扔瓶子动画
-  throwingBottle: {
-    position: 'absolute',
-    top: 100,
-    left: width / 2 - 20,
-    zIndex: 999,
+  closeButton: {
+    fontSize: 24,
+    color: '#6b7280',
   },
-  throwingBottleEmoji: {
-    fontSize: 40,
+  foundBottleContent: {
+    marginBottom: 20,
+  },
+  foundBottleMessage: {
+    fontSize: 16,
+    color: '#374151',
+    lineHeight: 24,
+    marginBottom: 8,
+  },
+  foundBottleMood: {
+    fontSize: 14,
+    color: '#3b82f6',
+    marginBottom: 8,
+    fontStyle: 'italic',
+  },
+  foundBottleInfo: {
+    fontSize: 14,
+    color: '#6b7280',
+  },
+  foundBottleActions: {
+    flexDirection: 'row',
+    marginTop: 16,
+  },
+  foundBottleButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  replyButton: {
+    backgroundColor: '#3b82f6',
+    marginRight: 6,
+  },
+  throwBackButton: {
+    backgroundColor: '#6b7280',
+    marginLeft: 6,
+  },
+  replyButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  throwBackButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
+
+export default HomeScreen;

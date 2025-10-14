@@ -320,6 +320,10 @@ export const bottleApi = {
   // 回复瓶子
   replyBottle: (bottleId, reply, token) => 
     apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.REPLY, { bottleId, reply }, token),
+
+  // 扔回海里
+  throwBackBottle: (bottleUuid, token) => 
+    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.THROW_BACK, { bottleUuid }, token),
 };
 
 // 消息相关API

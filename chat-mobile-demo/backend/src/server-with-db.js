@@ -1643,6 +1643,48 @@ app.post('/api/bottle/reply', authenticateToken, async (req, res) => {
   }
 });
 
+// 扔回海里
+app.post('/api/bottle/throw-back', authenticateToken, async (req, res) => {
+  try {
+    const { bottleUuid } = req.body;
+    
+    if (!bottleUuid) {
+      return res.status(400).json({ status: false, message: '瓶子ID不能为空' });
+    }
+
+    // 查找瓶子
+    const bottle = await Bottle.findOne({ where: { uuid: bottleUuid } });
+    if (!bottle) {
+      return res.status(404).json({ status: false, message: '瓶子不存在' });
+    }
+
+    // 验证权限（只有捞到瓶子的人可以扔回海里）
+    if (bottle.receiver_uuid !== req.user.uuid) {
+      return res.status(403).json({ status: false, message: '无权限操作此瓶子' });
+    }
+
+    // 将瓶子状态重置为'sea'，清空接收者信息
+    await bottle.update({
+      status: 'sea',
+      receiver_uuid: null,
+      picked_at: null
+    });
+
+    log.info(`[BOTTLE] 瓶子扔回海里: ${bottleUuid} by ${req.user.uuid}`);
+
+    return res.status(200).json({
+      status: true,
+      message: '瓶子已扔回海里',
+      data: {
+        bottle_uuid: bottleUuid
+      }
+    });
+  } catch (error) {
+    log.error('扔回海里失败:', error);
+    return res.status(500).json({ status: false, message: '扔回海里失败' });
+  }
+});
+
 // 获取我的瓶子列表
 app.get('/api/bottle/user/:uuid', authenticateToken, async (req, res) => {
   try {

@@ -26,6 +26,7 @@ const API_CONFIG = {
       FISH: '/api/bottle/fish',
       GET_MY_BOTTLES: (uuid) => `/api/bottle/user/${uuid}`,
       REPLY: '/api/bottle/reply',
+      THROW_BACK: '/api/bottle/throw-back',
     },
     
     // 消息相关

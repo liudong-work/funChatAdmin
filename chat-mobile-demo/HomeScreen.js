@@ -43,12 +43,12 @@ const HomeScreen = ({ navigation }) => {
       Animated.sequence([
         Animated.timing(bottleFloat, {
           toValue: 1,
-          duration: 3000,
+          duration: 2000,
           useNativeDriver: true,
         }),
         Animated.timing(bottleFloat, {
           toValue: 0,
-          duration: 3000,
+          duration: 2000,
           useNativeDriver: true,
         }),
       ])
@@ -70,17 +70,17 @@ const HomeScreen = ({ navigation }) => {
       ])
     );
 
-    // 轻微旋转动画
+    // 倾斜旋转动画
     const rotateAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bottleRotate, {
           toValue: 1,
-          duration: 6000,
+          duration: 4000,
           useNativeDriver: true,
         }),
         Animated.timing(bottleRotate, {
           toValue: 0,
-          duration: 6000,
+          duration: 4000,
           useNativeDriver: true,
         }),
       ])
@@ -102,19 +102,19 @@ const HomeScreen = ({ navigation }) => {
       {
         translateY: bottleFloat.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -15],
+          outputRange: [-20, 20],
         }),
       },
       {
         translateX: bottleMove.interpolate({
           inputRange: [0, 1],
-          outputRange: [-width * 0.3, width * 0.3],
+          outputRange: [-width * 0.35, width * 0.35],
         }),
       },
       {
         rotate: bottleRotate.interpolate({
           inputRange: [0, 1],
-          outputRange: ['-5deg', '5deg'],
+          outputRange: ['-15deg', '15deg'],
         }),
       },
     ],
@@ -342,19 +342,8 @@ const HomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* 主体内容 - 瓶子在左侧，按钮在右侧 */}
+        {/* 主体内容 - 按钮在右侧 */}
         <View style={styles.mainContent}>
-          {/* 左侧瓶子 */}
-          <View style={styles.bottleContainer}>
-            <Animated.View style={[styles.bottle, bottleTransform]}>
-              <Image
-                source={require('./assets/bottle.png')}
-                style={styles.bottleImage}
-                resizeMode="contain"
-              />
-            </Animated.View>
-          </View>
-
           {/* 右侧操作按钮 */}
           <View style={styles.actionContainer}>
             <TouchableOpacity 
@@ -378,8 +367,18 @@ const HomeScreen = ({ navigation }) => {
             </TouchableOpacity>
           </View>
         </View>
-          </View>
-          
+
+        {/* 瓶子容器 - 位于按钮下方 */}
+        <View style={styles.bottleContainer}>
+          <Animated.View style={[styles.bottle, bottleTransform]}>
+            <Image
+              source={require('./assets/bottle.png')}
+              style={styles.bottleImage}
+              resizeMode="contain"
+            />
+          </Animated.View>
+        </View>
+      </View>
 
       {/* 扔瓶子模态框 */}
       <Modal
@@ -556,24 +555,28 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   mainContent: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
+    justifyContent: 'flex-end',
     paddingHorizontal: 20,
+    paddingTop: 20,
   },
   bottleContainer: {
-    flex: 1,
+    position: 'absolute',
+    bottom: 100,
+    left: 0,
+    right: 0,
     alignItems: 'center',
     justifyContent: 'center',
+    zIndex: 1,
   },
   bottle: {
     alignItems: 'center',
     justifyContent: 'center',
   },
   bottleImage: {
-    width: 80,
-    height: 120,
+    width: 70,
+    height: 90,
   },
   actionContainer: {
     flex: 1,

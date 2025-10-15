@@ -16,6 +16,7 @@ import {
   ScrollView,
   Keyboard,
   TouchableWithoutFeedback,
+  Image,
 } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Rect } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -32,9 +33,12 @@ const HomeScreen = ({ navigation }) => {
   
   // 动画值
   const bottleFloat = useRef(new Animated.Value(0)).current;
+  const bottleDrift = useRef(new Animated.Value(0)).current;
+  const bottleRotate = useRef(new Animated.Value(0)).current;
 
-  // 瓶子浮动动画
+  // 瓶子漂流动画
   useEffect(() => {
+    // 上下浮动动画
     const floatAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(bottleFloat, {
@@ -49,7 +53,42 @@ const HomeScreen = ({ navigation }) => {
         }),
       ])
     );
+
+    // 左右漂流动画
+    const driftAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bottleDrift, {
+          toValue: 1,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bottleDrift, {
+          toValue: 0,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    // 轻微旋转动画
+    const rotateAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bottleRotate, {
+          toValue: 1,
+          duration: 6000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(bottleRotate, {
+          toValue: 0,
+          duration: 6000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
     floatAnimation.start();
+    driftAnimation.start();
+    rotateAnimation.start();
   }, []);
 
   // 波浪路径生成 - 使用静态路径避免动画值类型问题
@@ -57,13 +96,25 @@ const HomeScreen = ({ navigation }) => {
   const getWavePath2 = () => `M0,${height * 0.6} Q${width * 0.25},${height * 0.6 - 10} ${width * 0.5},${height * 0.6} T${width},${height * 0.6} L${width},${height} L0,${height} Z`;
   const getWavePath3 = () => `M0,${height * 0.6} Q${width * 0.25},${height * 0.6 - 8} ${width * 0.5},${height * 0.6} T${width},${height * 0.6} L${width},${height} L0,${height} Z`;
 
-  // 瓶子变换
+  // 瓶子变换 - 组合所有动画效果
   const bottleTransform = {
     transform: [
       {
         translateY: bottleFloat.interpolate({
           inputRange: [0, 1],
-          outputRange: [0, -10],
+          outputRange: [0, -15],
+        }),
+      },
+      {
+        translateX: bottleDrift.interpolate({
+          inputRange: [0, 1],
+          outputRange: [-10, 10],
+        }),
+      },
+      {
+        rotate: bottleRotate.interpolate({
+          inputRange: [0, 1],
+          outputRange: ['-5deg', '5deg'],
         }),
       },
     ],
@@ -294,28 +345,13 @@ const HomeScreen = ({ navigation }) => {
         {/* 中央瓶子 */}
         <View style={styles.bottleContainer}>
           <Animated.View style={[styles.bottle, bottleTransform]}>
-            <Svg width="80" height="120" viewBox="0 0 80 120">
-              {/* 瓶子主体 */}
-              <Path
-                d="M20 20 L20 100 Q20 110 30 110 L50 110 Q60 110 60 100 L60 20 Q60 10 50 10 L30 10 Q20 10 20 20 Z"
-                fill="rgba(255,255,255,0.3)"
-                stroke="rgba(255,255,255,0.6)"
-                strokeWidth="2"
-              />
-              {/* 软木塞 */}
-              <Rect x="25" y="15" width="30" height="8" fill="#8b4513" />
-              {/* 液体 */}
-              <Rect x="25" y="85" width="30" height="15" fill="rgba(135,206,250,0.6)" />
-              {/* 高光 */}
-              <Path
-                d="M25 25 L25 95 Q25 100 30 100 L50 100"
-                fill="none"
-                stroke="rgba(255,255,255,0.8)"
-                strokeWidth="1"
-              />
-            </Svg>
+            <Image
+              source={{ uri: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iMTIwIiB2aWV3Qm94PSIwIDAgODAgMTIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8IS0tIEJvdHRsZSBCb2R5IC0tPgo8cGF0aCBkPSJNMjAgMjAgTDIwIDEwMCBRMjAgMTEwIDMwIDExMCBMNTAgMTEwIFE2MCAxMTAgNjAgMTAwIEw2MCAyMCBRNjAgMTAgNTAgMTAgTDMwIDEwIFEyMCAxMCAyMCAyMCBaIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMykiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjYpIiBzdHJva2Utd2lkdGg9IjIiLz4KPCEtLSBCb3R0bGUgTmVjayAtLT4KPHJlY3QgeD0iMjUiIHk9IjE1IiB3aWR0aD0iMzAiIGhlaWdodD0iOCIgZmlsbD0iI2Y0ZjRmNCIgc3Ryb2tlPSIjZTJlMmUyIiBzdHJva2Utd2lkdGg9IjEiLz4KPCEtLSBMaXF1aWQgLS0+CjxyZWN0IHg9IjI1IiB5PSI4NSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjE1IiBmaWxsPSJyZ2JhKDEzNSwyMDYsMjUwLDAuNikiLz4KPCEtLSBIaWdobGlnaHQgLS0+CjxwYXRoIGQ9Ik0yNSAyNSBMMjUgOTUgUTI1IDEwMCAzMCAxMDAgTDUwIDEwMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuOCkiIHN0cm9rZS13aWR0aD0iMSIvPgo8L3N2Zz4=' }}
+              style={styles.bottleImage}
+              resizeMode="contain"
+            />
           </Animated.View>
-      </View>
+        </View>
 
         {/* 操作按钮 */}
         <View style={styles.actionContainer}>
@@ -543,6 +579,10 @@ const styles = StyleSheet.create({
   bottle: {
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  bottleImage: {
+    width: 80,
+    height: 120,
   },
   actionContainer: {
     marginTop: 40,

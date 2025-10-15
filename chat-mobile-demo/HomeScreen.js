@@ -342,59 +342,62 @@ const HomeScreen = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        {/* 中央瓶子 */}
-        <View style={styles.bottleContainer}>
-          <Animated.View style={[styles.bottle, bottleTransform]}>
-            <Image
-              source={require('./assets/bottle.png')}
-              style={styles.bottleImage}
-              resizeMode="contain"
-            />
-          </Animated.View>
+        {/* 主体内容 - 瓶子在左侧，按钮在右侧 */}
+        <View style={styles.mainContent}>
+          {/* 左侧瓶子 */}
+          <View style={styles.bottleContainer}>
+            <Animated.View style={[styles.bottle, bottleTransform]}>
+              <Image
+                source={require('./assets/bottle.png')}
+                style={styles.bottleImage}
+                resizeMode="contain"
+              />
+            </Animated.View>
+          </View>
+
+          {/* 右侧操作按钮 */}
+          <View style={styles.actionContainer}>
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={() => setIsModalVisible(true)}
+              disabled={isThrowing}
+            >
+              <View style={styles.buttonIcon}>
+                <Svg width="24" height="24" viewBox="0 0 24 24">
+                  <Path
+                    d="M12 2 L12 8 M8 4 L16 4 M8 8 L16 8 M6 12 L18 12 M6 16 L18 16 M6 20 L18 20"
+                    stroke="white"
+                    strokeWidth="2"
+                    fill="none"
+                  />
+                </Svg>
+              </View>
+              <Text style={styles.buttonText}>
+                {isThrowing ? '扔瓶子中...' : '扔一个瓶子'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity 
+              style={styles.actionButton}
+              onPress={handlePickBottle}
+              disabled={isPicking}
+            >
+              <View style={styles.buttonIcon}>
+                <Svg width="24" height="24" viewBox="0 0 24 24">
+                  <Path
+                    d="M12 2 C8 2 6 6 6 10 C6 14 8 18 12 18 C16 18 18 14 18 10 C18 6 16 2 12 2 Z M12 6 C13.1 6 14 6.9 14 8 C14 9.1 13.1 10 12 10 C10.9 10 10 9.1 10 8 C10 6.9 10.9 6 12 6 Z"
+                    stroke="white"
+                    strokeWidth="2"
+                    fill="none"
+                  />
+                </Svg>
+              </View>
+              <Text style={styles.buttonText}>
+                {isPicking ? '捡瓶子中...' : '捡一个瓶子'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
-
-        {/* 操作按钮 */}
-        <View style={styles.actionContainer}>
-        <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={() => setIsModalVisible(true)}
-          disabled={isThrowing}
-        >
-            <View style={styles.buttonIcon}>
-              <Svg width="24" height="24" viewBox="0 0 24 24">
-                <Path
-                  d="M12 2 L12 8 M8 4 L16 4 M8 8 L16 8 M6 12 L18 12 M6 16 L18 16 M6 20 L18 20"
-                  stroke="white"
-                  strokeWidth="2"
-                  fill="none"
-                />
-              </Svg>
-            </View>
-          <Text style={styles.buttonText}>
-              {isThrowing ? '扔瓶子中...' : '扔一个瓶子'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-            style={styles.actionButton}
-            onPress={handlePickBottle}
-            disabled={isPicking}
-          >
-            <View style={styles.buttonIcon}>
-              <Svg width="24" height="24" viewBox="0 0 24 24">
-                <Path
-                  d="M12 2 C8 2 6 6 6 10 C6 14 8 18 12 18 C16 18 18 14 18 10 C18 6 16 2 12 2 Z M12 6 C13.1 6 14 6.9 14 8 C14 9.1 13.1 10 12 10 C10.9 10 10 9.1 10 8 C10 6.9 10.9 6 12 6 Z"
-                  stroke="white"
-                  strokeWidth="2"
-                  fill="none"
-                />
-              </Svg>
-            </View>
-          <Text style={styles.buttonText}>
-              {isPicking ? '捡瓶子中...' : '捡一个瓶子'}
-          </Text>
-        </TouchableOpacity>
-      </View>
           </View>
           
 
@@ -572,9 +575,17 @@ const styles = StyleSheet.create({
     backgroundColor: 'white',
     borderRadius: 1,
   },
-  bottleContainer: {
+  mainContent: {
+    flex: 1,
+    flexDirection: 'row',
     alignItems: 'center',
-    marginVertical: 40,
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+  },
+  bottleContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   bottle: {
     alignItems: 'center',
@@ -585,8 +596,9 @@ const styles = StyleSheet.create({
     height: 120,
   },
   actionContainer: {
-    marginTop: 40,
-    marginBottom: 60,
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 16,
   },
   actionButton: {

@@ -363,7 +363,7 @@ const HomeScreen = ({ navigation }) => {
               disabled={isThrowing}
             >
               <Text style={styles.buttonText}>
-                {isThrowing ? '扔瓶子中...' : '扔一个瓶子'}
+                {isThrowing ? '扔中...' : '扔一个'}
               </Text>
             </TouchableOpacity>
 
@@ -373,7 +373,7 @@ const HomeScreen = ({ navigation }) => {
               disabled={isPicking}
             >
               <Text style={styles.buttonText}>
-                {isPicking ? '捡瓶子中...' : '捡一个瓶子'}
+                {isPicking ? '捡中...' : '捡一个'}
               </Text>
             </TouchableOpacity>
           </View>
@@ -585,12 +585,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.2)',
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 25,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
-    minWidth: 120,
   },
   buttonText: {
     color: 'white',

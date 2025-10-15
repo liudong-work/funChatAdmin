@@ -555,15 +555,16 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   mainContent: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
     paddingHorizontal: 20,
-    paddingTop: 20,
+    paddingTop: '15%',
   },
   bottleContainer: {
     position: 'absolute',
-    bottom: 100,
+    bottom: 150,
     left: 0,
     right: 0,
     alignItems: 'center',

@@ -362,16 +362,6 @@ const HomeScreen = ({ navigation }) => {
               onPress={() => setIsModalVisible(true)}
               disabled={isThrowing}
             >
-              <View style={styles.buttonIcon}>
-                <Svg width="24" height="24" viewBox="0 0 24 24">
-                  <Path
-                    d="M12 2 L12 8 M8 4 L16 4 M8 8 L16 8 M6 12 L18 12 M6 16 L18 16 M6 20 L18 20"
-                    stroke="white"
-                    strokeWidth="2"
-                    fill="none"
-                  />
-                </Svg>
-              </View>
               <Text style={styles.buttonText}>
                 {isThrowing ? '扔瓶子中...' : '扔一个瓶子'}
               </Text>
@@ -382,16 +372,6 @@ const HomeScreen = ({ navigation }) => {
               onPress={handlePickBottle}
               disabled={isPicking}
             >
-              <View style={styles.buttonIcon}>
-                <Svg width="24" height="24" viewBox="0 0 24 24">
-                  <Path
-                    d="M12 2 C8 2 6 6 6 10 C6 14 8 18 12 18 C16 18 18 14 18 10 C18 6 16 2 12 2 Z M12 6 C13.1 6 14 6.9 14 8 C14 9.1 13.1 10 12 10 C10.9 10 10 9.1 10 8 C10 6.9 10.9 6 12 6 Z"
-                    stroke="white"
-                    strokeWidth="2"
-                    fill="none"
-                  />
-                </Svg>
-              </View>
               <Text style={styles.buttonText}>
                 {isPicking ? '捡瓶子中...' : '捡一个瓶子'}
               </Text>
@@ -602,23 +582,21 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   actionButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.2)',
     paddingVertical: 16,
-    paddingHorizontal: 24,
+    paddingHorizontal: 32,
     borderRadius: 25,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.3)',
-  },
-  buttonIcon: {
-    marginRight: 12,
+    minWidth: 120,
   },
   buttonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
   },
   modalOverlay: {
     flex: 1,

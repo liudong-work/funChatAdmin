@@ -346,7 +346,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.bottleContainer}>
           <Animated.View style={[styles.bottle, bottleTransform]}>
             <Image
-              source={{ uri: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODAiIGhlaWdodD0iMTIwIiB2aWV3Qm94PSIwIDAgODAgMTIwIiBmaWxsPSJub25lIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPgo8IS0tIEJvdHRsZSBCb2R5IC0tPgo8cGF0aCBkPSJNMjAgMjAgTDIwIDEwMCBRMjAgMTEwIDMwIDExMCBMNTAgMTEwIFE2MCAxMTAgNjAgMTAwIEw2MCAyMCBRNjAgMTAgNTAgMTAgTDMwIDEwIFEyMCAxMCAyMCAyMCBaIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMykiIHN0cm9rZT0icmdiYSgyNTUsMjU1LDI1NSwwLjYpIiBzdHJva2Utd2lkdGg9IjIiLz4KPCEtLSBCb3R0bGUgTmVjayAtLT4KPHJlY3QgeD0iMjUiIHk9IjE1IiB3aWR0aD0iMzAiIGhlaWdodD0iOCIgZmlsbD0iI2Y0ZjRmNCIgc3Ryb2tlPSIjZTJlMmUyIiBzdHJva2Utd2lkdGg9IjEiLz4KPCEtLSBMaXF1aWQgLS0+CjxyZWN0IHg9IjI1IiB5PSI4NSIgd2lkdGg9IjMwIiBoZWlnaHQ9IjE1IiBmaWxsPSJyZ2JhKDEzNSwyMDYsMjUwLDAuNikiLz4KPCEtLSBIaWdobGlnaHQgLS0+CjxwYXRoIGQ9Ik0yNSAyNSBMMjUgOTUgUTI1IDEwMCAzMCAxMDAgTDUwIDEwMCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSJyZ2JhKDI1NSwyNTUsMjU1LDAuOCkiIHN0cm9rZS13aWR0aD0iMSIvPgo8L3N2Zz4=' }}
+              source={require('../assets/images/bottle.png')}
               style={styles.bottleImage}
               resizeMode="contain"
             />

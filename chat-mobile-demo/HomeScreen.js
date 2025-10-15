@@ -33,7 +33,7 @@ const HomeScreen = ({ navigation }) => {
   
   // 动画值
   const bottleFloat = useRef(new Animated.Value(0)).current;
-  const bottleDrift = useRef(new Animated.Value(0)).current;
+  const bottleMove = useRef(new Animated.Value(0)).current;
   const bottleRotate = useRef(new Animated.Value(0)).current;
 
   // 瓶子漂流动画
@@ -54,17 +54,17 @@ const HomeScreen = ({ navigation }) => {
       ])
     );
 
-    // 左右漂流动画
-    const driftAnimation = Animated.loop(
+    // 从左向右移动动画（循环）
+    const moveAnimation = Animated.loop(
       Animated.sequence([
-        Animated.timing(bottleDrift, {
+        Animated.timing(bottleMove, {
           toValue: 1,
-          duration: 4000,
+          duration: 8000,
           useNativeDriver: true,
         }),
-        Animated.timing(bottleDrift, {
+        Animated.timing(bottleMove, {
           toValue: 0,
-          duration: 4000,
+          duration: 0,
           useNativeDriver: true,
         }),
       ])
@@ -87,7 +87,7 @@ const HomeScreen = ({ navigation }) => {
     );
 
     floatAnimation.start();
-    driftAnimation.start();
+    moveAnimation.start();
     rotateAnimation.start();
   }, []);
 
@@ -106,9 +106,9 @@ const HomeScreen = ({ navigation }) => {
         }),
       },
       {
-        translateX: bottleDrift.interpolate({
+        translateX: bottleMove.interpolate({
           inputRange: [0, 1],
-          outputRange: [-10, 10],
+          outputRange: [-width * 0.3, width * 0.3],
         }),
       },
       {

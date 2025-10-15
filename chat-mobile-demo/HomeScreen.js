@@ -346,7 +346,7 @@ const HomeScreen = ({ navigation }) => {
         <View style={styles.bottleContainer}>
           <Animated.View style={[styles.bottle, bottleTransform]}>
             <Image
-              source={require('../assets/images/bottle.png')}
+              source={require('./assets/bottle.png')}
               style={styles.bottleImage}
               resizeMode="contain"
             />

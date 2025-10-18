@@ -1,4 +1,5 @@
 import API_CONFIG, { buildUrl, getBaseUrl, getTimeout, getDefaultHeaders } from '../config/api.js';
+import { Image } from 'react-native';
 
 // API服务类 - 封装所有HTTP请求
 class ApiService {
@@ -404,108 +405,211 @@ export const messageApi = {
     }
   },
 
-  // 头像上传 (OSS存储) - 增强网络诊断版本
+  // 头像上传 (OSS存储) - 优化版本，支持图片压缩和验证
   uploadAvatarToOSS: async (fileUri, fileName, mimeType, token) => {
     try {
       console.log('[AvatarAPI] 开始上传头像到OSS:', { fileUri, fileName, mimeType, hasToken: !!token });
       
-      // 详细的网络连接测试
-      console.log('[AvatarAPI] 开始网络诊断...');
-      const baseUrl = getBaseUrl();
-      console.log('[AvatarAPI] 基础URL:', baseUrl);
-      
-      // 测试多个端点
-      const testEndpoints = ['/health', '/api/bottle/check'];
-      for (const endpoint of testEndpoints) {
-        try {
-          const testUrl = baseUrl + endpoint;
-          console.log('[AvatarAPI] 测试端点:', testUrl);
-          const testRes = await fetch(testUrl, {
-            method: 'GET',
-            headers: {
-              'Accept': 'application/json',
-            }
-          });
-          console.log('[AvatarAPI] 端点测试成功:', endpoint, '状态:', testRes.status);
-        } catch (testError) {
-          console.error('[AvatarAPI] 端点测试失败:', endpoint, testError);
-          throw new Error(`网络连接失败 (${endpoint}): ${testError.message}`);
-        }
+      // 图片验证
+      const validationResult = await validateImageFile(fileUri, fileName, mimeType);
+      if (!validationResult.valid) {
+        throw new Error(validationResult.error);
       }
       
-      console.log('[AvatarAPI] 网络诊断完成，开始构建FormData...');
+      console.log('[AvatarAPI] 图片验证通过:', validationResult);
       
+      // 图片压缩
+      const compressedImage = await compressImage(fileUri, {
+        maxWidth: 800,
+        maxHeight: 800,
+        quality: 0.8,
+        format: 'JPEG'
+      });
+      
+      console.log('[AvatarAPI] 图片压缩完成:', {
+        originalSize: validationResult.size,
+        compressedSize: compressedImage.size,
+        compressionRatio: ((validationResult.size - compressedImage.size) / validationResult.size * 100).toFixed(1) + '%'
+      });
+      
+      // 网络连接测试（简化版）
+      console.log('[AvatarAPI] 开始网络诊断...');
+      const baseUrl = getBaseUrl();
+      
+      try {
+        const testRes = await fetch(baseUrl + '/health', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+          timeout: 3000
+        });
+        console.log('[AvatarAPI] 网络连接正常:', testRes.status);
+      } catch (networkError) {
+        console.warn('[AvatarAPI] 网络测试失败，继续尝试上传:', networkError.message);
+      }
+      
+      // 构建FormData
+      console.log('[AvatarAPI] 构建FormData...');
       const formData = new FormData();
       formData.append('avatar', {
-        uri: fileUri,
+        uri: compressedImage.uri,
         name: fileName || 'avatar.jpg',
-        type: mimeType || 'image/jpeg',
+        type: 'image/jpeg', // 压缩后统一为JPEG格式
       });
-
-      console.log('[AvatarAPI] FormData构建完成');
 
       const url = buildUrl('/api/user/avatar/oss');
-      console.log('[AvatarAPI] OSS上传URL:', url);
-      console.log('[AvatarAPI] 请求配置:', {
-        method: 'POST',
-        hasAuth: !!token,
-        hasFormData: true,
-        tokenPrefix: token ? token.substring(0, 20) + '...' : 'none'
-      });
+      console.log('[AvatarAPI] 开始上传到:', url);
 
-      // 发送上传请求，添加更多配置
-      console.log('[AvatarAPI] 开始发送上传请求...');
+      // 发送上传请求
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
           'Accept': 'application/json',
-          // 不设置 Content-Type，让 fetch 自动设置 multipart/form-data
         },
         body: formData,
       });
 
-      console.log('[AvatarAPI] 请求发送完成');
-      console.log('[AvatarAPI] 响应状态:', res.status);
-      console.log('[AvatarAPI] 响应头:', Object.fromEntries(res.headers.entries()));
-
-      // 检查响应内容类型
-      const contentType = res.headers.get('content-type');
-      console.log('[AvatarAPI] 响应内容类型:', contentType);
-
-      let result;
-      if (contentType && contentType.includes('application/json')) {
-        result = await res.json();
-      } else {
-        const text = await res.text();
-        console.log('[AvatarAPI] 非JSON响应:', text);
-        throw new Error(`服务器返回非JSON响应: ${res.status}`);
-      }
-
-      console.log('[AvatarAPI] OSS上传结果:', { status: res.status, result });
+      console.log('[AvatarAPI] 上传响应:', res.status);
 
       if (!res.ok) {
-        throw new Error(result.message || `OSS上传失败: ${res.status}`);
+        const errorText = await res.text();
+        throw new Error(`上传失败 (${res.status}): ${errorText}`);
       }
+
+      const result = await res.json();
+      console.log('[AvatarAPI] 上传成功:', result);
 
       return result;
     } catch (error) {
-      console.error('[AvatarAPI] OSS上传失败:', error);
+      console.error('[AvatarAPI] 头像上传失败:', error);
       
-      // 详细的错误分类
-      if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
-        throw new Error('网络请求失败：请检查网络连接和服务器状态');
-      } else if (error.name === 'AbortError') {
-        throw new Error('上传超时，请检查网络连接后重试');
+      // 优化错误信息
+      if (error.message.includes('Network request failed')) {
+        throw new Error('网络连接失败，请检查网络设置');
       } else if (error.message.includes('timeout')) {
-        throw new Error('请求超时，请重试');
+        throw new Error('上传超时，请重试');
       } else if (error.message.includes('Failed to fetch')) {
-        throw new Error('无法连接到服务器，请检查网络设置');
+        throw new Error('无法连接到服务器');
       }
       
       throw error;
     }
   },
+};
+
+// 图片验证函数
+const validateImageFile = async (fileUri, fileName, mimeType) => {
+  try {
+    // 检查文件类型
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(mimeType?.toLowerCase())) {
+      return {
+        valid: false,
+        error: '不支持的文件格式，请选择 JPG、PNG、GIF 或 WebP 格式的图片'
+      };
+    }
+    
+    // 检查文件大小（通过图片信息估算）
+    const imageInfo = await Image.getSize(fileUri);
+    const estimatedSize = (imageInfo.width * imageInfo.height * 3) / 1024; // 粗略估算KB
+    
+    if (estimatedSize > 10240) { // 10MB
+      return {
+        valid: false,
+        error: '图片文件过大，请选择小于10MB的图片'
+      };
+    }
+    
+    // 检查图片尺寸
+    if (imageInfo.width < 50 || imageInfo.height < 50) {
+      return {
+        valid: false,
+        error: '图片尺寸过小，请选择至少50x50像素的图片'
+      };
+    }
+    
+    if (imageInfo.width > 4096 || imageInfo.height > 4096) {
+      return {
+        valid: false,
+        error: '图片尺寸过大，请选择小于4096x4096像素的图片'
+      };
+    }
+    
+    return {
+      valid: true,
+      size: estimatedSize,
+      width: imageInfo.width,
+      height: imageInfo.height,
+      aspectRatio: imageInfo.width / imageInfo.height
+    };
+  } catch (error) {
+    return {
+      valid: false,
+      error: '无法读取图片信息，请选择有效的图片文件'
+    };
+  }
+};
+
+// 图片压缩函数
+const compressImage = async (fileUri, options = {}) => {
+  try {
+    const {
+      maxWidth = 800,
+      maxHeight = 800,
+      quality = 0.8,
+      format = 'JPEG'
+    } = options;
+    
+    // 获取原始图片信息
+    const imageInfo = await Image.getSize(fileUri);
+    
+    // 计算压缩后的尺寸
+    let { width, height } = imageInfo;
+    const aspectRatio = width / height;
+    
+    if (width > maxWidth || height > maxHeight) {
+      if (aspectRatio > 1) {
+        width = maxWidth;
+        height = maxWidth / aspectRatio;
+      } else {
+        height = maxHeight;
+        width = maxHeight * aspectRatio;
+      }
+    }
+    
+    // 使用expo-image-manipulator进行压缩
+    const { manipulateAsync, SaveFormat } = await import('expo-image-manipulator');
+    
+    const compressedImage = await manipulateAsync(
+      fileUri,
+      [
+        {
+          resize: {
+            width: Math.round(width),
+            height: Math.round(height)
+          }
+        }
+      ],
+      {
+        compress: quality,
+        format: format === 'JPEG' ? SaveFormat.JPEG : SaveFormat.PNG,
+      }
+    );
+    
+    return {
+      uri: compressedImage.uri,
+      width: compressedImage.width,
+      height: compressedImage.height,
+      size: compressedImage.fileSize || 0
+    };
+  } catch (error) {
+    console.warn('[AvatarAPI] 图片压缩失败，使用原图:', error);
+    // 如果压缩失败，返回原图
+    return {
+      uri: fileUri,
+      size: 0
+    };
+  }
 };
 
 // 文件上传API（用于语音等多媒体）

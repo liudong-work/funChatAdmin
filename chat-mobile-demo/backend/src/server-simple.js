@@ -429,18 +429,25 @@ app.post('/api/user/avatar/oss', authenticateToken, (req, res) => {
   // 设置请求超时
   req.setTimeout(30000); // 30秒超时
 
-  // 使用multer内存存储处理文件上传
+  // 使用multer内存存储处理文件上传 - 优化版本
   const upload = multer({
     storage: multer.memoryStorage(),
     limits: {
-      fileSize: 5 * 1024 * 1024, // 5MB
+      fileSize: 10 * 1024 * 1024, // 10MB
     },
     fileFilter: function (req, file, cb) {
-      // 只允许图片文件
-      if (file.mimetype.startsWith('image/')) {
+      console.log('[AvatarUpload] 文件过滤:', {
+        fieldname: file.fieldname,
+        originalname: file.originalname,
+        mimetype: file.mimetype
+      });
+      
+      // 检查文件类型
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (allowedTypes.includes(file.mimetype.toLowerCase())) {
         cb(null, true);
       } else {
-        cb(new Error('只允许上传图片文件'), false);
+        cb(new Error('不支持的文件格式，请选择 JPG、PNG、GIF 或 WebP 格式的图片'), false);
       }
     }
   });
@@ -471,6 +478,23 @@ app.post('/api/user/avatar/oss', authenticateToken, (req, res) => {
         bufferSize: req.file.buffer ? req.file.buffer.length : 0
       });
 
+      // 验证文件大小
+      if (req.file.size > 10 * 1024 * 1024) {
+        return res.status(400).json({
+          status: false,
+          message: '文件过大，请选择小于10MB的图片'
+        });
+      }
+
+      // 验证文件类型（双重检查）
+      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+      if (!allowedTypes.includes(req.file.mimetype.toLowerCase())) {
+        return res.status(400).json({
+          status: false,
+          message: '不支持的文件格式，请选择 JPG、PNG、GIF 或 WebP 格式的图片'
+        });
+      }
+
       // 获取用户信息
       const user = users.get(req.user.uuid);
       if (!user) {
@@ -487,8 +511,13 @@ app.post('/api/user/avatar/oss', authenticateToken, (req, res) => {
       
       console.log('[AvatarUpload] 开始上传到OSS:', ossObjectName);
       
-      // 使用内存缓冲区上传到OSS
-      const ossResult = await uploadBufferToOSS(req.file.buffer, ossObjectName);
+      // 使用内存缓冲区上传到OSS，添加缓存头
+      const ossResult = await uploadBufferToOSS(req.file.buffer, ossObjectName, {
+        headers: {
+          'Content-Type': req.file.mimetype,
+          'Cache-Control': 'public, max-age=31536000' // 缓存1年
+        }
+      });
       
       if (ossResult.success) {
         // 删除旧头像文件（如果是OSS文件）

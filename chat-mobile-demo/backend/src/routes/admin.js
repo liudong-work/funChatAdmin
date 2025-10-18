@@ -1,6 +1,24 @@
 import express from 'express';
+import multer from 'multer';
 
 const router = express.Router();
+
+// 配置 multer 内存存储
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    // 允许的图片类型
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('只允许上传图片文件 (jpeg, jpg, png, gif, webp)'));
+    }
+  }
+});
 
 // 全局用户存储的引用（将在server-simple.js中设置）
 let globalUsers = null;

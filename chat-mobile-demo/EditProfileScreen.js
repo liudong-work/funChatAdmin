@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { messageApi } from './services/apiService';
 
 export default function EditProfileScreen({ route, navigation }) {
   const { userInfo } = route.params || {};
@@ -44,7 +45,7 @@ export default function EditProfileScreen({ route, navigation }) {
     );
   };
 
-  // 从相册选择图片
+  // 从相册选择图片并上传到OSS
   const pickImage = async () => {
     try {
       const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -61,15 +62,92 @@ export default function EditProfileScreen({ route, navigation }) {
       });
 
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        const uri = result.assets[0].uri;
-        // TODO: 上传到服务器
-        // 暂时使用本地URI
-        setAvatar(uri);
-        Alert.alert('提示', '头像设置成功！\n（暂时保存在本地）');
+        const asset = result.assets[0];
+        const uri = asset.uri;
+        
+        setLoading(true);
+        
+        // 获取用户token
+        const token = await AsyncStorage.getItem('authToken');
+        if (!token) {
+          Alert.alert('错误', '请先登录');
+          setLoading(false);
+          return;
+        }
+
+        // 上传到OSS
+        console.log('[EditProfile] 开始上传头像到OSS:', { 
+          uri, 
+          fileName: asset.fileName, 
+          type: asset.type,
+          hasToken: !!token,
+          tokenLength: token ? token.length : 0
+        });
+        
+        // 先测试网络连接
+        try {
+          const testResponse = await fetch('http://192.168.1.6:8889/health', {
+            method: 'GET',
+            timeout: 5000
+          });
+          console.log('[EditProfile] 网络连接测试:', testResponse.status);
+        } catch (networkError) {
+          console.error('[EditProfile] 网络连接测试失败:', networkError);
+          throw new Error('网络连接失败，请检查网络设置');
+        }
+        
+        try {
+          // 添加超时处理
+          const uploadPromise = messageApi.uploadAvatarToOSS(
+            uri, 
+            asset.fileName || 'avatar.jpg', 
+            asset.type || 'image/jpeg',
+            token
+          );
+          
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('上传超时，请重试')), 30000); // 30秒超时
+          });
+          
+          const uploadResult = await Promise.race([uploadPromise, timeoutPromise]);
+
+        if (uploadResult && uploadResult.status) {
+          // 上传成功，更新头像URL
+          setAvatar(uploadResult.data.avatar);
+          
+          // 更新本地用户信息
+          const userInfoStr = await AsyncStorage.getItem('userInfo');
+          if (userInfoStr) {
+            const userInfo = JSON.parse(userInfoStr);
+            userInfo.avatar = uploadResult.data.avatar;
+            await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+          }
+          
+          Alert.alert(
+            '头像上传成功', 
+            '头像已成功上传到云端存储！\n\n☁️ 云端存储说明：\n• 头像已保存到阿里云OSS\n• 可以同步到所有设备\n• 应用重装后头像不会丢失\n• 支持高清图片存储',
+            [{ text: '确定', onPress: () => setLoading(false) }]
+          );
+        } else {
+          throw new Error(uploadResult?.message || '上传失败');
+        }
+      } catch (uploadError) {
+        console.error('[EditProfile] 头像上传失败:', uploadError);
+        
+        // OSS上传失败，直接显示错误信息
+        Alert.alert(
+          '上传失败', 
+          `头像上传失败：${uploadError.message}\n\n请检查网络连接后重试`,
+          [{ text: '确定', onPress: () => setLoading(false) }]
+        );
+      } finally {
+        // 确保loading状态被正确设置
+      }
       }
     } catch (error) {
       console.error('选择图片失败:', error);
       Alert.alert('错误', '选择图片失败');
+      setLoading(false);
     }
   };
 

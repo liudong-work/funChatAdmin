@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userApi, pointsApi } from './services/apiService';
@@ -30,6 +30,17 @@ export default function ProfileScreen({ onLogout, navigation }) {
     loadFollowStats();
     loadPointsInfo();
   }, []);
+
+  // 监听页面焦点，从编辑资料页面返回时刷新数据
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // 页面获得焦点时重新加载用户信息
+      loadUserInfo();
+      loadPointsInfo();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const loadUserInfo = async () => {
     try {

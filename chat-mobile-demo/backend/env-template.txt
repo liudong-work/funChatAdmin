@@ -49,3 +49,12 @@ LOG_PATH=logs/drift-bottle.log
 # WebSocket配置
 # ===========================================
 WS_HEARTBEAT_INTERVAL=30000
+
+# ===========================================
+# 阿里云OSS配置
+# ===========================================
+OSS_REGION=oss-cn-beijing
+OSS_ACCESS_KEY_ID=your_access_key_id
+OSS_ACCESS_KEY_SECRET=your_access_key_secret
+OSS_BUCKET=mangguo001
+OSS_ENDPOINT=https://oss-cn-beijing.aliyuncs.com

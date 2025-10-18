@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   StyleSheet, 
   View, 
@@ -31,6 +31,18 @@ export default function UserProfileScreen({ route, navigation }) {
   useEffect(() => {
     loadUserProfile();
   }, [userUuid]);
+
+  // 监听页面焦点，从编辑资料页面返回时刷新数据
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // 页面获得焦点时重新加载用户信息
+      if (isCurrentUser) {
+        loadUserProfile();
+      }
+    });
+
+    return unsubscribe;
+  }, [navigation, isCurrentUser]);
 
   // 加载用户主页数据
   const loadUserProfile = async () => {

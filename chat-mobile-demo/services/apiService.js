@@ -1,4 +1,4 @@
-import API_CONFIG, { buildUrl, getTimeout, getDefaultHeaders } from '../config/api.js';
+import API_CONFIG, { buildUrl, getBaseUrl, getTimeout, getDefaultHeaders } from '../config/api.js';
 
 // API服务类 - 封装所有HTTP请求
 class ApiService {
@@ -305,6 +305,10 @@ export const userApi = {
 
 // 漂流瓶相关API (待实现)
 export const bottleApi = {
+  // 检查是否有可捞的瓶子
+  checkBottle: (token) => 
+    apiService.authenticatedGet('/api/bottle/check', token),
+
   // 扔瓶子
   throwBottle: (content, mood, token) => 
     apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.THROW, { content, mood }, token),
@@ -362,10 +366,10 @@ export const messageApi = {
   getMessages: (conversationId, token) => 
     apiService.authenticatedGet(API_CONFIG.ENDPOINTS.MESSAGE.GET_MESSAGES(conversationId), token),
 
-  // 头像上传
+  // 头像上传 (本地存储)
   uploadAvatar: async (fileUri, fileName, mimeType, token) => {
     try {
-      console.log('[AvatarAPI] 开始上传头像:', { fileUri, fileName, mimeType, hasToken: !!token });
+      console.log('[AvatarAPI] 开始上传头像到本地:', { fileUri, fileName, mimeType, hasToken: !!token });
       
       const formData = new FormData();
       formData.append('avatar', {
@@ -396,6 +400,109 @@ export const messageApi = {
       return result;
     } catch (error) {
       console.error('[AvatarAPI] 上传失败:', error);
+      throw error;
+    }
+  },
+
+  // 头像上传 (OSS存储) - 增强网络诊断版本
+  uploadAvatarToOSS: async (fileUri, fileName, mimeType, token) => {
+    try {
+      console.log('[AvatarAPI] 开始上传头像到OSS:', { fileUri, fileName, mimeType, hasToken: !!token });
+      
+      // 详细的网络连接测试
+      console.log('[AvatarAPI] 开始网络诊断...');
+      const baseUrl = getBaseUrl();
+      console.log('[AvatarAPI] 基础URL:', baseUrl);
+      
+      // 测试多个端点
+      const testEndpoints = ['/health', '/api/bottle/check'];
+      for (const endpoint of testEndpoints) {
+        try {
+          const testUrl = baseUrl + endpoint;
+          console.log('[AvatarAPI] 测试端点:', testUrl);
+          const testRes = await fetch(testUrl, {
+            method: 'GET',
+            headers: {
+              'Accept': 'application/json',
+            }
+          });
+          console.log('[AvatarAPI] 端点测试成功:', endpoint, '状态:', testRes.status);
+        } catch (testError) {
+          console.error('[AvatarAPI] 端点测试失败:', endpoint, testError);
+          throw new Error(`网络连接失败 (${endpoint}): ${testError.message}`);
+        }
+      }
+      
+      console.log('[AvatarAPI] 网络诊断完成，开始构建FormData...');
+      
+      const formData = new FormData();
+      formData.append('avatar', {
+        uri: fileUri,
+        name: fileName || 'avatar.jpg',
+        type: mimeType || 'image/jpeg',
+      });
+
+      console.log('[AvatarAPI] FormData构建完成');
+
+      const url = buildUrl('/api/user/avatar/oss');
+      console.log('[AvatarAPI] OSS上传URL:', url);
+      console.log('[AvatarAPI] 请求配置:', {
+        method: 'POST',
+        hasAuth: !!token,
+        hasFormData: true,
+        tokenPrefix: token ? token.substring(0, 20) + '...' : 'none'
+      });
+
+      // 发送上传请求，添加更多配置
+      console.log('[AvatarAPI] 开始发送上传请求...');
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          Authorization: token ? `Bearer ${token}` : '',
+          'Accept': 'application/json',
+          // 不设置 Content-Type，让 fetch 自动设置 multipart/form-data
+        },
+        body: formData,
+      });
+
+      console.log('[AvatarAPI] 请求发送完成');
+      console.log('[AvatarAPI] 响应状态:', res.status);
+      console.log('[AvatarAPI] 响应头:', Object.fromEntries(res.headers.entries()));
+
+      // 检查响应内容类型
+      const contentType = res.headers.get('content-type');
+      console.log('[AvatarAPI] 响应内容类型:', contentType);
+
+      let result;
+      if (contentType && contentType.includes('application/json')) {
+        result = await res.json();
+      } else {
+        const text = await res.text();
+        console.log('[AvatarAPI] 非JSON响应:', text);
+        throw new Error(`服务器返回非JSON响应: ${res.status}`);
+      }
+
+      console.log('[AvatarAPI] OSS上传结果:', { status: res.status, result });
+
+      if (!res.ok) {
+        throw new Error(result.message || `OSS上传失败: ${res.status}`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('[AvatarAPI] OSS上传失败:', error);
+      
+      // 详细的错误分类
+      if (error.name === 'TypeError' && error.message.includes('Network request failed')) {
+        throw new Error('网络请求失败：请检查网络连接和服务器状态');
+      } else if (error.name === 'AbortError') {
+        throw new Error('上传超时，请检查网络连接后重试');
+      } else if (error.message.includes('timeout')) {
+        throw new Error('请求超时，请重试');
+      } else if (error.message.includes('Failed to fetch')) {
+        throw new Error('无法连接到服务器，请检查网络设置');
+      }
+      
       throw error;
     }
   },

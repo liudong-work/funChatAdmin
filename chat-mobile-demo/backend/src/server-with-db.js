@@ -15,6 +15,7 @@ import esClient, { MessageSearch, initializeIndexes } from './config/elasticsear
 import { config } from './config/config.js';
 import { log } from './config/logger.js';
 import { testConnection } from './config/database.js';
+import { uploadToOSS, uploadBufferToOSS, checkOSSConfig, deleteFromOSS } from './services/ossService.js';
 
 // 导入模型
 import { User, Moment, Comment, Like, Follow, Message, Bottle, UserPoints, CheckinRecord } from './models/index.js';
@@ -635,7 +636,7 @@ app.post('/api/admin/login', (req, res) => {
   }
 });
 
-// 头像上传API
+// 头像上传API (本地存储)
 app.post('/api/user/avatar', authenticateToken, async (req, res) => {
   const form = formidable({
     uploadDir: avatarsDir,
@@ -721,6 +722,115 @@ app.post('/api/user/avatar', authenticateToken, async (req, res) => {
         }
       });
     } catch (error) {
+      log.error('头像上传处理失败:', error);
+      res.status(500).json({
+        status: false,
+        message: '头像上传失败'
+      });
+    }
+  });
+});
+
+// 头像上传API (OSS存储)
+app.post('/api/user/avatar/oss', authenticateToken, async (req, res) => {
+  // 检查OSS配置
+  if (!checkOSSConfig()) {
+    return res.status(500).json({
+      status: false,
+      message: 'OSS配置不完整，请检查环境变量'
+    });
+  }
+
+  const form = formidable({
+    uploadDir: avatarsDir,
+    keepExtensions: true,
+    maxFileSize: 5 * 1024 * 1024, // 5MB
+    filter: ({ name, originalFilename, mimetype }) => {
+      // 只允许图片文件
+      return mimetype && mimetype.includes('image/');
+    }
+  });
+
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      log.error('头像上传失败:', err);
+      return res.status(500).json({
+        status: false,
+        message: '头像上传失败'
+      });
+    }
+
+    const file = files.avatar || files.file;
+    if (!file) {
+      return res.status(400).json({
+        status: false,
+        message: '请选择头像文件'
+      });
+    }
+
+    try {
+      // 获取用户信息
+      const user = await User.findOne({ where: { uuid: req.user.uuid } });
+      if (!user) {
+        return res.status(404).json({
+          status: false,
+          message: '用户不存在'
+        });
+      }
+
+      // 生成OSS对象名称
+      const ext = path.extname(file.originalFilename || '');
+      const ossObjectName = `avatars/avatar_${user.uuid}_${Date.now()}${ext}`;
+      
+      // 上传到OSS
+      const ossResult = await uploadToOSS(file.filepath, ossObjectName);
+      
+      if (ossResult.success) {
+        // 删除本地临时文件
+        fs.unlinkSync(file.filepath);
+        
+        // 删除旧头像文件（如果是OSS文件）
+        if (user.avatar && user.avatar.includes('oss-cn-beijing.aliyuncs.com')) {
+          const oldObjectName = user.avatar.split('/').slice(-2).join('/'); // 获取avatars/filename
+          try {
+            await deleteFromOSS(oldObjectName);
+            log.info(`删除旧头像文件: ${oldObjectName}`);
+          } catch (deleteErr) {
+            log.warn('删除旧头像文件失败:', deleteErr.message);
+          }
+        }
+        
+        // 更新用户头像URL
+        await user.update({ avatar: ossResult.url });
+        
+        log.info(`用户头像上传到OSS成功: ${user.uuid} -> ${ossResult.url}`);
+        
+        res.json({
+          status: true,
+          message: '头像上传成功',
+          data: {
+            avatar: ossResult.url,
+            filename: ossResult.name,
+            size: ossResult.size,
+            type: 'oss'
+          }
+        });
+      } else {
+        // 删除本地临时文件
+        fs.unlinkSync(file.filepath);
+        
+        log.error('OSS头像上传失败:', ossResult.error);
+        res.status(500).json({
+          status: false,
+          message: '头像上传失败: ' + ossResult.error
+        });
+      }
+    } catch (error) {
+      // 删除本地临时文件
+      if (fs.existsSync(file.filepath)) {
+        fs.unlinkSync(file.filepath);
+      }
+      
       log.error('头像上传处理失败:', error);
       res.status(500).json({
         status: false,
@@ -1310,6 +1420,90 @@ app.post('/api/upload', authenticateToken, (req, res) => {
   });
 });
 
+// ========== OSS上传API ==========
+app.post('/api/upload/oss', authenticateToken, (req, res) => {
+  // 检查OSS配置
+  if (!checkOSSConfig()) {
+    return res.status(500).json({
+      status: false,
+      message: 'OSS配置不完整，请检查环境变量'
+    });
+  }
+
+  const form = formidable({
+    uploadDir: uploadsDir,
+    keepExtensions: true,
+    maxFileSize: 10 * 1024 * 1024, // 10MB
+    filename: (name, ext, part) => {
+      return `img-${Date.now()}-${Math.floor(Math.random() * 1000000000)}${ext}`;
+    }
+  });
+
+  form.parse(req, async (err, fields, files) => {
+    if (err) {
+      log.error('文件上传失败:', err);
+      return res.json({
+        status: false,
+        message: '文件上传失败: ' + err.message
+      });
+    }
+
+    const file = files.file;
+    if (!file || file.length === 0) {
+      return res.json({
+        status: false,
+        message: '没有接收到文件'
+      });
+    }
+
+    const uploadedFile = Array.isArray(file) ? file[0] : file;
+    const filename = path.basename(uploadedFile.filepath);
+    
+    try {
+      // 上传到OSS
+      const ossResult = await uploadToOSS(uploadedFile.filepath);
+      
+      if (ossResult.success) {
+        // 删除本地临时文件
+        fs.unlinkSync(uploadedFile.filepath);
+        
+        log.info(`文件上传到OSS成功: ${ossResult.url}`);
+        
+        res.json({
+          status: true,
+          message: '上传成功',
+          data: {
+            filename: ossResult.name,
+            url: ossResult.url,
+            size: ossResult.size,
+            type: 'oss'
+          }
+        });
+      } else {
+        // 删除本地临时文件
+        fs.unlinkSync(uploadedFile.filepath);
+        
+        log.error('OSS上传失败:', ossResult.error);
+        res.json({
+          status: false,
+          message: 'OSS上传失败: ' + ossResult.error
+        });
+      }
+    } catch (error) {
+      // 删除本地临时文件
+      if (fs.existsSync(uploadedFile.filepath)) {
+        fs.unlinkSync(uploadedFile.filepath);
+      }
+      
+      log.error('文件处理失败:', error);
+      res.json({
+        status: false,
+        message: '文件处理失败: ' + error.message
+      });
+    }
+  });
+});
+
 // ========== WebSocket处理 ==========
 io.on('connection', (socket) => {
   log.info(`WebSocket连接建立: ${socket.id}`);
@@ -1508,6 +1702,54 @@ app.post('/api/bottle/throw', authenticateToken, async (req, res) => {
 });
 
 // 捞瓶子
+// 检查是否有可捞的瓶子（返回多个瓶子，至少2个）
+app.get('/api/bottle/check', authenticateToken, async (req, res) => {
+  try {
+    const myUuid = req.user.uuid;
+    
+    // 检查是否有非自己的且未被捞走的瓶子，返回最多3个
+    const bottles = await Bottle.findAll({
+      where: {
+        status: 'sea',
+        sender_uuid: { [Op.ne]: myUuid }
+      },
+      order: [['created_at', 'ASC']], // 最老的瓶子优先
+      limit: 3 // 最多返回3个瓶子
+    });
+
+    if (bottles && bottles.length > 0) {
+      // 将瓶子数据转换为前端需要的格式
+      const bottleList = bottles.map(bottle => ({
+        uuid: bottle.uuid,
+        message: bottle.content,
+        mood: bottle.mood,
+        created_at: bottle.created_at
+      }));
+
+      return res.json({ 
+        status: true, 
+        message: `发现 ${bottles.length} 个可捞的瓶子`,
+        hasBottle: true,
+        bottles: bottleList, // 返回瓶子数组
+        count: bottles.length,
+        // 为了兼容旧版本，仍然返回第一个瓶子作为 bottle 字段
+        bottle: bottleList[0]
+      });
+    } else {
+      return res.json({ 
+        status: true, 
+        message: '没有可捞的瓶子',
+        hasBottle: false,
+        bottles: [],
+        count: 0
+      });
+    }
+  } catch (error) {
+    console.error('[BOTTLE] 检查瓶子失败:', error);
+    res.status(500).json({ status: false, message: '检查瓶子失败' });
+  }
+});
+
 app.post('/api/bottle/fish', authenticateToken, async (req, res) => {
   try {
     const myUuid = req.user.uuid;

@@ -30,11 +30,85 @@ const HomeScreen = ({ navigation }) => {
   const [foundBottle, setFoundBottle] = useState(null);
   const [isThrowing, setIsThrowing] = useState(false);
   const [isPicking, setIsPicking] = useState(false);
+  const [availableBottle, setAvailableBottle] = useState(null);
+  const [availableBottles, setAvailableBottles] = useState([]); // 存储多个瓶子
   
   // 动画值
   const bottleFloat = useRef(new Animated.Value(0)).current;
   const bottleMove = useRef(new Animated.Value(0)).current;
   const bottleRotate = useRef(new Animated.Value(0)).current;
+
+  // 检查是否有可捞的瓶子
+  const checkAvailableBottles = async () => {
+    try {
+      // 获取用户token
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        console.log('用户未登录，不检查瓶子');
+        setAvailableBottle(null);
+        setAvailableBottles([]);
+        return;
+      }
+
+      console.log('开始检查可用瓶子...');
+      const response = await bottleApi.checkBottle(token);
+      console.log('瓶子检查响应:', response);
+      
+      if (response && response.status && response.hasBottle) {
+        // 处理多个瓶子
+        if (response.bottles && response.bottles.length > 0) {
+          console.log(`找到 ${response.bottles.length} 个可用瓶子`);
+          setAvailableBottles(response.bottles);
+          // 保持兼容性，第一个瓶子作为主瓶子
+          setAvailableBottle(response.bottles[0]);
+        } else if (response.bottle) {
+          // 兼容旧版本返回单个瓶子的情况
+          console.log('找到可用瓶子:', response.bottle.message);
+          setAvailableBottle(response.bottle);
+          setAvailableBottles([response.bottle]);
+        }
+      } else {
+        console.log('没有可用瓶子');
+        setAvailableBottle(null);
+        setAvailableBottles([]);
+      }
+    } catch (error) {
+      console.log('检查瓶子失败:', error.message);
+      // 如果是认证错误，静默处理，不显示错误
+      if (error.message && error.message.includes('访问令牌无效')) {
+        console.log('认证令牌无效，用户可能需要重新登录');
+        setAvailableBottle(null);
+        setAvailableBottles([]);
+      } else {
+        console.log('其他错误:', error);
+        setAvailableBottle(null);
+        setAvailableBottles([]);
+      }
+    }
+  };
+
+  // 组件加载时检查瓶子
+  useEffect(() => {
+    checkAvailableBottles();
+  }, []);
+
+  // 轮询检查瓶子（每30秒检查一次）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      checkAvailableBottles();
+    }, 30000); // 30秒轮询一次
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 页面获得焦点时检查瓶子
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      checkAvailableBottles();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   // 瓶子漂流动画
   useEffect(() => {
@@ -120,6 +194,58 @@ const HomeScreen = ({ navigation }) => {
     ],
   };
 
+  // 捞瓶子点击事件 - 直接捞取指定的瓶子
+  const handleBottleClick = async (bottle) => {
+    if (!bottle) return;
+    
+    // 设置当前要捞的瓶子
+    setAvailableBottle(bottle);
+    
+    // 捞取瓶子
+    await fishSingleBottle();
+  };
+
+  // 捞单个瓶子的逻辑
+  const fishSingleBottle = async () => {
+    try {
+      // 获取用户token
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) {
+        Alert.alert('错误', '请先登录');
+        return;
+      }
+
+      console.log('开始捞瓶子...');
+      const response = await bottleApi.fishBottle(token);
+      console.log('捞瓶子响应:', response);
+      
+      if (response && response.status && response.data) {
+        console.log('成功捞到瓶子:', response.data);
+        // 格式化瓶子数据以匹配弹窗期望的格式
+        const bottleData = {
+          message: response.data.content,
+          mood: response.data.mood,
+          sender: response.data.sender_nickname,
+          sender_uuid: response.data.sender_uuid,
+          time: new Date(response.data.created_at).toLocaleString('zh-CN'),
+          bottleUuid: response.data.uuid
+        };
+        // 显示捞到的瓶子内容
+        setFoundBottle(bottleData);
+        // 瓶子被捞起后消失
+        setAvailableBottle(null);
+        setAvailableBottles([]);
+        // 重新检查可用瓶子
+        setTimeout(() => checkAvailableBottles(), 1000);
+      } else {
+        Alert.alert('失败', response?.message || '捞瓶子失败，请重试');
+      }
+    } catch (error) {
+      console.error('捞瓶子错误:', error);
+      Alert.alert('错误', '网络错误，请检查网络连接');
+    }
+  };
+
   // 扔瓶子
   const handleThrowBottle = async () => {
     if (!bottleMessage.trim()) {
@@ -148,11 +274,15 @@ const HomeScreen = ({ navigation }) => {
             onPress: () => {
               setIsModalVisible(false);
               setBottleMessage('');
+              setIsThrowing(false);
+              // 扔瓶子后立即重新检查可用瓶子
+              checkAvailableBottles();
             }
           }
         ]);
       } else {
         Alert.alert('失败', response?.message || '扔瓶子失败，请重试');
+        setIsThrowing(false);
       }
     } catch (error) {
       console.error('扔瓶子错误:', error);
@@ -368,16 +498,58 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </View>
 
-        {/* 瓶子容器 - 位于按钮下方 */}
-        <View style={styles.bottleContainer}>
-          <Animated.View style={[styles.bottle, bottleTransform]}>
-            <Image
-              source={require('./assets/bottle.png')}
-              style={styles.bottleImage}
-              resizeMode="contain"
-            />
-          </Animated.View>
-        </View>
+        {/* 瓶子容器 - 显示所有可用的瓶子 */}
+        {availableBottles && availableBottles.length > 0 && availableBottles.map((bottle, index) => {
+          // 为每个瓶子计算不同的基础水平位置
+          const basePositions = [
+            -width * 0.3,  // 左侧
+            0,             // 中间
+            width * 0.3    // 右侧
+          ];
+          const baseX = basePositions[index % 3];
+          
+          // 为每个瓶子创建独立的动画变换，在基础位置上添加漂浮效果
+          const individualTransform = {
+            transform: [
+              {
+                translateY: bottleFloat.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [-20, 20],
+                }),
+              },
+              {
+                // 基础位置 + 漂浮移动
+                translateX: bottleMove.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [baseX - width * 0.15, baseX + width * 0.15],
+                }),
+              },
+              {
+                rotate: bottleRotate.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: ['-15deg', '15deg'],
+                }),
+              },
+            ],
+          };
+          
+          return (
+            <TouchableOpacity 
+              key={bottle.uuid || index}
+              style={styles.bottleContainer}
+              onPress={() => handleBottleClick(bottle)}
+              activeOpacity={0.8}
+            >
+              <Animated.View style={[styles.bottle, individualTransform]}>
+                <Image
+                  source={require('./assets/bottle.png')}
+                  style={styles.bottleImage}
+                  resizeMode="contain"
+                />
+              </Animated.View>
+            </TouchableOpacity>
+          );
+        })}
       </View>
 
       {/* 扔瓶子模态框 */}
@@ -476,6 +648,7 @@ const HomeScreen = ({ navigation }) => {
           </View>
         </Modal>
       )}
+
     </SafeAreaView>
   );
 };
@@ -559,7 +732,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'flex-end',
-    paddingHorizontal: 20,
+    paddingHorizontal: 5,
     paddingTop: '15%',
   },
   bottleContainer: {
@@ -580,10 +753,10 @@ const styles = StyleSheet.create({
     height: 90,
   },
   actionContainer: {
-    flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
     gap: 16,
+    marginRight: 5,
   },
   actionButton: {
     alignItems: 'center',

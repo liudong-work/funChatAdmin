@@ -33,6 +33,13 @@ export const config = {
     dir: process.env.UPLOAD_DIR || 'uploads/',
     maxFileSize: parseInt(process.env.MAX_FILE_SIZE) || 10485760 // 10MB
   },
+  oss: {
+    region: process.env.OSS_REGION || 'oss-cn-beijing',
+    accessKeyId: process.env.OSS_ACCESS_KEY_ID,
+    accessKeySecret: process.env.OSS_ACCESS_KEY_SECRET,
+    bucket: process.env.OSS_BUCKET || 'mangguo001',
+    endpoint: process.env.OSS_ENDPOINT || 'https://oss-cn-beijing.aliyuncs.com'
+  },
   log: {
     level: process.env.LOG_LEVEL || 'debug',
     path: process.env.LOG_PATH || 'logs/drift-bottle.log'

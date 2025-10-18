@@ -6,6 +6,7 @@ import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import formidable from 'formidable';
+import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 
@@ -18,6 +19,7 @@ import { corsConfig, requestLogger, globalErrorHandler } from './middleware/cors
 
 // 导入服务
 import verificationService from './services/verificationService.js';
+import { uploadToOSS, uploadBufferToOSS, checkOSSConfig, deleteFromOSS } from './services/ossService.js';
 
 const app = express();
 const server = createServer(app);
@@ -40,6 +42,8 @@ const bottles = [];
 const conversations = new Map(); // 存储对话记录
 const pushTokens = new Map(); // 存储用户推送令牌
 const follows = new Map(); // 存储关注关系 Map<follower_uuid, Set<following_uuid>>
+const userPoints = new Map(); // 存储用户积分 Map<user_uuid, {points, total_points, continuous_days, last_checkin_date}>
+const checkinRecords = new Map(); // 存储签到记录 Map<user_uuid, Set<checkin_date>>
 
 // 管理员账号（临时方案）
 const admins = new Map();
@@ -290,6 +294,246 @@ app.post('/api/file', authenticateToken, async (req, res) => {
       message: `文件上传失败: ${error.message}`
     });
   }
+});
+
+// OSS配置检查API
+app.get('/api/upload/oss/config', (req, res) => {
+  console.log('[OSSConfig] 检查OSS配置');
+  
+  if (!checkOSSConfig()) {
+    console.error('[OSSConfig] OSS配置不完整');
+    return res.status(500).json({
+      status: false,
+      message: 'OSS配置不完整，请检查环境变量'
+    });
+  }
+  
+  console.log('[OSSConfig] OSS配置正常');
+  return res.json({
+    status: true,
+    message: 'OSS配置正常',
+    data: {
+      region: process.env.OSS_REGION,
+      bucket: process.env.OSS_BUCKET,
+      endpoint: process.env.OSS_ENDPOINT,
+      hasAccessKey: !!process.env.OSS_ACCESS_KEY_ID,
+      hasSecret: !!process.env.OSS_ACCESS_KEY_SECRET
+    }
+  });
+});
+
+// OSS上传API - 使用Base64编码方式，使用Express内置body解析器
+app.post('/api/upload/oss', authenticateToken, async (req, res) => {
+  console.log('[OSS上传] 收到上传请求');
+  console.log('[OSS上传] Content-Type:', req.headers['content-type']);
+  console.log('[OSS上传] Content-Length:', req.headers['content-length']);
+  
+  try {
+    // 检查OSS配置
+    if (!checkOSSConfig()) {
+      console.error('[OSS上传] OSS配置不完整');
+      return res.status(500).json({
+        status: false,
+        message: 'OSS配置不完整，请检查环境变量'
+      });
+    }
+
+    // 使用Express内置的JSON解析器
+    console.log('[OSS上传] 开始解析请求体...');
+    console.log('[OSS上传] req.body类型:', typeof req.body);
+    console.log('[OSS上传] req.body内容:', req.body ? Object.keys(req.body) : 'undefined');
+    
+    const { fileData, fileName, fileType } = req.body;
+    
+    if (!fileData || !fileName) {
+      console.log('[OSS上传] 缺少必要参数:', { hasFileData: !!fileData, hasFileName: !!fileName });
+      return res.status(400).json({
+        status: false,
+        message: '缺少文件数据或文件名'
+      });
+    }
+
+    console.log('[OSS上传] 文件信息:', { 
+      fileName, 
+      fileType, 
+      dataLength: fileData ? fileData.length : 0 
+    });
+
+    // 将Base64转换为Buffer
+    const fileBuffer = Buffer.from(fileData, 'base64');
+    console.log('[OSS上传] Buffer大小:', fileBuffer.length, 'bytes');
+
+    // 生成临时文件
+    const ext = path.extname(fileName);
+    const tempFileName = `temp_${Date.now()}${ext}`;
+    const tempFilePath = path.join(uploadDir, tempFileName);
+    
+    fs.writeFileSync(tempFilePath, fileBuffer);
+    console.log('[OSS上传] 临时文件已创建:', tempFilePath);
+
+    // 生成OSS对象名称
+    const ossObjectName = `uploads/upload_${Date.now()}_${Math.floor(Math.random() * 1000000)}${ext}`;
+    
+    console.log('[OSS上传] 开始上传到OSS:', ossObjectName);
+    
+    // 上传到OSS
+    const ossResult = await uploadToOSS(tempFilePath, ossObjectName);
+    
+    // 删除临时文件
+    fs.unlinkSync(tempFilePath);
+    console.log('[OSS上传] 临时文件已删除');
+    
+    if (ossResult.success) {
+      console.log('[OSS上传] 上传成功:', ossResult.url);
+      
+      return res.json({
+        status: true,
+        message: '上传成功',
+        data: {
+          filename: ossResult.name,
+          url: ossResult.url,
+          size: ossResult.size,
+          type: 'oss'
+        }
+      });
+    } else {
+      console.error('[OSS上传] OSS上传失败:', ossResult.error);
+      return res.status(500).json({
+        status: false,
+        message: 'OSS上传失败: ' + (ossResult.error || '未知错误')
+      });
+    }
+    
+  } catch (error) {
+    console.error('[OSS上传] 处理失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '上传失败: ' + error.message
+    });
+  }
+});
+
+// 头像上传API (OSS存储) - 使用multer处理
+app.post('/api/user/avatar/oss', authenticateToken, (req, res) => {
+  console.log('[AvatarUpload] 收到头像上传请求');
+  
+  // 检查OSS配置
+  if (!checkOSSConfig()) {
+    console.error('[AvatarUpload] OSS配置不完整');
+    return res.status(500).json({
+      status: false,
+      message: 'OSS配置不完整，请检查环境变量'
+    });
+  }
+
+  // 设置请求超时
+  req.setTimeout(30000); // 30秒超时
+
+  // 使用multer内存存储处理文件上传
+  const upload = multer({
+    storage: multer.memoryStorage(),
+    limits: {
+      fileSize: 5 * 1024 * 1024, // 5MB
+    },
+    fileFilter: function (req, file, cb) {
+      // 只允许图片文件
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('只允许上传图片文件'), false);
+      }
+    }
+  });
+
+  // 处理单个文件上传，字段名为 'avatar'
+  upload.single('avatar')(req, res, async (err) => {
+    try {
+      if (err) {
+        console.error('[AvatarUpload] 文件上传失败:', err);
+        return res.status(400).json({
+          status: false,
+          message: err.message || '文件上传失败'
+        });
+      }
+
+      if (!req.file) {
+        console.error('[AvatarUpload] 未找到文件');
+        return res.status(400).json({
+          status: false,
+          message: '请选择头像文件'
+        });
+      }
+
+      console.log('[AvatarUpload] 文件信息:', {
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        bufferSize: req.file.buffer ? req.file.buffer.length : 0
+      });
+
+      // 获取用户信息
+      const user = users.get(req.user.uuid);
+      if (!user) {
+        console.error('[AvatarUpload] 用户不存在:', req.user.uuid);
+        return res.status(404).json({
+          status: false,
+          message: '用户不存在'
+        });
+      }
+      
+      // 生成OSS对象名称
+      const ext = path.extname(req.file.originalname) || '.jpg';
+      const ossObjectName = `avatars/avatar_${user.uuid}_${Date.now()}${ext}`;
+      
+      console.log('[AvatarUpload] 开始上传到OSS:', ossObjectName);
+      
+      // 使用内存缓冲区上传到OSS
+      const ossResult = await uploadBufferToOSS(req.file.buffer, ossObjectName);
+      
+      if (ossResult.success) {
+        // 删除旧头像文件（如果是OSS文件）
+        if (user.avatar && user.avatar.includes('oss-cn-beijing.aliyuncs.com')) {
+          try {
+            const oldObjectName = user.avatar.split('/').slice(-2).join('/');
+            await deleteFromOSS(oldObjectName);
+            console.log('[AvatarUpload] 删除旧头像文件:', oldObjectName);
+          } catch (deleteErr) {
+            console.warn('[AvatarUpload] 删除旧头像文件失败:', deleteErr.message);
+          }
+        }
+        
+        // 更新用户头像URL
+        user.avatar = ossResult.url;
+        
+        console.log('[AvatarUpload] 头像上传成功:', user.uuid, '->', ossResult.url);
+        
+        return res.json({
+          status: true,
+          message: '头像上传成功',
+          data: {
+            avatar: ossResult.url,
+            filename: ossResult.name,
+            size: ossResult.size,
+            type: 'oss'
+          }
+        });
+      } else {
+        console.error('[AvatarUpload] OSS上传失败:', ossResult.error);
+        return res.status(500).json({
+          status: false,
+          message: '头像上传失败: ' + (ossResult.error || '未知错误')
+        });
+      }
+      
+    } catch (error) {
+      console.error('[AvatarUpload] 处理失败:', error);
+      
+      return res.status(500).json({
+        status: false,
+        message: '头像上传失败: ' + error.message
+      });
+    }
+  });
 });
 
 // 发送验证码
@@ -588,6 +832,36 @@ app.post('/api/user/create-test-users', (req, res) => {
       status: false,
       message: '创建测试用户失败'
     });
+  }
+});
+
+// 检查海里的瓶子
+app.get('/api/bottle/check', authenticateToken, (req, res) => {
+  try {
+    const myUuid = req.user.uuid;
+    
+    // 找到海里所有不是自己的瓶子
+    const availableBottles = bottles.filter(b => 
+      b.status === 'sea' && b.sender_uuid !== myUuid
+    ).slice(0, 3); // 最多返回3个瓶子
+
+    return res.status(200).json({
+      status: true,
+      message: availableBottles.length > 0 ? '海里有瓶子' : '海里没有瓶子',
+      data: {
+        bottles: availableBottles.map(bottle => ({
+          uuid: bottle.uuid,
+          content: bottle.content,
+          mood: bottle.mood,
+          sender_uuid: bottle.sender_uuid,
+          created_at: bottle.created_at,
+        })),
+        count: availableBottles.length
+      }
+    });
+  } catch (error) {
+    console.log('[BOTTLE] check error', error);
+    return res.status(500).json({ status: false, message: '检查瓶子失败' });
   }
 });
 
@@ -1066,6 +1340,375 @@ function getFollowersCount(user_uuid) {
   }
   return count;
 }
+
+// ==================== 积分和签到相关API ====================
+
+// 获取用户积分信息
+app.get('/api/points/info', authenticateToken, (req, res) => {
+  try {
+    const userUuid = req.user.uuid;
+    
+    // 获取或创建用户积分记录
+    let points = userPoints.get(userUuid);
+    if (!points) {
+      points = {
+        points: 0,
+        total_points: 0,
+        continuous_days: 0,
+        last_checkin_date: null
+      };
+      userPoints.set(userUuid, points);
+    }
+    
+    // 检查今天是否已签到
+    const today = new Date().toISOString().split('T')[0];
+    const userCheckins = checkinRecords.get(userUuid) || new Set();
+    const isCheckedInToday = userCheckins.has(today);
+    
+    return res.status(200).json({
+      status: true,
+      data: {
+        points: points.points,
+        total_points: points.total_points,
+        continuous_days: points.continuous_days,
+        last_checkin_date: points.last_checkin_date,
+        is_checked_in_today: isCheckedInToday
+      }
+    });
+  } catch (error) {
+    log.error('获取积分信息失败:', error);
+    return res.status(500).json({ status: false, message: '获取积分信息失败' });
+  }
+});
+
+// 每日签到
+app.post('/api/points/checkin', authenticateToken, (req, res) => {
+  try {
+    const userUuid = req.user.uuid;
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 获取用户签到记录
+    let userCheckins = checkinRecords.get(userUuid);
+    if (!userCheckins) {
+      userCheckins = new Set();
+      checkinRecords.set(userUuid, userCheckins);
+    }
+    
+    // 检查今天是否已签到
+    if (userCheckins.has(today)) {
+      return res.status(400).json({ 
+        status: false, 
+        message: '今天已经签到过了' 
+      });
+    }
+    
+    // 获取或创建用户积分记录
+    let points = userPoints.get(userUuid);
+    if (!points) {
+      points = {
+        points: 0,
+        total_points: 0,
+        continuous_days: 0,
+        last_checkin_date: null
+      };
+      userPoints.set(userUuid, points);
+    }
+    
+    // 计算连续签到天数
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    
+    let continuousDays = 1;
+    if (points.last_checkin_date === yesterdayStr) {
+      // 连续签到
+      continuousDays = points.continuous_days + 1;
+    }
+    
+    // 计算签到获得的积分（基础积分5，连续签到额外奖励）
+    let pointsEarned = 5;
+    let bonusMessage = '';
+    
+    if (continuousDays >= 7) {
+      pointsEarned += 10; // 连续7天额外10积分
+      bonusMessage = '连续签到7天奖励！';
+    } else if (continuousDays >= 3) {
+      pointsEarned += 5; // 连续3天额外5积分
+      bonusMessage = '连续签到3天奖励！';
+    }
+    
+    // 更新用户积分
+    points.points += pointsEarned;
+    points.total_points += pointsEarned;
+    points.continuous_days = continuousDays;
+    points.last_checkin_date = today;
+    
+    // 记录签到
+    userCheckins.add(today);
+    
+    log.info(`[CHECKIN] 用户 ${userUuid} 签到成功，连续${continuousDays}天，获得${pointsEarned}积分`);
+    
+    return res.status(200).json({
+      status: true,
+      message: '签到成功',
+      data: {
+        points_earned: pointsEarned,
+        continuous_days: continuousDays,
+        total_points: points.total_points,
+        bonus_message: bonusMessage
+      }
+    });
+  } catch (error) {
+    log.error('签到失败:', error);
+    return res.status(500).json({ status: false, message: '签到失败' });
+  }
+});
+
+// 获取签到历史
+app.get('/api/points/checkin-history', authenticateToken, (req, res) => {
+  try {
+    const userUuid = req.user.uuid;
+    const { page = 1, limit = 20 } = req.query;
+    
+    const userCheckins = checkinRecords.get(userUuid) || new Set();
+    const checkinList = Array.from(userCheckins).sort((a, b) => b.localeCompare(a));
+    
+    // 分页
+    const startIndex = (parseInt(page) - 1) * parseInt(limit);
+    const endIndex = startIndex + parseInt(limit);
+    const paginatedList = checkinList.slice(startIndex, endIndex);
+    
+    const history = paginatedList.map(date => ({
+      checkin_date: date,
+      points_earned: 5, // 简化处理，实际应该存储具体积分
+      continuous_days: 1 // 简化处理
+    }));
+    
+    return res.status(200).json({
+      status: true,
+      data: {
+        history,
+        total: checkinList.length,
+        page: parseInt(page),
+        limit: parseInt(limit)
+      }
+    });
+  } catch (error) {
+    log.error('获取签到历史失败:', error);
+    return res.status(500).json({ status: false, message: '获取签到历史失败' });
+  }
+});
+
+// ==================== 漂流瓶完整生命周期API ====================
+
+// 获取我的瓶子
+app.get('/api/bottle/user/:uuid', authenticateToken, (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const myUuid = req.user.uuid;
+    
+    // 只能查看自己的瓶子
+    if (uuid !== myUuid) {
+      return res.status(403).json({ status: false, message: '无权查看其他用户的瓶子' });
+    }
+    
+    // 找到该用户的所有瓶子
+    const userBottles = bottles.filter(b => b.sender_uuid === myUuid);
+    
+    return res.status(200).json({
+      status: true,
+      data: {
+        bottles: userBottles.map(bottle => ({
+          uuid: bottle.uuid,
+          content: bottle.content,
+          mood: bottle.mood,
+          status: bottle.status,
+          receiver_uuid: bottle.receiver_uuid,
+          created_at: bottle.created_at,
+          picked_at: bottle.picked_at
+        })),
+        count: userBottles.length
+      }
+    });
+  } catch (error) {
+    console.log('[BOTTLE] get my bottles error', error);
+    return res.status(500).json({ status: false, message: '获取我的瓶子失败' });
+  }
+});
+
+// 回复瓶子
+app.post('/api/bottle/reply', authenticateToken, (req, res) => {
+  try {
+    const { bottleId, reply } = req.body;
+    const myUuid = req.user.uuid;
+    
+    if (!bottleId || !reply) {
+      return res.status(400).json({ status: false, message: '瓶子ID和回复内容不能为空' });
+    }
+    
+    // 找到瓶子
+    const bottle = bottles.find(b => b.uuid === bottleId);
+    if (!bottle) {
+      return res.status(404).json({ status: false, message: '瓶子不存在' });
+    }
+    
+    // 检查权限（只有捞到瓶子的人才能回复）
+    if (bottle.receiver_uuid !== myUuid) {
+      return res.status(403).json({ status: false, message: '无权回复此瓶子' });
+    }
+    
+    // 创建回复消息并添加到对话历史
+    const conversationKey = [bottle.sender_uuid, myUuid].sort().join('|');
+    if (!conversations.has(conversationKey)) {
+      conversations.set(conversationKey, []);
+    }
+    
+    const replyMessage = {
+      id: Date.now() + Math.random(),
+      uuid: `reply_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      sender_uuid: myUuid,
+      receiver_uuid: bottle.sender_uuid,
+      content: reply,
+      status: 'sent',
+      created_at: new Date(),
+      bottle_uuid: bottle.uuid,
+      type: 'bottle_reply'
+    };
+    
+    conversations.get(conversationKey).push(replyMessage);
+    
+    return res.status(201).json({
+      status: true,
+      message: '回复成功',
+      data: {
+        uuid: replyMessage.uuid,
+        created_at: replyMessage.created_at
+      }
+    });
+  } catch (error) {
+    console.log('[BOTTLE] reply error', error);
+    return res.status(500).json({ status: false, message: '回复瓶子失败' });
+  }
+});
+
+// 扔回海里
+app.post('/api/bottle/throw-back', authenticateToken, (req, res) => {
+  try {
+    const { bottleUuid } = req.body;
+    const myUuid = req.user.uuid;
+    
+    if (!bottleUuid) {
+      return res.status(400).json({ status: false, message: '瓶子UUID不能为空' });
+    }
+    
+    // 找到瓶子
+    const bottle = bottles.find(b => b.uuid === bottleUuid);
+    if (!bottle) {
+      return res.status(404).json({ status: false, message: '瓶子不存在' });
+    }
+    
+    // 检查权限（只有捞到瓶子的人才能扔回海里）
+    if (bottle.receiver_uuid !== myUuid) {
+      return res.status(403).json({ status: false, message: '无权操作此瓶子' });
+    }
+    
+    // 重置瓶子状态
+    bottle.status = 'sea';
+    bottle.receiver_uuid = null;
+    bottle.picked_at = null;
+    
+    return res.status(200).json({
+      status: true,
+      message: '瓶子已扔回海里',
+      data: {
+        uuid: bottle.uuid,
+        status: bottle.status
+      }
+    });
+  } catch (error) {
+    console.log('[BOTTLE] throw back error', error);
+    return res.status(500).json({ status: false, message: '扔回海里失败' });
+  }
+});
+
+// ==================== 用户相关API ====================
+
+// 更新用户信息
+app.put('/api/user/:uuid', authenticateToken, (req, res) => {
+  try {
+    const { uuid } = req.params;
+    const myUuid = req.user.uuid;
+    
+    // 只能更新自己的信息
+    if (uuid !== myUuid) {
+      return res.status(403).json({ status: false, message: '无权更新其他用户信息' });
+    }
+    
+    // 找到用户
+    const user = Array.from(users.values()).find(u => u.uuid === uuid);
+    if (!user) {
+      return res.status(404).json({ status: false, message: '用户不存在' });
+    }
+    
+    // 更新用户信息
+    const { nickname, email } = req.body;
+    if (nickname) user.nickname = nickname;
+    if (email) user.email = email;
+    
+    return res.status(200).json({
+      status: true,
+      message: '更新成功',
+      data: {
+        uuid: user.uuid,
+        phone: user.phone,
+        username: user.username,
+        nickname: user.nickname,
+        avatar: user.avatar,
+        email: user.email
+      }
+    });
+  } catch (error) {
+    log.error('更新用户信息失败:', error);
+    return res.status(500).json({ status: false, message: '更新用户信息失败' });
+  }
+});
+
+// 搜索用户
+app.get('/api/user/search', authenticateToken, (req, res) => {
+  try {
+    const { keyword } = req.query;
+    
+    if (!keyword || keyword.trim().length < 2) {
+      return res.status(400).json({ status: false, message: '搜索关键词至少需要2个字符' });
+    }
+    
+    const searchResults = Array.from(users.values())
+      .filter(user => 
+        user.phone.includes(keyword) || 
+        user.nickname.includes(keyword) ||
+        user.username.includes(keyword)
+      )
+      .slice(0, 20) // 限制结果数量
+      .map(user => ({
+        uuid: user.uuid,
+        phone: user.phone,
+        username: user.username,
+        nickname: user.nickname,
+        avatar: user.avatar
+      }));
+    
+    return res.status(200).json({
+      status: true,
+      data: {
+        users: searchResults,
+        count: searchResults.length
+      }
+    });
+  } catch (error) {
+    log.error('搜索用户失败:', error);
+    return res.status(500).json({ status: false, message: '搜索用户失败' });
+  }
+});
 
 // Socket.IO处理
 io.on('connection', (socket) => {

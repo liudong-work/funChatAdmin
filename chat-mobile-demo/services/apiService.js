@@ -447,26 +447,26 @@ export const messageApi = {
         console.warn('[AvatarAPI] 网络测试失败，继续尝试上传:', networkError.message);
       }
       
-      // 构建FormData
-      console.log('[AvatarAPI] 构建FormData...');
-      const formData = new FormData();
-      formData.append('avatar', {
-        uri: compressedImage.uri,
-        name: fileName || 'avatar.jpg',
-        type: 'image/jpeg', // 压缩后统一为JPEG格式
-      });
-
-      const url = buildUrl('/api/user/avatar/oss');
+      // 将压缩后的图片转换为Base64
+      console.log('[AvatarAPI] 转换图片为Base64...');
+      const base64Data = await convertImageToBase64(compressedImage.uri);
+      
+      const url = buildUrl('/api/upload/oss');
       console.log('[AvatarAPI] 开始上传到:', url);
 
-      // 发送上传请求
+      // 发送Base64数据（与管理系统保持一致）
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
+          'Content-Type': 'application/json',
           'Accept': 'application/json',
         },
-        body: formData,
+        body: JSON.stringify({
+          fileData: base64Data,
+          fileName: fileName || 'avatar.jpg',
+          fileType: 'image/jpeg'
+        }),
       });
 
       console.log('[AvatarAPI] 上传响应:', res.status);
@@ -547,6 +547,29 @@ const validateImageFile = async (fileUri, fileName, mimeType) => {
       valid: false,
       error: '无法读取图片信息，请选择有效的图片文件'
     };
+  }
+};
+
+// 图片转Base64函数
+const convertImageToBase64 = async (fileUri) => {
+  try {
+    const response = await fetch(fileUri);
+    const blob = await response.blob();
+    
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const base64 = reader.result;
+        // 移除 data:image/jpeg;base64, 前缀
+        const base64Data = base64.split(',')[1];
+        resolve(base64Data);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('[AvatarAPI] Base64转换失败:', error);
+    throw new Error('图片转换失败');
   }
 };
 

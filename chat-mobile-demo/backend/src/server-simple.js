@@ -413,156 +413,123 @@ app.post('/api/upload/oss', authenticateToken, async (req, res) => {
   }
 });
 
-// 头像上传API (OSS存储) - 使用multer处理
-app.post('/api/user/avatar/oss', authenticateToken, (req, res) => {
+// 头像上传API (OSS存储) - 使用Base64方式，与管理系统保持一致
+app.post('/api/user/avatar/oss', authenticateToken, async (req, res) => {
   console.log('[AvatarUpload] 收到头像上传请求');
+  console.log('[AvatarUpload] Content-Type:', req.headers['content-type']);
   
-  // 检查OSS配置
-  if (!checkOSSConfig()) {
-    console.error('[AvatarUpload] OSS配置不完整');
-    return res.status(500).json({
-      status: false,
-      message: 'OSS配置不完整，请检查环境变量'
-    });
-  }
-
-  // 设置请求超时
-  req.setTimeout(30000); // 30秒超时
-
-  // 使用multer内存存储处理文件上传 - 优化版本
-  const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: {
-      fileSize: 10 * 1024 * 1024, // 10MB
-    },
-    fileFilter: function (req, file, cb) {
-      console.log('[AvatarUpload] 文件过滤:', {
-        fieldname: file.fieldname,
-        originalname: file.originalname,
-        mimetype: file.mimetype
-      });
-      
-      // 检查文件类型
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-      if (allowedTypes.includes(file.mimetype.toLowerCase())) {
-        cb(null, true);
-      } else {
-        cb(new Error('不支持的文件格式，请选择 JPG、PNG、GIF 或 WebP 格式的图片'), false);
-      }
-    }
-  });
-
-  // 处理单个文件上传，字段名为 'avatar'
-  upload.single('avatar')(req, res, async (err) => {
-    try {
-      if (err) {
-        console.error('[AvatarUpload] 文件上传失败:', err);
-        return res.status(400).json({
-          status: false,
-          message: err.message || '文件上传失败'
-        });
-      }
-
-      if (!req.file) {
-        console.error('[AvatarUpload] 未找到文件');
-        return res.status(400).json({
-          status: false,
-          message: '请选择头像文件'
-        });
-      }
-
-      console.log('[AvatarUpload] 文件信息:', {
-        originalname: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        bufferSize: req.file.buffer ? req.file.buffer.length : 0
-      });
-
-      // 验证文件大小
-      if (req.file.size > 10 * 1024 * 1024) {
-        return res.status(400).json({
-          status: false,
-          message: '文件过大，请选择小于10MB的图片'
-        });
-      }
-
-      // 验证文件类型（双重检查）
-      const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-      if (!allowedTypes.includes(req.file.mimetype.toLowerCase())) {
-        return res.status(400).json({
-          status: false,
-          message: '不支持的文件格式，请选择 JPG、PNG、GIF 或 WebP 格式的图片'
-        });
-      }
-
-      // 获取用户信息
-      const user = users.get(req.user.uuid);
-      if (!user) {
-        console.error('[AvatarUpload] 用户不存在:', req.user.uuid);
-        return res.status(404).json({
-          status: false,
-          message: '用户不存在'
-        });
-      }
-      
-      // 生成OSS对象名称
-      const ext = path.extname(req.file.originalname) || '.jpg';
-      const ossObjectName = `avatars/avatar_${user.uuid}_${Date.now()}${ext}`;
-      
-      console.log('[AvatarUpload] 开始上传到OSS:', ossObjectName);
-      
-      // 使用内存缓冲区上传到OSS，添加缓存头
-      const ossResult = await uploadBufferToOSS(req.file.buffer, ossObjectName, {
-        headers: {
-          'Content-Type': req.file.mimetype,
-          'Cache-Control': 'public, max-age=31536000' // 缓存1年
-        }
-      });
-      
-      if (ossResult.success) {
-        // 删除旧头像文件（如果是OSS文件）
-        if (user.avatar && user.avatar.includes('oss-cn-beijing.aliyuncs.com')) {
-          try {
-            const oldObjectName = user.avatar.split('/').slice(-2).join('/');
-            await deleteFromOSS(oldObjectName);
-            console.log('[AvatarUpload] 删除旧头像文件:', oldObjectName);
-          } catch (deleteErr) {
-            console.warn('[AvatarUpload] 删除旧头像文件失败:', deleteErr.message);
-          }
-        }
-        
-        // 更新用户头像URL
-        user.avatar = ossResult.url;
-        
-        console.log('[AvatarUpload] 头像上传成功:', user.uuid, '->', ossResult.url);
-        
-        return res.json({
-          status: true,
-          message: '头像上传成功',
-          data: {
-            avatar: ossResult.url,
-            filename: ossResult.name,
-            size: ossResult.size,
-            type: 'oss'
-          }
-        });
-      } else {
-        console.error('[AvatarUpload] OSS上传失败:', ossResult.error);
-        return res.status(500).json({
-          status: false,
-          message: '头像上传失败: ' + (ossResult.error || '未知错误')
-        });
-      }
-      
-    } catch (error) {
-      console.error('[AvatarUpload] 处理失败:', error);
-      
+  try {
+    // 检查OSS配置
+    if (!checkOSSConfig()) {
+      console.error('[AvatarUpload] OSS配置不完整');
       return res.status(500).json({
         status: false,
-        message: '头像上传失败: ' + error.message
+        message: 'OSS配置不完整，请检查环境变量'
       });
     }
-  });
+
+    // 使用Express内置的JSON解析器
+    console.log('[AvatarUpload] 开始解析请求体...');
+    const { fileData, fileName, fileType } = req.body;
+    
+    if (!fileData || !fileName) {
+      console.log('[AvatarUpload] 缺少必要参数:', { hasFileData: !!fileData, hasFileName: !!fileName });
+      return res.status(400).json({
+        status: false,
+        message: '缺少文件数据或文件名'
+      });
+    }
+
+    console.log('[AvatarUpload] 文件信息:', { 
+      fileName, 
+      fileType, 
+      dataLength: fileData ? fileData.length : 0 
+    });
+
+    // 将Base64转换为Buffer
+    const fileBuffer = Buffer.from(fileData, 'base64');
+    console.log('[AvatarUpload] Buffer大小:', fileBuffer.length, 'bytes');
+
+    // 验证文件大小
+    if (fileBuffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({
+        status: false,
+        message: '文件过大，请选择小于10MB的图片'
+      });
+    }
+
+    // 获取用户信息
+    const user = users.get(req.user.uuid);
+    if (!user) {
+      console.error('[AvatarUpload] 用户不存在:', req.user.uuid);
+      return res.status(404).json({
+        status: false,
+        message: '用户不存在'
+      });
+    }
+
+    // 生成临时文件
+    const ext = path.extname(fileName) || '.jpg';
+    const tempFileName = `temp_avatar_${Date.now()}${ext}`;
+    const tempFilePath = path.join(uploadDir, tempFileName);
+    
+    fs.writeFileSync(tempFilePath, fileBuffer);
+    console.log('[AvatarUpload] 临时文件已创建:', tempFilePath);
+
+    // 生成OSS对象名称
+    const ossObjectName = `avatars/avatar_${user.uuid}_${Date.now()}${ext}`;
+    
+    console.log('[AvatarUpload] 开始上传到OSS:', ossObjectName);
+    
+    // 上传到OSS
+    const ossResult = await uploadToOSS(tempFilePath, ossObjectName);
+    
+    // 删除临时文件
+    fs.unlinkSync(tempFilePath);
+    console.log('[AvatarUpload] 临时文件已删除');
+    
+    if (ossResult.success) {
+      // 删除旧头像文件（如果是OSS文件）
+      if (user.avatar && user.avatar.includes('oss-cn-beijing.aliyuncs.com')) {
+        try {
+          const oldObjectName = user.avatar.split('/').slice(-2).join('/');
+          await deleteFromOSS(oldObjectName);
+          console.log('[AvatarUpload] 删除旧头像文件:', oldObjectName);
+        } catch (deleteErr) {
+          console.warn('[AvatarUpload] 删除旧头像文件失败:', deleteErr.message);
+        }
+      }
+      
+      // 更新用户头像URL
+      user.avatar = ossResult.url;
+      
+      console.log('[AvatarUpload] 头像上传成功:', user.uuid, '->', ossResult.url);
+      
+      return res.json({
+        status: true,
+        message: '头像上传成功',
+        data: {
+          avatar: ossResult.url,
+          filename: ossResult.name,
+          size: ossResult.size,
+          type: 'oss'
+        }
+      });
+    } else {
+      console.error('[AvatarUpload] OSS上传失败:', ossResult.error);
+      return res.status(500).json({
+        status: false,
+        message: 'OSS上传失败: ' + (ossResult.error || '未知错误')
+      });
+    }
+    
+  } catch (error) {
+    console.error('[AvatarUpload] 处理失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '头像上传失败: ' + error.message
+    });
+  }
 });
 
 // 发送验证码

@@ -57,6 +57,21 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     }
   };
 
+  // 加载当前用户头像
+  const loadCurrentUserAvatar = async () => {
+    try {
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      if (userInfo) {
+        const currentUser = JSON.parse(userInfo);
+        const avatar = currentUser.avatar || '👤';
+        setCurrentUserAvatar(avatar);
+        console.log('[ChatDetail] 加载当前用户头像:', avatar);
+      }
+    } catch (error) {
+      console.error('[ChatDetail] 加载当前用户头像失败:', error);
+    }
+  };
+
   // 保存已查看的图片状态
   const saveViewedImages = async (viewedSet) => {
     try {
@@ -77,6 +92,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   const [previewImageUrl, setPreviewImageUrl] = useState('');
   const [burnTimer, setBurnTimer] = useState(null); // 阅后即焚定时器
   const [viewedImages, setViewedImages] = useState(new Set()); // 跟踪已查看的图片
+  const [currentUserAvatar, setCurrentUserAvatar] = useState('👤'); // 当前用户头像
   
   // AsyncStorage 键名
   const VIEWED_IMAGES_KEY = `viewed_images_${currentUserUuid}_${user.id}`;
@@ -193,7 +209,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           width: asset.width,
           height: asset.height,
           timestamp: new Date(),
-          user: { id: currentUserUuid, name: '我', avatar: '👤' },
+          user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
         };
         console.log('[Image] 添加本地图片消息:', {
           messageId: newMessage.id,
@@ -214,8 +230,24 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   
   // 加载对话历史
   useEffect(() => {
-    loadConversationHistory();
-    loadViewedImages(); // 加载已查看的图片状态
+    const loadAll = async () => {
+      // 先获取用户信息中的头像
+      let userAvatar = '👤';
+      try {
+        const userInfo = await AsyncStorage.getItem('userInfo');
+        if (userInfo) {
+          const currentUser = JSON.parse(userInfo);
+          userAvatar = currentUser.avatar || '👤';
+        }
+      } catch (error) {
+        console.error('[ChatDetail] 获取头像失败:', error);
+      }
+      
+      await loadCurrentUserAvatar(); // 加载当前用户头像到状态
+      await loadViewedImages(); // 加载已查看的图片状态
+      await loadConversationHistory(userAvatar); // 传递头像给历史消息加载
+    };
+    loadAll();
   }, []);
 
   // 注册当前会话的实时消息回调
@@ -353,7 +385,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     };
   }, [burnTimer]);
 
-  const loadConversationHistory = async () => {
+  const loadConversationHistory = async (userAvatar = null) => {
     try {
       const token = await AsyncStorage.getItem('authToken');
       const userInfo = await AsyncStorage.getItem('userInfo');
@@ -407,7 +439,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
             user: {
               id: msg.sender_uuid === currentUserUuid ? currentUserUuid : msg.sender_uuid, // 使用实际的UUID
               name: msg.sender_uuid === currentUserUuid ? '我' : (user.name || '对方'),
-              avatar: msg.sender_uuid === currentUserUuid ? '👤' : (user.avatar || '👤'),
+              avatar: msg.sender_uuid === currentUserUuid ? (userAvatar || currentUserAvatar) : (user.avatar || '👤'),
             },
           };
         });
@@ -683,7 +715,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         audioUrl: uri, // 本地播放用
         duration: recordSeconds, // 添加时长信息
         timestamp: new Date(),
-          user: { id: currentUserUuid, name: '我', avatar: '👤' },
+          user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
       }]));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
@@ -859,7 +891,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           user: {
             id: currentUserUuid, // 使用当前用户的 UUID
             name: '我',
-            avatar: '👤',
+            avatar: currentUserAvatar,
           },
         };
         console.log('[Message] 添加本地文本消息:', {
@@ -973,7 +1005,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                       {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
                         <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
                       ) : (
-                        <Text style={styles.avatar}>{message.user.avatar || '👤'}</Text>
+                        <Text style={styles.avatar}>{message.user.avatar || currentUserAvatar}</Text>
                       )}
                     </>
                   ) : (
@@ -982,7 +1014,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                       {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
                         <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
                       ) : (
-                        <Text style={styles.avatar}>{message.user.avatar || '👤'}</Text>
+                        <Text style={styles.avatar}>{message.user.avatar || currentUserAvatar}</Text>
                       )}
                       <Text style={styles.userName}>{message.user.name}</Text>
                       <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>

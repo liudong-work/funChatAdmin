@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput } from 'react-native';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { messageApi } from "./services/apiService";
@@ -193,7 +193,11 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
       onPress={() => navigation.getParent()?.navigate('ChatDetail', { user: item })}
     >
       <View style={styles.avatarContainer}>
-        <Text style={styles.avatar}>{item.avatar}</Text>
+        {typeof item.avatar === 'string' && item.avatar.startsWith('http') ? (
+          <Image source={{ uri: item.avatar }} style={styles.avatarImage} />
+        ) : (
+          <Text style={styles.avatar}>{item.avatar || '👤'}</Text>
+        )}
         {item.unreadCount > 0 && (
           <View style={styles.unreadBadge}>
             <Text style={styles.unreadText}>{item.unreadCount}</Text>
@@ -291,13 +295,13 @@ const styles = StyleSheet.create({
     marginRight: 15,
   },
   avatar: {
-    fontSize: 40,
+    fontSize: 24,
+    textAlign: 'center',
+  },
+  avatarImage: {
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: '#f0f0f0',
-    textAlign: 'center',
-    lineHeight: 50,
   },
   unreadBadge: {
     position: 'absolute',

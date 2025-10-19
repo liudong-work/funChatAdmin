@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { messageApi } from '../services/apiService';
+import { messageApi } from './services/apiService';
+import apiService from './services/apiService';
 
 const { width } = Dimensions.get('window');
 
@@ -113,11 +114,35 @@ const EditProfileScreen = ({ navigation }) => {
         });
       }, 200);
 
-      // 上传头像
+      // 上传头像 - 确保mimeType有值
+      const fileName = asset.fileName || 'avatar.jpg';
+      
+      // 修复mimeType推断逻辑
+      let mimeType = asset.type;
+      if (!mimeType || mimeType === 'image' || !mimeType.includes('/')) {
+        const ext = fileName.toLowerCase().split('.').pop();
+        const extToMime = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'gif': 'image/gif',
+          'webp': 'image/webp'
+        };
+        mimeType = extToMime[ext] || 'image/jpeg';
+      }
+      
+      console.log('[EditProfile] 上传参数:', {
+        uri: uri.substring(0, 50) + '...',
+        fileName,
+        originalType: asset.type,
+        finalMimeType: mimeType,
+        hasToken: !!token
+      });
+      
       const uploadResult = await messageApi.uploadAvatarToOSS(
         uri, 
-        asset.fileName || 'avatar.jpg', 
-        asset.type || 'image/jpeg',
+        fileName, 
+        mimeType,
         token
       );
 
@@ -126,21 +151,50 @@ const EditProfileScreen = ({ navigation }) => {
 
       if (uploadResult && uploadResult.status) {
         // 上传成功，更新头像URL
-        setAvatar(uploadResult.data.avatar);
+        const avatarUrl = uploadResult.data.url;
+        console.log('[EditProfile] 更新头像URL:', avatarUrl);
+        setAvatar(avatarUrl);
         
-        // 更新本地用户信息
+        // 立即保存头像URL到数据库
         const userInfoStr = await AsyncStorage.getItem('userInfo');
         if (userInfoStr) {
           const userInfo = JSON.parse(userInfoStr);
-          userInfo.avatar = uploadResult.data.avatar;
-          await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+          
+          try {
+            // 调用后端API保存头像到数据库
+            const updateResponse = await apiService.authenticatedPut(
+              '/api/user/profile', 
+              { avatar: avatarUrl }, 
+              token
+            );
+            
+            if (updateResponse && updateResponse.status) {
+              // 更新本地用户信息
+              userInfo.avatar = avatarUrl;
+              await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+              console.log('[EditProfile] 头像已保存到数据库和本地缓存');
+              
+              Alert.alert(
+                '✅ 头像上传成功', 
+                '头像已成功上传并保存！\n\n📱 同步说明：\n• 头像已保存到阿里云OSS\n• 已同步到数据库\n• 可以同步到所有设备\n• 应用重装后头像不会丢失\n• 支持高清图片存储',
+                [{ text: '确定' }]
+              );
+            } else {
+              throw new Error(updateResponse?.message || '保存到数据库失败');
+            }
+          } catch (saveError) {
+            console.error('[EditProfile] 保存头像到数据库失败:', saveError);
+            // 即使保存到数据库失败，也更新本地缓存
+            userInfo.avatar = avatarUrl;
+            await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+            
+            Alert.alert(
+              '⚠️ 部分成功', 
+              '头像已上传到OSS，但保存到数据库失败。\n请稍后点击"保存"按钮同步到数据库。',
+              [{ text: '确定' }]
+            );
+          }
         }
-        
-        Alert.alert(
-          '✅ 头像上传成功', 
-          '头像已成功上传到云端存储！\n\n📱 同步说明：\n• 头像已保存到阿里云OSS\n• 可以同步到所有设备\n• 应用重装后头像不会丢失\n• 支持高清图片存储',
-          [{ text: '确定' }]
-        );
       } else {
         throw new Error(uploadResult?.message || '上传失败');
       }
@@ -184,20 +238,45 @@ const EditProfileScreen = ({ navigation }) => {
         return;
       }
 
-      // 更新用户信息
+      // 获取当前用户信息
       const userInfoStr = await AsyncStorage.getItem('userInfo');
-      if (userInfoStr) {
-        const userInfo = JSON.parse(userInfoStr);
-        userInfo.username = username;
-        userInfo.bio = bio;
-        await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+      if (!userInfoStr) {
+        Alert.alert('错误', '用户信息不存在');
+        setLoading(false);
+        return;
       }
 
-      Alert.alert('成功', '个人资料已保存');
-      navigation.goBack();
+      const userInfo = JSON.parse(userInfoStr);
+      
+      // 调用后端API更新用户信息（包括头像）
+      const updateData = {
+        nickname: username,
+        bio: bio,
+        avatar: avatar // 保存头像URL到数据库
+      };
+
+      console.log('[EditProfile] 更新用户信息到数据库:', updateData);
+      
+      // 使用正确的API端点
+      const response = await apiService.authenticatedPut('/api/user/profile', updateData, token);
+      
+      if (response && response.status) {
+        // 更新本地用户信息
+        userInfo.username = username;
+        userInfo.nickname = username;
+        userInfo.bio = bio;
+        userInfo.avatar = avatar;
+        await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
+        
+        console.log('[EditProfile] 用户信息已保存到数据库');
+        Alert.alert('成功', '个人资料已保存');
+        navigation.goBack();
+      } else {
+        throw new Error(response?.message || '保存失败');
+      }
     } catch (error) {
       console.error('保存失败:', error);
-      Alert.alert('错误', '保存失败，请重试');
+      Alert.alert('错误', error.message || '保存失败，请重试');
     } finally {
       setLoading(false);
     }
@@ -206,10 +285,10 @@ const EditProfileScreen = ({ navigation }) => {
   return (
     <ScrollView style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
-          <Text style={styles.backButtonText}>← 返回</Text>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackButton}>
+          <Text style={styles.headerBackText}>‹ 返回</Text>
         </TouchableOpacity>
-        <Text style={styles.title}>编辑资料</Text>
+        <Text style={styles.headerTitle}>编辑资料</Text>
         <TouchableOpacity onPress={saveProfile} style={styles.saveButton} disabled={loading}>
           <Text style={[styles.saveButtonText, loading && styles.disabledText]}>
             {loading ? '保存中...' : '保存'}
@@ -293,30 +372,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
+    paddingHorizontal: 15,
     paddingVertical: 12,
-    backgroundColor: '#fff',
-    borderBottomWidth: 1,
-    borderBottomColor: '#e0e0e0',
+    paddingTop: 50,
+    backgroundColor: '#007AFF',
   },
-  backButton: {
-    padding: 8,
+  headerBackButton: {
+    padding: 5,
   },
-  backButtonText: {
-    fontSize: 16,
-    color: '#007AFF',
+  headerBackText: {
+    color: 'white',
+    fontSize: 28,
+    fontWeight: '300',
   },
-  title: {
+  headerTitle: {
+    color: 'white',
     fontSize: 18,
     fontWeight: 'bold',
-    color: '#333',
   },
   saveButton: {
     padding: 8,
   },
   saveButtonText: {
     fontSize: 16,
-    color: '#007AFF',
+    color: 'white',
     fontWeight: '600',
   },
   disabledText: {
@@ -423,4 +502,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default EditProfileScreenOptimized;
+export default EditProfileScreen;

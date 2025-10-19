@@ -14,7 +14,7 @@ import {
   Dimensions,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { userApi, fileApi } from './services/apiService.js';
+import { userApi, fileApi } from "./services/apiService";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function PublishMomentScreen({ navigation }) {
@@ -58,13 +58,18 @@ export default function PublishMomentScreen({ navigation }) {
             
             const uploadResult = await fileApi.uploadFile(images[i], fileName, mimeType, token);
             
-            if (uploadResult.status) {
-              // 构建完整的图片URL
-              const imageUrl = `http://localhost:8889${uploadResult.data.url}`;
+            console.log(`[PublishMoment] 第${i + 1}张图片上传结果:`, uploadResult);
+            
+            // fileApi.uploadFile 返回格式: { ok, status, data }
+            // data 是后端返回的 { status, message, data: { url, ... } }
+            if (uploadResult.ok && uploadResult.data && uploadResult.data.status) {
+              // 使用上传返回的URL（可能是OSS URL或本地URL）
+              const imageUrl = uploadResult.data.data.url;
               uploadedImages.push(imageUrl);
               console.log(`第${i + 1}张图片上传成功:`, imageUrl);
             } else {
-              throw new Error(uploadResult.message || '图片上传失败');
+              const errorMsg = uploadResult.data?.message || uploadResult.message || '图片上传失败';
+              throw new Error(errorMsg);
             }
           } catch (error) {
             console.error(`第${i + 1}张图片上传失败:`, error);

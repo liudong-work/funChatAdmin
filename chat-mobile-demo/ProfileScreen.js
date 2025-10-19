@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userApi, pointsApi } from './services/apiService';
 
@@ -196,7 +196,15 @@ export default function ProfileScreen({ onLogout, navigation }) {
           style={styles.avatarContainer}
           onPress={() => navigation.navigate('UserProfile', { userUuid: userInfo.uuid })}
         >
-          <Text style={styles.avatar}>{userInfo.avatar}</Text>
+          {userInfo.avatar && userInfo.avatar.startsWith('http') ? (
+            <Image 
+              source={{ uri: userInfo.avatar }} 
+              style={styles.avatarImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.avatar}>{userInfo.avatar || '👤'}</Text>
+          )}
           <View style={styles.editAvatarButton}>
             <Text style={styles.editAvatarText}>查看</Text>
           </View>
@@ -321,6 +329,12 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     textAlign: 'center',
     lineHeight: 80,
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0',
   },
   editAvatarButton: {
     position: 'absolute',

@@ -13,21 +13,23 @@ import {
   Dimensions,
   Modal,
 } from 'react-native';
-import { userApi } from './services/apiService.js';
+import ImageViewing from 'react-native-image-viewing';
+import { userApi } from "./services/apiService";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width } = Dimensions.get('window');
 
 export default function MomentDetailScreen({ route, navigation }) {
   const { moment } = route.params;
+  console.log('MomentDetailScreen 接收到的参数:', { moment, routeParams: route.params });
   const [momentData, setMomentData] = useState(moment);
   const [comments, setComments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [commentText, setCommentText] = useState('');
   const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [showImagePreview, setShowImagePreview] = useState(false);
-  const [previewImage, setPreviewImage] = useState(null);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFollowing, setIsFollowing] = useState(false);
   const [isFollowLoading, setIsFollowLoading] = useState(false);
 
@@ -41,6 +43,11 @@ export default function MomentDetailScreen({ route, navigation }) {
     try {
       const token = await AsyncStorage.getItem('authToken');
       if (!token) return;
+
+      if (!momentData || !momentData.author || !momentData.author.uuid) {
+        console.error('momentData.author.uuid 不存在:', momentData);
+        return;
+      }
 
       const response = await userApi.checkFollowStatus(momentData.author.uuid, token);
       if (response.status) {
@@ -80,9 +87,15 @@ export default function MomentDetailScreen({ route, navigation }) {
   const loadComments = async () => {
     try {
       setLoading(true);
+      console.log('loadComments - momentData:', momentData);
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         Alert.alert('错误', '请先登录');
+        return;
+      }
+
+      if (!momentData || !momentData.uuid) {
+        console.error('momentData 或 uuid 不存在:', momentData);
         return;
       }
 
@@ -170,24 +183,53 @@ export default function MomentDetailScreen({ route, navigation }) {
 
   // 格式化时间
   const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    if (!dateString) return '';
+    
+    try {
+      // 处理不同的时间格式
+      let date;
+      if (typeof dateString === 'string') {
+        // 如果是 ISO 格式的字符串，直接解析
+        date = new Date(dateString);
+      } else if (dateString instanceof Date) {
+        date = dateString;
+      } else {
+        return '';
+      }
 
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays < 7) return `${diffDays}天前`;
-    return date.toLocaleDateString();
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        console.error('无效的日期:', dateString);
+        return '';
+      }
+
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return '刚刚';
+      if (diffMins < 60) return `${diffMins}分钟前`;
+      if (diffHours < 24) return `${diffHours}小时前`;
+      if (diffDays < 7) return `${diffDays}天前`;
+      
+      // 格式化为本地日期时间
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      console.error('formatTime 错误:', error, dateString);
+      return '';
+    }
   };
 
   // 预览图片
-  const handlePreviewImage = (imageUri) => {
-    setPreviewImage(imageUri);
-    setShowImagePreview(true);
+  const handlePreviewImage = (imageUri, index = 0) => {
+    setCurrentImageIndex(index);
+    setImageViewerVisible(true);
   };
 
   const onRefresh = () => {
@@ -195,6 +237,26 @@ export default function MomentDetailScreen({ route, navigation }) {
     loadComments();
     setTimeout(() => setRefreshing(false), 1000);
   };
+
+  // 如果momentData不存在，显示加载中
+  if (!momentData) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            style={styles.backButton}
+            onPress={() => navigation.goBack()}
+          >
+            <Text style={styles.backIcon}>‹</Text>
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>动态详情</Text>
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>加载中...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -222,14 +284,14 @@ export default function MomentDetailScreen({ route, navigation }) {
         <View style={styles.momentCard}>
           <View style={styles.momentHeader}>
             <View style={styles.userInfo}>
-              <TouchableOpacity onPress={() => navigation.navigate('UserProfile', { userUuid: momentData.author.uuid })}>
+              <TouchableOpacity onPress={() => momentData?.author?.uuid && navigation.navigate('UserProfile', { userUuid: momentData.author.uuid })}>
                 <Text style={styles.userAvatar}>👤</Text>
               </TouchableOpacity>
               <View>
-                <TouchableOpacity onPress={() => navigation.navigate('UserProfile', { userUuid: momentData.author.uuid })}>
-                  <Text style={styles.userName}>{momentData.author.nickname}</Text>
+                <TouchableOpacity onPress={() => momentData?.author?.uuid && navigation.navigate('UserProfile', { userUuid: momentData.author.uuid })}>
+                  <Text style={styles.userName}>{momentData?.author?.nickname || '未知用户'}</Text>
                 </TouchableOpacity>
-                <Text style={styles.time}>{formatTime(momentData.created_at)}</Text>
+                <Text style={styles.time}>{formatTime(momentData?.created_at)}</Text>
               </View>
             </View>
             <TouchableOpacity 
@@ -243,15 +305,15 @@ export default function MomentDetailScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.content}>{momentData.content}</Text>
+          <Text style={styles.content}>{momentData?.content || '内容加载中...'}</Text>
 
           {/* 图片展示 */}
-          {momentData.images && momentData.images.length > 0 && (
+          {momentData?.images && momentData.images.length > 0 && (
             <View style={styles.imagesContainer}>
               {momentData.images.map((img, index) => (
                 <TouchableOpacity 
                   key={index} 
-                  onPress={() => handlePreviewImage(img)}
+                  onPress={() => handlePreviewImage(img, index)}
                 >
                   <Image source={{ uri: img }} style={styles.image} />
                 </TouchableOpacity>
@@ -344,26 +406,19 @@ export default function MomentDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* 图片预览模态框 */}
-      <Modal
-        visible={showImagePreview}
-        transparent={true}
-        onRequestClose={() => setShowImagePreview(false)}
-      >
-        <View style={styles.imagePreviewOverlay}>
-          <TouchableOpacity 
-            style={styles.imagePreviewClose}
-            onPress={() => setShowImagePreview(false)}
-          >
-            <Text style={styles.imagePreviewCloseText}>✕</Text>
-          </TouchableOpacity>
-          <Image 
-            source={{ uri: previewImage }} 
-            style={styles.imagePreview}
-            resizeMode="contain"
-          />
-        </View>
-      </Modal>
+      {/* 图片查看器 */}
+      <ImageViewing
+        images={momentData?.images?.map(uri => ({ uri })) || []}
+        imageIndex={currentImageIndex}
+        visible={imageViewerVisible}
+        onRequestClose={() => setImageViewerVisible(false)}
+        enableSwipeDown={true}
+        swipeDownThreshold={50}
+        backgroundColor="rgba(0, 0, 0, 0.9)"
+        doubleTapToZoomEnabled={true}
+        enablePreload={true}
+        presentationStyle="overFullScreen"
+      />
     </SafeAreaView>
   );
 }
@@ -623,6 +678,15 @@ const styles = StyleSheet.create({
   },
   sendButtonTextDisabled: {
     color: '#999',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
   },
   imagePreviewOverlay: {
     flex: 1,

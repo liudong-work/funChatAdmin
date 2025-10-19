@@ -82,8 +82,14 @@ app.use('/uploads', express.static(uploadsDir));
 
 // API限流
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100
+  windowMs: 15 * 60 * 1000, // 15分钟
+  max: 1000, // 增加到1000个请求
+  message: {
+    status: false,
+    message: '请求过于频繁，请稍后再试'
+  },
+  standardHeaders: true, // 返回速率限制信息在 `RateLimit-*` 标头中
+  legacyHeaders: false, // 禁用 `X-RateLimit-*` 标头
 });
 app.use('/api/', limiter);
 
@@ -1317,62 +1323,168 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
 
 // ========== 文件上传API ==========
 // 文件上传API（兼容前端调用的/api/file）
-app.post('/api/file', authenticateToken, (req, res) => {
-  const form = formidable({
-    uploadDir: uploadsDir,
-    keepExtensions: true,
-    maxFileSize: 10 * 1024 * 1024, // 10MB
-    filter: ({ name, originalFilename, mimetype }) => {
-      // 只允许图片文件
-      return mimetype && mimetype.includes('image');
-    }
-  });
-
-  form.parse(req, (err, fields, files) => {
-    if (err) {
-      log.error('文件上传失败:', err);
-      return res.status(500).json({
-        status: false,
-        message: '文件上传失败: ' + err.message
-      });
-    }
-
-    const file = files.file;
-    if (!file) {
-      return res.status(400).json({
-        status: false,
-        message: '没有上传文件'
-      });
-    }
-
-    // 生成新的文件名
-    const ext = path.extname(file.originalFilename || '');
-    const newFilename = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}${ext}`;
-    const newPath = path.join(uploadsDir, newFilename);
-
-    // 重命名文件
-    fs.rename(file.filepath, newPath, (renameErr) => {
-      if (renameErr) {
-        log.error('文件重命名失败:', renameErr);
-        return res.status(500).json({
+app.post('/api/file', authenticateToken, async (req, res) => {
+  try {
+    const contentType = req.headers['content-type'];
+    
+    // 支持Base64上传到OSS（用于动态图片等）
+    if (contentType && contentType.includes('application/json')) {
+      const { fileData, fileName, fileType } = req.body;
+      
+      if (!fileData) {
+        return res.json({
           status: false,
-          message: '文件处理失败'
+          message: '没有接收到文件数据'
         });
       }
 
-      // 返回文件信息
-      res.json({
-        status: true,
-        message: '文件上传成功',
-        data: {
-          filename: newFilename,
-          url: `/uploads/${newFilename}`,
-          size: file.size,
-          mimetype: file.mimetype
+      // 验证文件类型
+      if (!fileType || !fileType.startsWith('image/')) {
+        return res.json({
+          status: false,
+          message: '只支持图片文件'
+        });
+      }
+
+      // 检查是否配置了OSS
+      if (checkOSSConfig()) {
+        // 上传到OSS
+        const ext = path.extname(fileName || 'image.jpg');
+        const filename = `img-${Date.now()}-${Math.floor(Math.random() * 1000000000)}${ext}`;
+        
+        const tempFilePath = path.join(uploadsDir, filename);
+        const base64Data = fileData.replace(/^data:image\/[a-z]+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        if (buffer.length > 10 * 1024 * 1024) {
+          return res.json({
+            status: false,
+            message: '文件大小不能超过10MB'
+          });
+        }
+        
+        fs.writeFileSync(tempFilePath, buffer);
+        
+        try {
+          const ossResult = await uploadToOSS(tempFilePath);
+          fs.unlinkSync(tempFilePath);
+          
+          if (ossResult.success) {
+            log.info(`文件上传到OSS成功: ${ossResult.url}`);
+            return res.json({
+              status: true,
+              message: '上传成功',
+              data: {
+                filename: ossResult.name,
+                url: ossResult.url,
+                size: ossResult.size,
+                type: 'oss'
+              }
+            });
+          } else {
+            log.error('OSS上传失败:', ossResult.error);
+            return res.json({
+              status: false,
+              message: 'OSS上传失败: ' + ossResult.error
+            });
+          }
+        } catch (error) {
+          if (fs.existsSync(tempFilePath)) {
+            fs.unlinkSync(tempFilePath);
+          }
+          throw error;
+        }
+      } else {
+        // OSS未配置，保存到本地
+        const ext = path.extname(fileName || 'image.jpg');
+        const filename = `img-${Date.now()}-${Math.floor(Math.random() * 1000000000)}${ext}`;
+        const filePath = path.join(uploadsDir, filename);
+        
+        const base64Data = fileData.replace(/^data:image\/[a-z]+;base64,/, '');
+        const buffer = Buffer.from(base64Data, 'base64');
+        
+        if (buffer.length > 10 * 1024 * 1024) {
+          return res.json({
+            status: false,
+            message: '文件大小不能超过10MB'
+          });
+        }
+        
+        fs.writeFileSync(filePath, buffer);
+        
+        log.info(`文件保存到本地: ${filename}`);
+        return res.json({
+          status: true,
+          message: '上传成功',
+          data: {
+            filename: filename,
+            url: `/uploads/${filename}`,
+            size: buffer.length,
+            mimetype: fileType
+          }
+        });
+      }
+    } else {
+      // 支持multipart上传（向后兼容）
+      const form = formidable({
+        uploadDir: uploadsDir,
+        keepExtensions: true,
+        maxFileSize: 10 * 1024 * 1024, // 10MB
+        filter: ({ name, originalFilename, mimetype }) => {
+          return mimetype && mimetype.includes('image');
         }
       });
+
+      form.parse(req, (err, fields, files) => {
+        if (err) {
+          log.error('文件上传失败:', err);
+          return res.status(500).json({
+            status: false,
+            message: '文件上传失败: ' + err.message
+          });
+        }
+
+        const file = files.file;
+        if (!file) {
+          return res.status(400).json({
+            status: false,
+            message: '没有上传文件'
+          });
+        }
+
+        const ext = path.extname(file.originalFilename || '');
+        const newFilename = `img-${Date.now()}-${Math.random().toString(36).substr(2, 9)}${ext}`;
+        const newPath = path.join(uploadsDir, newFilename);
+
+        fs.rename(file.filepath, newPath, (renameErr) => {
+          if (renameErr) {
+            log.error('文件重命名失败:', renameErr);
+            return res.status(500).json({
+              status: false,
+              message: '文件处理失败'
+            });
+          }
+
+          res.json({
+            status: true,
+            message: '文件上传成功',
+            data: {
+              filename: newFilename,
+              url: `/uploads/${newFilename}`,
+              size: file.size,
+              mimetype: file.mimetype
+            }
+          });
+        });
+      });
+    }
+  } catch (error) {
+    log.error('文件上传处理失败:', error);
+    res.json({
+      status: false,
+      message: '文件上传处理失败: ' + error.message
     });
-  });
+  }
 });
 
 app.post('/api/upload', authenticateToken, (req, res) => {
@@ -1421,7 +1533,7 @@ app.post('/api/upload', authenticateToken, (req, res) => {
 });
 
 // ========== OSS上传API ==========
-app.post('/api/upload/oss', authenticateToken, (req, res) => {
+app.post('/api/upload/oss', authenticateToken, async (req, res) => {
   // 检查OSS配置
   if (!checkOSSConfig()) {
     return res.status(500).json({
@@ -1430,78 +1542,169 @@ app.post('/api/upload/oss', authenticateToken, (req, res) => {
     });
   }
 
-  const form = formidable({
-    uploadDir: uploadsDir,
-    keepExtensions: true,
-    maxFileSize: 10 * 1024 * 1024, // 10MB
-    filename: (name, ext, part) => {
-      return `img-${Date.now()}-${Math.floor(Math.random() * 1000000000)}${ext}`;
-    }
-  });
-
-  form.parse(req, async (err, fields, files) => {
-    if (err) {
-      log.error('文件上传失败:', err);
-      return res.json({
-        status: false,
-        message: '文件上传失败: ' + err.message
-      });
-    }
-
-    const file = files.file;
-    if (!file || file.length === 0) {
-      return res.json({
-        status: false,
-        message: '没有接收到文件'
-      });
-    }
-
-    const uploadedFile = Array.isArray(file) ? file[0] : file;
-    const filename = path.basename(uploadedFile.filepath);
+  try {
+    // 检查Content-Type来判断是Base64还是multipart
+    const contentType = req.headers['content-type'];
     
-    try {
-      // 上传到OSS
-      const ossResult = await uploadToOSS(uploadedFile.filepath);
+    if (contentType && contentType.includes('application/json')) {
+      // 处理Base64数据（来自管理系统和移动端）
+      const { fileData, fileName, fileType } = req.body;
       
-      if (ossResult.success) {
-        // 删除本地临时文件
-        fs.unlinkSync(uploadedFile.filepath);
-        
-        log.info(`文件上传到OSS成功: ${ossResult.url}`);
-        
-        res.json({
-          status: true,
-          message: '上传成功',
-          data: {
-            filename: ossResult.name,
-            url: ossResult.url,
-            size: ossResult.size,
-            type: 'oss'
-          }
-        });
-      } else {
-        // 删除本地临时文件
-        fs.unlinkSync(uploadedFile.filepath);
-        
-        log.error('OSS上传失败:', ossResult.error);
-        res.json({
+      if (!fileData) {
+        return res.json({
           status: false,
-          message: 'OSS上传失败: ' + ossResult.error
+          message: '没有接收到文件数据'
         });
       }
-    } catch (error) {
-      // 删除本地临时文件
-      if (fs.existsSync(uploadedFile.filepath)) {
-        fs.unlinkSync(uploadedFile.filepath);
+
+      // 验证文件类型
+      if (!fileType || !fileType.startsWith('image/')) {
+        return res.json({
+          status: false,
+          message: '只支持图片文件'
+        });
+      }
+
+      // 生成文件名
+      const ext = path.extname(fileName || 'image.jpg');
+      const filename = `img-${Date.now()}-${Math.floor(Math.random() * 1000000000)}${ext}`;
+      
+      // 将Base64数据写入临时文件
+      const tempFilePath = path.join(uploadsDir, filename);
+      const base64Data = fileData.replace(/^data:image\/[a-z]+;base64,/, '');
+      const buffer = Buffer.from(base64Data, 'base64');
+      
+      // 检查文件大小（10MB限制）
+      if (buffer.length > 10 * 1024 * 1024) {
+        return res.json({
+          status: false,
+          message: '文件大小不能超过10MB'
+        });
       }
       
-      log.error('文件处理失败:', error);
-      res.json({
-        status: false,
-        message: '文件处理失败: ' + error.message
+      fs.writeFileSync(tempFilePath, buffer);
+      
+      try {
+        // 上传到OSS
+        const ossResult = await uploadToOSS(tempFilePath);
+        
+        if (ossResult.success) {
+          // 删除本地临时文件
+          fs.unlinkSync(tempFilePath);
+          
+          log.info(`Base64文件上传到OSS成功: ${ossResult.url}`);
+          
+          res.json({
+            status: true,
+            message: '上传成功',
+            data: {
+              filename: ossResult.name,
+              url: ossResult.url,
+              size: ossResult.size,
+              type: 'oss',
+              originalName: fileName
+            }
+          });
+        } else {
+          // 删除本地临时文件
+          fs.unlinkSync(tempFilePath);
+          
+          log.error('OSS上传失败:', ossResult.error);
+          res.json({
+            status: false,
+            message: 'OSS上传失败: ' + ossResult.error
+          });
+        }
+      } catch (error) {
+        // 删除本地临时文件
+        if (fs.existsSync(tempFilePath)) {
+          fs.unlinkSync(tempFilePath);
+        }
+        throw error;
+      }
+      
+    } else {
+      // 处理multipart/form-data（兼容旧版本）
+      const form = formidable({
+        uploadDir: uploadsDir,
+        keepExtensions: true,
+        maxFileSize: 10 * 1024 * 1024, // 10MB
+        filename: (name, ext, part) => {
+          return `img-${Date.now()}-${Math.floor(Math.random() * 1000000000)}${ext}`;
+        }
+      });
+
+      form.parse(req, async (err, fields, files) => {
+        if (err) {
+          log.error('文件上传失败:', err);
+          return res.json({
+            status: false,
+            message: '文件上传失败: ' + err.message
+          });
+        }
+
+        const file = files.file;
+        if (!file || file.length === 0) {
+          return res.json({
+            status: false,
+            message: '没有接收到文件'
+          });
+        }
+
+        const uploadedFile = Array.isArray(file) ? file[0] : file;
+        const filename = path.basename(uploadedFile.filepath);
+        
+        try {
+          // 上传到OSS
+          const ossResult = await uploadToOSS(uploadedFile.filepath);
+          
+          if (ossResult.success) {
+            // 删除本地临时文件
+            fs.unlinkSync(uploadedFile.filepath);
+            
+            log.info(`文件上传到OSS成功: ${ossResult.url}`);
+            
+            res.json({
+              status: true,
+              message: '上传成功',
+              data: {
+                filename: ossResult.name,
+                url: ossResult.url,
+                size: ossResult.size,
+                type: 'oss'
+              }
+            });
+          } else {
+            // 删除本地临时文件
+            fs.unlinkSync(uploadedFile.filepath);
+            
+            log.error('OSS上传失败:', ossResult.error);
+            res.json({
+              status: false,
+              message: 'OSS上传失败: ' + ossResult.error
+            });
+          }
+        } catch (error) {
+          // 删除本地临时文件
+          if (fs.existsSync(uploadedFile.filepath)) {
+            fs.unlinkSync(uploadedFile.filepath);
+          }
+          
+          log.error('文件处理失败:', error);
+          res.json({
+            status: false,
+            message: '文件处理失败: ' + error.message
+          });
+        }
       });
     }
-  });
+  } catch (error) {
+    log.error('上传处理失败:', error);
+    res.json({
+      status: false,
+      message: '上传处理失败: ' + error.message
+    });
+  }
 });
 
 // ========== WebSocket处理 ==========

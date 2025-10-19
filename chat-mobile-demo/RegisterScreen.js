@@ -13,7 +13,7 @@ import {
   Dimensions,
   ScrollView,
 } from 'react-native';
-import { userApi } from './services/apiService.js';
+import { userApi } from "./services/apiService";
 
 const { width, height } = Dimensions.get('window');
 

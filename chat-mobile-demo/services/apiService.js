@@ -232,7 +232,7 @@ export const userApi = {
           const queryString = new URLSearchParams({
             page: params.page || 1,
             pageSize: params.pageSize || 10,
-            status: params.status || 'approved',
+            status: params.status || 'published',
             privacy: params.privacy || 'public'
           }).toString();
           return apiService.authenticatedGet(`/api/moment/list?${queryString}`, token);
@@ -500,14 +500,51 @@ export const messageApi = {
 // 图片验证函数
 const validateImageFile = async (fileUri, fileName, mimeType) => {
   try {
-    // 检查文件类型
+    console.log('[AvatarAPI] 图片验证参数:', {
+      fileUri: fileUri?.substring(0, 50) + '...',
+      fileName,
+      mimeType,
+      mimeTypeType: typeof mimeType
+    });
+    
+    // 检查文件类型 - 如果mimeType为空，尝试从文件名推断
     const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(mimeType?.toLowerCase())) {
+    let actualMimeType = mimeType?.toLowerCase();
+    
+    console.log('[AvatarAPI] 原始mimeType:', actualMimeType);
+    
+    // 如果mimeType为空或无效，尝试从文件名推断
+    if (!actualMimeType || actualMimeType === 'image' || !actualMimeType.includes('/')) {
+      console.log('[AvatarAPI] mimeType无效，尝试从文件名推断...');
+      if (fileName) {
+        const ext = fileName.toLowerCase().split('.').pop();
+        console.log('[AvatarAPI] 文件扩展名:', ext);
+        const extToMime = {
+          'jpg': 'image/jpeg',
+          'jpeg': 'image/jpeg',
+          'png': 'image/png',
+          'gif': 'image/gif',
+          'webp': 'image/webp'
+        };
+        actualMimeType = extToMime[ext];
+        console.log('[AvatarAPI] 推断的mimeType:', actualMimeType);
+      }
+    }
+    
+    console.log('[AvatarAPI] 最终mimeType:', actualMimeType);
+    console.log('[AvatarAPI] 允许的类型:', allowedTypes);
+    console.log('[AvatarAPI] 是否在允许列表中:', actualMimeType ? allowedTypes.includes(actualMimeType) : 'N/A');
+    
+    // 如果仍然无法确定类型，跳过格式检查
+    if (actualMimeType && !allowedTypes.includes(actualMimeType)) {
+      console.log('[AvatarAPI] 格式验证失败:', actualMimeType, '不在允许列表中');
       return {
         valid: false,
         error: '不支持的文件格式，请选择 JPG、PNG、GIF 或 WebP 格式的图片'
       };
     }
+    
+    console.log('[AvatarAPI] 格式验证通过');
     
     // 检查文件大小（通过图片信息估算）
     const imageInfo = await Image.getSize(fileUri);
@@ -641,23 +678,35 @@ export const fileApi = {
     try {
       console.log('[FileAPI] 开始上传文件:', { fileUri, fileName, mimeType, hasToken: !!token });
       
-      const formData = new FormData();
-      formData.append('file', {
-        uri: fileUri,
-        name: fileName,
-        type: mimeType || 'application/octet-stream',
+      // 图片压缩
+      const compressedImage = await compressImage(fileUri, {
+        maxWidth: 1200,
+        maxHeight: 1200,
+        quality: 0.8,
+        format: 'JPEG'
       });
-
+      
+      console.log('[FileAPI] 图片压缩完成');
+      
+      // 将图片转换为Base64
+      const base64Data = await convertImageToBase64(compressedImage.uri);
+      
       const url = buildUrl('/api/file');
       console.log('[FileAPI] 上传URL:', url);
 
+      // 使用Base64上传（与头像上传保持一致）
       const res = await fetch(url, {
         method: 'POST',
         headers: {
           Authorization: token ? `Bearer ${token}` : '',
-          // 不设置 Content-Type，让 fetch 自动设置
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
         },
-        body: formData,
+        body: JSON.stringify({
+          fileData: base64Data,
+          fileName: fileName || 'image.jpg',
+          fileType: 'image/jpeg'
+        }),
       });
       
       console.log('[FileAPI] 响应状态:', res.status, res.statusText);

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { messageApi } from './services/apiService.js';
+import { messageApi } from "./services/apiService";
 
 export default function MessagesScreen({ navigation, onNewMessageCallback }) {
   const [searchText, setSearchText] = useState('');

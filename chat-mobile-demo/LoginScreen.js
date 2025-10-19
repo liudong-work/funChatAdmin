@@ -12,7 +12,7 @@ import {
   Platform,
   Dimensions,
 } from 'react-native';
-import { userApi } from './services/apiService.js';
+import { userApi } from "./services/apiService";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');

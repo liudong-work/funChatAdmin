@@ -3,7 +3,7 @@ import { StyleSheet, View, Text, TextInput, TouchableOpacity, Platform, Keyboard
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
-import { messageApi, fileApi } from './services/apiService.js';
+import { messageApi, fileApi } from "./services/apiService";
 import * as FileSystem from 'expo-file-system/legacy';
 import { getBaseUrl } from './config/api.js';
 

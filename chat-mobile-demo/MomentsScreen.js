@@ -10,7 +10,8 @@ import {
   RefreshControl,
   Alert,
 } from 'react-native';
-import { userApi } from './services/apiService.js';
+import ImageViewing from 'react-native-image-viewing';
+import { userApi } from "./services/apiService";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 export default function MomentsScreen({ navigation }) {
@@ -20,10 +21,22 @@ export default function MomentsScreen({ navigation }) {
   const [moments, setMoments] = useState([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(true);
+  const [imageViewerVisible, setImageViewerVisible] = useState(false);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [currentMomentImages, setCurrentMomentImages] = useState([]);
+  const [lastLoadTime, setLastLoadTime] = useState(0);
 
   // 加载动态数据
   const loadMoments = async (pageNum = 1, isRefresh = false) => {
     try {
+      // 防抖：避免频繁调用（1秒内只能调用一次）
+      const now = Date.now();
+      if (now - lastLoadTime < 1000) {
+        console.log('[MomentsScreen] 请求过于频繁，跳过此次调用');
+        return;
+      }
+      setLastLoadTime(now);
+
       if (isRefresh) {
         setPage(1);
         setHasMore(true);
@@ -81,22 +94,60 @@ export default function MomentsScreen({ navigation }) {
 
   // 格式化时间
   const formatTime = (dateString) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffMs = now - date;
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMs / 3600000);
-    const diffDays = Math.floor(diffMs / 86400000);
+    if (!dateString) return '';
+    
+    try {
+      // 处理不同的时间格式
+      let date;
+      if (typeof dateString === 'string') {
+        // 如果是 ISO 格式的字符串，直接解析
+        date = new Date(dateString);
+      } else if (dateString instanceof Date) {
+        date = dateString;
+      } else {
+        return '';
+      }
 
-    if (diffMins < 1) return '刚刚';
-    if (diffMins < 60) return `${diffMins}分钟前`;
-    if (diffHours < 24) return `${diffHours}小时前`;
-    if (diffDays < 7) return `${diffDays}天前`;
-    return date.toLocaleDateString();
+      // 检查日期是否有效
+      if (isNaN(date.getTime())) {
+        console.error('无效的日期:', dateString);
+        return '';
+      }
+
+      const now = new Date();
+      const diffMs = now - date;
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMs / 3600000);
+      const diffDays = Math.floor(diffMs / 86400000);
+
+      if (diffMins < 1) return '刚刚';
+      if (diffMins < 60) return `${diffMins}分钟前`;
+      if (diffHours < 24) return `${diffHours}小时前`;
+      if (diffDays < 7) return `${diffDays}天前`;
+      
+      // 格式化为本地日期时间
+      return date.toLocaleDateString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+      });
+    } catch (error) {
+      console.error('formatTime 错误:', error, dateString);
+      return '';
+    }
   };
 
   const onRefresh = () => {
     loadMoments(1, true);
+  };
+
+  // 预览图片
+  const handlePreviewImage = (momentItem, imageIndex = 0) => {
+    if (momentItem.images && momentItem.images.length > 0) {
+      setCurrentMomentImages(momentItem.images);
+      setCurrentImageIndex(imageIndex);
+      setImageViewerVisible(true);
+    }
   };
 
   const handleLike = async (momentItem) => {
@@ -139,15 +190,26 @@ export default function MomentsScreen({ navigation }) {
   const renderMomentItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.momentCard}
-      onPress={() => navigation.navigate('MomentDetail', { moment: item })}
+      onPress={() => {
+        console.log('跳转到动态详情，传递的数据:', item);
+        navigation.navigate('MomentDetail', { moment: item });
+      }}
       activeOpacity={0.7}
     >
       <View style={styles.momentHeader}>
         <View style={styles.userInfo}>
-          <Text style={styles.userAvatar}>{item.author.avatar}</Text>
+          {item.author.avatar && item.author.avatar.startsWith('http') ? (
+            <Image source={{ uri: item.author.avatar }} style={styles.userAvatarImage} />
+          ) : (
+            <Text style={styles.userAvatar}>{item.author.avatar || '👤'}</Text>
+          )}
           <View>
             <Text style={styles.userName}>{item.author.nickname}</Text>
-            <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+            {item.created_at ? (
+              <Text style={styles.time}>{formatTime(item.created_at)}</Text>
+            ) : (
+              <Text style={styles.time}>时间未知</Text>
+            )}
           </View>
         </View>
       </View>
@@ -157,7 +219,15 @@ export default function MomentsScreen({ navigation }) {
       {item.images && item.images.length > 0 && (
         <View style={styles.imagesContainer}>
           {item.images.map((img, index) => (
-            <Image key={index} source={{ uri: img }} style={styles.image} />
+            <TouchableOpacity 
+              key={index} 
+              onPress={(e) => {
+                e.stopPropagation(); // 阻止事件冒泡到卡片点击
+                handlePreviewImage(item, index);
+              }}
+            >
+              <Image source={{ uri: img }} style={styles.image} />
+            </TouchableOpacity>
           ))}
         </View>
       )}
@@ -246,6 +316,20 @@ export default function MomentsScreen({ navigation }) {
       >
         <Text style={styles.floatingPublishButtonText}>✏️</Text>
       </TouchableOpacity>
+
+      {/* 图片查看器 */}
+      <ImageViewing
+        images={currentMomentImages.map(uri => ({ uri }))}
+        imageIndex={currentImageIndex}
+        visible={imageViewerVisible}
+        onRequestClose={() => setImageViewerVisible(false)}
+        enableSwipeDown={true}
+        swipeDownThreshold={50}
+        backgroundColor="rgba(0, 0, 0, 0.9)"
+        doubleTapToZoomEnabled={true}
+        enablePreload={true}
+        presentationStyle="overFullScreen"
+      />
     </SafeAreaView>
   );
 }
@@ -343,6 +427,12 @@ const styles = StyleSheet.create({
   },
   userAvatar: {
     fontSize: 40,
+    marginRight: 12,
+  },
+  userAvatarImage: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     marginRight: 12,
   },
   userName: {

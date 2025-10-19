@@ -58,7 +58,7 @@ router.post('/publish', authenticateToken, async (req, res) => {
           images: moment.images,
           privacy: moment.visibility,
           status: moment.status,
-          created_at: moment.created_at
+          created_at: moment.created_at || moment.createdAt
         }
       }
     });
@@ -178,8 +178,8 @@ router.get('/list', authenticateToken, async (req, res) => {
         likes_count: moment.likes_count,
         comments_count: moment.comments_count,
         is_liked: likedMomentIds.has(moment.id),
-        created_at: moment.created_at,
-        updated_at: moment.updated_at,
+        created_at: moment.created_at || moment.createdAt,
+        updated_at: moment.updated_at || moment.updatedAt,
         author: {
           id: moment.author.id,
           uuid: moment.author.uuid,
@@ -270,7 +270,7 @@ router.get('/:moment_uuid', authenticateToken, async (req, res) => {
       uuid: comment.uuid,
       content: comment.content,
       likes_count: comment.likes_count,
-      created_at: comment.created_at,
+      created_at: comment.created_at || comment.createdAt,
       author: {
         id: comment.author.id,
         uuid: comment.author.uuid,
@@ -294,8 +294,8 @@ router.get('/:moment_uuid', authenticateToken, async (req, res) => {
           likes_count: moment.likes_count,
           comments_count: moment.comments_count,
           is_liked: !!like,
-          created_at: moment.created_at,
-          updated_at: moment.updated_at,
+          created_at: moment.created_at || moment.createdAt,
+          updated_at: moment.updated_at || moment.updatedAt,
           author: {
             id: moment.author.id,
             uuid: moment.author.uuid,
@@ -449,7 +449,7 @@ router.post('/:moment_uuid/comment', authenticateToken, async (req, res) => {
           id: comment.uuid,
           uuid: comment.uuid,
           content: comment.content,
-          created_at: comment.created_at,
+          created_at: comment.created_at || comment.createdAt,
           author: {
             id: currentUser.id,
             uuid: currentUser.uuid,
@@ -510,7 +510,7 @@ router.get('/:moment_uuid/comments', authenticateToken, async (req, res) => {
       id: comment.uuid,
       uuid: comment.uuid,
       content: comment.content,
-      created_at: comment.created_at,
+      created_at: comment.created_at || comment.createdAt,
       author: {
         id: comment.author.id,
         uuid: comment.author.uuid,
@@ -581,7 +581,7 @@ router.get('/user/:user_uuid', authenticateToken, async (req, res) => {
       status: moment.status,
       likes_count: moment.likes_count,
       comments_count: moment.comments_count,
-      created_at: moment.created_at,
+      created_at: moment.created_at || moment.createdAt,
       author: {
         id: moment.author.id,
         uuid: moment.author.uuid,

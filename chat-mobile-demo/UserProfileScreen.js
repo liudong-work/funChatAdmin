@@ -119,7 +119,7 @@ export default function UserProfileScreen({ route, navigation }) {
       const followersCount = followersRes.status && followersRes.data ? followersRes.data.total || 0 : 0;
 
       // 获取动态数 (从动态列表中筛选)
-      const momentsRes = await userApi.getMoments({ page: 1, pageSize: 1, status: 'approved' }, token);
+      const momentsRes = await userApi.getMoments({ page: 1, pageSize: 1, status: 'published' }, token);
       const momentsCount = momentsRes.status && momentsRes.data ? momentsRes.data.total || 0 : 0;
 
       setUserStats({
@@ -138,7 +138,7 @@ export default function UserProfileScreen({ route, navigation }) {
       const response = await userApi.getMoments({ 
         page: 1, 
         pageSize: 20,
-        status: 'approved',
+        status: 'published',
         privacy: 'public'
       }, token);
 
@@ -258,7 +258,15 @@ export default function UserProfileScreen({ route, navigation }) {
       {/* 用户信息卡片 */}
       <View style={styles.profileCard}>
         <View style={styles.profileHeader}>
-          <Text style={styles.avatar}>{userInfo.avatar}</Text>
+          {userInfo.avatar && userInfo.avatar.startsWith('http') ? (
+            <Image 
+              source={{ uri: userInfo.avatar }} 
+              style={styles.avatarImage}
+              resizeMode="cover"
+            />
+          ) : (
+            <Text style={styles.avatar}>{userInfo.avatar || '👤'}</Text>
+          )}
           <View style={styles.profileInfo}>
             <Text style={styles.username}>{userInfo.nickname}</Text>
             <Text style={styles.bio}>{userInfo.bio}</Text>
@@ -443,6 +451,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#f0f0f0',
     textAlign: 'center',
     lineHeight: 80,
+    marginRight: 15,
+  },
+  avatarImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: '#f0f0f0',
     marginRight: 15,
   },
   profileInfo: {

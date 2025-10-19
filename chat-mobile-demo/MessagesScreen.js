@@ -83,11 +83,23 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
         // 转换后端数据格式为前端需要的格式
         const conversationUsers = response.data.conversations.map(conv => {
           console.log('[MESSAGES] 处理对话数据:', conv);
+          
+          // 处理最后一条消息
+          let lastMessageText = conv.lastMessage.content;
+          let lastMessageImageUrl = null;
+          
+          // 如果是图片消息，特殊处理
+          if (conv.lastMessage.message_type === 'image' && conv.lastMessage.file_url) {
+            lastMessageText = '📷 阅后即焚图片';
+            lastMessageImageUrl = conv.lastMessage.file_url;
+          }
+          
           return {
             id: conv.otherUser.uuid,
             name: conv.otherUser.nickname,
             avatar: conv.otherUser.avatar,
-            lastMessage: conv.lastMessage.content,
+            lastMessage: lastMessageText,
+            lastMessageImageUrl: lastMessageImageUrl, // 添加图片URL字段
             lastTime: (() => {
               try {
                 const date = new Date(conv.lastMessage.created_at);
@@ -119,7 +131,7 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
   };
 
   // 添加新用户到消息列表（当收到新消息时调用）
-  const addUserToMessages = useCallback((senderUuid, senderName, lastMessage) => {
+  const addUserToMessages = useCallback((senderUuid, senderName, lastMessage, messageType = 'text', imageUrl = null) => {
     // 确保 senderUuid 不为空
     if (!senderUuid) {
       console.warn('addUserToMessages: senderUuid is null or undefined');
@@ -134,6 +146,7 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
         updated[existingIndex] = {
           ...updated[existingIndex],
           lastMessage,
+          lastMessageImageUrl: imageUrl,
           lastTime: (() => {
             try {
               return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -154,6 +167,7 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
           name: senderName || '陌生人',
           avatar: '👤',
           lastMessage,
+          lastMessageImageUrl: imageUrl,
           lastTime: (() => {
             try {
               return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
@@ -192,7 +206,10 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
           <Text style={styles.userName}>{item.name}</Text>
           <Text style={styles.lastTime}>{item.lastTime}</Text>
         </View>
-        <Text style={styles.lastMessage} numberOfLines={1}>
+        <Text style={[
+          styles.lastMessage,
+          item.lastMessageImageUrl && styles.imageMessage
+        ]} numberOfLines={1}>
           {item.lastMessage}
         </Text>
       </View>
@@ -319,5 +336,9 @@ const styles = StyleSheet.create({
   lastMessage: {
     fontSize: 14,
     color: '#666',
+  },
+  imageMessage: {
+    color: '#FF6B35', // 橙色，表示图片消息
+    fontWeight: '500',
   },
 });

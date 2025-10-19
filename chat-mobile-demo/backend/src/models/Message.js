@@ -39,6 +39,26 @@ const Message = sequelize.define('Message', {
     allowNull: true,
     comment: '文件URL'
   },
+  file_type: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+    comment: '文件类型'
+  },
+  file_size: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: '文件大小（字节）'
+  },
+  width: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: '图片宽度'
+  },
+  height: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: '图片高度'
+  },
   is_read: {
     type: DataTypes.BOOLEAN,
     defaultValue: false,

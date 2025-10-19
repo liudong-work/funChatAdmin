@@ -930,6 +930,32 @@ app.get('/api/message/history/:userId1/:userId2', authenticateToken, async (req,
       size: parseInt(size)
     });
 
+    // 调试日志：检查返回的消息数据
+    log.info(`[HISTORY] 返回消息数量: ${messages.length}`);
+    messages.forEach((msg, index) => {
+      if (msg.message_type === 'image' || msg.type === 'image') {
+        log.info(`[HISTORY] 图片消息 ${index}:`, {
+          id: msg.uuid,
+          message_type: msg.message_type,
+          type: msg.type,
+          file_url: msg.file_url,
+          imageUrl: msg.imageUrl,
+          content: msg.content,
+          // 添加更多调试信息
+          rawData: {
+            id: msg.id,
+            uuid: msg.uuid,
+            message_type: msg.message_type,
+            file_url: msg.file_url,
+            file_type: msg.file_type,
+            file_size: msg.file_size,
+            width: msg.width,
+            height: msg.height
+          }
+        });
+      }
+    });
+
     res.json({
       status: true,
       message: '获取成功',
@@ -1117,7 +1143,7 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
 
     // 获取所有与当前用户相关的对话（使用子查询避免GROUP BY问题）
     const conversations = await Message.findAll({
-      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'status', 'created_at', 'updated_at'],
+      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'file_url', 'file_type', 'file_size', 'width', 'height', 'status', 'created_at', 'updated_at'],
       where: {
         [Op.or]: [
           { sender_id: currentUser.id },
@@ -1253,7 +1279,7 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
 
     // 获取两个用户之间的所有消息
     const messages = await Message.findAll({
-      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'status', 'created_at', 'updated_at'],
+      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'file_url', 'file_type', 'file_size', 'width', 'height', 'status', 'created_at', 'updated_at'],
       where: {
         [Op.or]: [
           {
@@ -1301,7 +1327,13 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
           ? messageData.created_at.toISOString() 
           : messageData.created_at,
         status: messageData.status,
-        type: messageData.message_type // 前端需要的字段
+        type: messageData.message_type, // 前端需要的字段
+        // 图片消息相关字段
+        file_url: messageData.file_url,
+        file_type: messageData.file_type,
+        file_size: messageData.file_size,
+        width: messageData.width,
+        height: messageData.height
       };
     });
 
@@ -1849,6 +1881,137 @@ io.on('connection', (socket) => {
       }
     } catch (error) {
       log.error('标记消息已读失败:', error);
+    }
+  });
+
+  // 处理图片消息
+  socket.on('image_message', async (data) => {
+    try {
+      const { from, to, imageData, mimeType, width, height } = data || {};
+      log.info('[WS] 收到图片消息:', {
+        from,
+        to,
+        hasImageData: !!imageData,
+        length: Array.isArray(imageData) ? imageData.length : 0,
+        mimeType,
+        width,
+        height,
+      });
+
+      if (!from || !to || !imageData) {
+        socket.emit('error', { message: '图片消息数据不完整' });
+        return;
+      }
+
+      // 生成文件名（聊天图片只保存到本地，不上传OSS）
+      const extFromMime = (mimeType || 'image/png').split('/')[1] || 'png';
+      const filename = `chat-img-${Date.now()}-${Math.floor(Math.random() * 1000000000)}.${extFromMime}`;
+      const filePath = path.join(uploadsDir, filename);
+
+      // 将二进制数据写入文件
+      const buffer = Buffer.from(new Uint8Array(imageData));
+      fs.writeFileSync(filePath, buffer);
+
+      const fileUrl = `/uploads/${filename}`; // 本地URL
+
+      // 查找发送者和接收者
+      const sender = await User.findOne({ where: { uuid: from } });
+      const receiver = await User.findOne({ where: { uuid: to } });
+
+      if (!sender) {
+        socket.emit('error', { message: '发送者不存在' });
+        return;
+      }
+
+      // 创建图片消息记录
+      const message = await Message.create({
+        uuid: `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sender_id: sender.id,
+        receiver_id: receiver ? receiver.id : null,
+        content: '[图片]',
+        message_type: 'image',  // 修复：使用正确的字段名
+        file_url: fileUrl,
+        file_type: mimeType,
+        file_size: buffer.length,
+        width: width || null,
+        height: height || null,
+        status: 'sent'
+      });
+
+      log.info(`聊天图片消息创建成功: ${message.uuid}`);
+      
+      // 调试：检查保存的消息数据
+      log.info(`[DEBUG] 保存的图片消息数据:`, {
+        id: message.id,
+        uuid: message.uuid,
+        message_type: message.message_type,
+        file_url: message.file_url,
+        file_type: message.file_type,
+        file_size: message.file_size,
+        width: message.width,
+        height: message.height
+      });
+
+      // 索引到Elasticsearch
+      try {
+        await MessageSearch.saveMessage({
+          uuid: message.uuid,
+          sender_id: sender.id,
+          receiver_id: receiver ? receiver.id : null,
+          content: '[图片]',
+          message_type: 'image',
+          file_url: fileUrl,
+          file_type: mimeType,
+          file_size: buffer.length,
+          width: width || null,
+          height: height || null,
+          status: 'sent',
+          created_at: message.created_at || message.createdAt
+        });
+        log.info(`图片消息已索引到ES: ${message.uuid}`);
+      } catch (error) {
+        log.error(`图片消息索引到ES失败: ${error.message}`);
+      }
+
+      // 推送给接收者
+      const receiverSocket = connectedUsers.get(to);
+      log.info(`[图片消息] 查找接收者: ${to}, 在线状态: ${!!receiverSocket}, 连接数: ${connectedUsers.size}`);
+      
+      if (receiverSocket) {
+        const imageMessageData = {
+          message: {
+            id: message.uuid,
+            uuid: message.uuid,
+            sender_uuid: from,
+            receiver_uuid: to,
+            content: message.content,
+            type: message.type,
+            imageUrl: fileUrl,
+            width: message.width,
+            height: message.height,
+            status: message.status,
+            created_at: message.created_at || message.createdAt
+          }
+        };
+        
+        log.info(`[图片消息] 准备推送数据:`, JSON.stringify(imageMessageData, null, 2));
+        receiverSocket.emit('image_message', imageMessageData);
+        log.info(`聊天图片消息已推送给接收者: ${to}`);
+      } else {
+        log.warn(`接收者不在线，图片消息未推送: ${to}, 当前在线用户:`, Array.from(connectedUsers.keys()));
+      }
+
+      // 回执给发送者
+      socket.emit('image_message_sent', {
+        messageId: message.uuid,
+        imageUrl: fileUrl,
+        status: 'success',
+      });
+      log.info(`聊天图片消息发送确认已返回给发送者`);
+
+    } catch (error) {
+      log.error('处理图片消息失败:', error);
+      socket.emit('error', { message: '图片消息处理失败: ' + error.message });
     }
   });
 

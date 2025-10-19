@@ -334,10 +334,23 @@ export default function App() {
         if (!processed.sender_uuid) {
         console.warn('handleNewMessage: message.sender_uuid is missing');
         } else {
+          // 处理图片消息的特殊显示
+          let displayContent = processed.content || '新消息';
+          let messageType = 'text';
+          let imageUrl = null;
+          
+          if (processed.type === 'image' || processed.message_type === 'image') {
+            messageType = 'image';
+            imageUrl = processed.imageUrl || processed.file_url;
+            displayContent = '📷 阅后即焚图片';
+          }
+          
           newMessageCallback(
             processed.sender_uuid,
             `用户${processed.sender_uuid.slice(-4)}`,
-            processed.content || '新消息'
+            displayContent,
+            messageType,
+            imageUrl
           );
         }
       }

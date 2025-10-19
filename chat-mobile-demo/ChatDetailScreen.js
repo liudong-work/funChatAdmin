@@ -41,6 +41,32 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     });
     return fullUrl;
   };
+
+  // 加载已查看的图片状态
+  const loadViewedImages = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(VIEWED_IMAGES_KEY);
+      if (stored) {
+        const viewedArray = JSON.parse(stored);
+        const viewedSet = new Set(viewedArray);
+        setViewedImages(viewedSet);
+        console.log('[Image] 加载已查看图片状态:', viewedArray);
+      }
+    } catch (error) {
+      console.error('[Image] 加载已查看图片状态失败:', error);
+    }
+  };
+
+  // 保存已查看的图片状态
+  const saveViewedImages = async (viewedSet) => {
+    try {
+      const viewedArray = Array.from(viewedSet);
+      await AsyncStorage.setItem(VIEWED_IMAGES_KEY, JSON.stringify(viewedArray));
+      console.log('[Image] 保存已查看图片状态:', viewedArray);
+    } catch (error) {
+      console.error('[Image] 保存已查看图片状态失败:', error);
+    }
+  };
   
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,6 +75,11 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   // 图片预览状态
   const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
   const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const [burnTimer, setBurnTimer] = useState(null); // 阅后即焚定时器
+  const [viewedImages, setViewedImages] = useState(new Set()); // 跟踪已查看的图片
+  
+  // AsyncStorage 键名
+  const VIEWED_IMAGES_KEY = `viewed_images_${currentUserUuid}_${user.id}`;
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
   const scrollViewRef = useRef(null);
@@ -118,7 +149,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       const receiverId = user.sender_uuid || user.id;
       
       console.log('[Image] 用户信息:', {
-        from: currentUser.uuid,
+        from: currentUserUuid,
         to: receiverId
       });
 
@@ -142,7 +173,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       });
       
       socket.emit('image_message', {
-        from: currentUser.uuid,
+        from: currentUserUuid,
         to: receiverId,
         imageData: Array.from(bytes),
         mimeType: asset.mimeType || 'image/jpeg',
@@ -162,7 +193,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           width: asset.width,
           height: asset.height,
           timestamp: new Date(),
-          user: { id: currentUser.uuid, name: '我', avatar: '👤' },
+          user: { id: currentUserUuid, name: '我', avatar: '👤' },
         };
         console.log('[Image] 添加本地图片消息:', {
           messageId: newMessage.id,
@@ -184,6 +215,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   // 加载对话历史
   useEffect(() => {
     loadConversationHistory();
+    loadViewedImages(); // 加载已查看的图片状态
   }, []);
 
   // 注册当前会话的实时消息回调
@@ -206,7 +238,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         if (!wsMessage) return;
         // 守护：字段缺失直接忽略
         const safeId = (wsMessage && (wsMessage.uuid || wsMessage.id)) || Date.now();
-        const safeText = (wsMessage && wsMessage.content) || '';
+        // 对于图片消息，不显示content作为文本
+        const safeText = (wsMessage && wsMessage.content && !wsMessage.imageUrl) ? wsMessage.content : '';
         const safeTime = new Date((wsMessage && wsMessage.created_at) || Date.now());
 
         // 判断是谁发的，自己发的也要即时插入（避免等待轮询）
@@ -253,19 +286,72 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     };
   }, [onRegisterChatMessageCallback, onSetCurrentChatUser, user]);
 
-  // 图片预览功能
+  // 图片预览功能（阅后即焚版本）
   const showImagePreview = (imageUrl) => {
-    console.log('[Image] 显示图片预览:', imageUrl);
-    console.log('[Image] 预览状态:', { imagePreviewVisible, previewImageUrl });
-    setPreviewImageUrl(imageUrl);
+    console.log('[Image] 显示图片预览（阅后即焚）:', {
+      originalUrl: imageUrl,
+      processedUrl: getImageUrl(imageUrl),
+      urlType: typeof imageUrl,
+      urlValid: !!imageUrl
+    });
+    
+    // 检查URL有效性
+    if (!imageUrl) {
+      console.error('[Image] 图片URL为空，无法预览');
+      return;
+    }
+    
+    // 清除之前的定时器
+    if (burnTimer) {
+      clearTimeout(burnTimer);
+    }
+    
+    const processedUrl = getImageUrl(imageUrl);
+    setPreviewImageUrl(processedUrl);
     setImagePreviewVisible(true);
-    console.log('[Image] 预览状态已更新');
+    
+    // 记录已查看的图片（使用原始URL作为标识）
+    setViewedImages(prev => {
+      const newSet = new Set([...prev, imageUrl]);
+      saveViewedImages(newSet); // 保存到AsyncStorage
+      return newSet;
+    });
+    console.log('[Image] 图片已标记为已查看:', imageUrl);
+    
+    // 设置3秒后自动关闭
+    const timer = setTimeout(() => {
+      console.log('[Image] 阅后即焚：3秒后自动关闭图片');
+      setImagePreviewVisible(false);
+      setBurnTimer(null);
+    }, 3000);
+    
+    setBurnTimer(timer);
+    console.log('[Image] 阅后即焚定时器已设置（3秒）');
+  };
+  
+  // 手动关闭图片预览
+  const closeImagePreview = () => {
+    console.log('[Image] 手动关闭图片预览');
+    if (burnTimer) {
+      clearTimeout(burnTimer);
+      setBurnTimer(null);
+    }
+    setImagePreviewVisible(false);
   };
 
   const hideImagePreview = () => {
     setImagePreviewVisible(false);
     setPreviewImageUrl('');
   };
+
+  // 组件卸载时清理定时器
+  useEffect(() => {
+    return () => {
+      if (burnTimer) {
+        clearTimeout(burnTimer);
+      }
+    };
+  }, [burnTimer]);
 
   const loadConversationHistory = async () => {
     try {
@@ -282,32 +368,53 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       const otherUserId = user.sender_uuid || user.id;
       
       // 调用后端接口获取对话历史
-      const response = await messageApi.getConversation(currentUser.uuid, otherUserId, token);
+      const response = await messageApi.getConversation(currentUserUuid, otherUserId, token);
       
       if (response.status && response.data.messages) {
+        console.log('[ChatDetail] 后端返回的消息数据:', response.data.messages);
         // 转换后端消息格式为前端需要的格式
-        const conversationMessages = response.data.messages.map((msg, index) => ({
-          id: msg.uuid || index,
-          text: msg.content,
-          timestamp: new Date(msg.created_at),
-          isBottle: msg.status === 'bottle', // 标记是否为瓶子消息
-          duration: msg.duration || 0, // 添加时长信息
-          audioData: msg.audioData || null, // 添加音频数据
-          audioUrl: msg.audioUrl || null, // 添加音频URL
-          imageUrl: msg.imageUrl || null, // 添加图片URL
-          width: msg.width || null, // 添加图片宽度
-          height: msg.height || null, // 添加图片高度
-          type: msg.type || 'text', // 添加消息类型
-          user: {
-            id: msg.sender_uuid === currentUser.uuid ? currentUser.uuid : msg.sender_uuid, // 使用实际的UUID
-            name: msg.sender_uuid === currentUser.uuid ? '我' : (user.name || '对方'),
-            avatar: msg.sender_uuid === currentUser.uuid ? '👤' : (user.avatar || '👤'),
-          },
-        }));
+        const conversationMessages = response.data.messages.map((msg, index) => {
+          const imageUrl = msg.imageUrl || msg.file_url || null;
+          const messageType = msg.type || msg.message_type || 'text';
+          
+          // 调试日志：检查图片消息数据
+          if (imageUrl || messageType === 'image') {
+            console.log('[ChatDetail] 发现图片消息:', {
+              id: msg.uuid || index,
+              imageUrl: imageUrl,
+              file_url: msg.file_url,
+              type: messageType,
+              message_type: msg.message_type,
+              content: msg.content,
+              width: msg.width,
+              height: msg.height
+            });
+          }
+          
+          return {
+            id: msg.uuid || index,
+            // 对于图片消息，不显示content作为文本
+            text: (msg.content && !imageUrl) ? msg.content : '',
+            timestamp: new Date(msg.created_at),
+            isBottle: msg.status === 'bottle', // 标记是否为瓶子消息
+            duration: msg.duration || 0, // 添加时长信息
+            audioData: msg.audioData || null, // 添加音频数据
+            audioUrl: msg.audioUrl || null, // 添加音频URL
+            imageUrl: imageUrl, // 添加图片URL（支持imageUrl和file_url字段）
+            width: msg.width || null, // 添加图片宽度
+            height: msg.height || null, // 添加图片高度
+            type: messageType, // 添加消息类型（支持type和message_type字段）
+            user: {
+              id: msg.sender_uuid === currentUserUuid ? currentUserUuid : msg.sender_uuid, // 使用实际的UUID
+              name: msg.sender_uuid === currentUserUuid ? '我' : (user.name || '对方'),
+              avatar: msg.sender_uuid === currentUserUuid ? '👤' : (user.avatar || '👤'),
+            },
+          };
+        });
         
         console.log('[ChatDetail] 加载对话历史成功:', {
           messageCount: conversationMessages.length,
-          currentUserUuid: currentUser.uuid,
+          currentUserUuid: currentUserUuid,
           otherUserId: otherUserId
         });
         setMessages(conversationMessages);
@@ -376,7 +483,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       const receiverId = user.sender_uuid || user.id;
       
       console.log('[VoiceCall] 用户信息检查完成:', {
-        currentUser: currentUser.uuid,
+        currentUser: currentUserUuid,
         receiverId: receiverId,
         calleeName: user.name,
         hasNavigation: !!navigation,
@@ -384,7 +491,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       });
       
       // 检查必要参数
-      if (!currentUser.uuid) {
+      if (!currentUserUuid) {
         console.error('[VoiceCall] 当前用户UUID不存在');
         Alert.alert('错误', '用户信息不完整');
         return;
@@ -410,7 +517,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       console.log('[VoiceCall] 准备导航到通话页面...');
       navigation.getParent()?.navigate('VoiceCall', {
         caller: {
-          id: currentUser.uuid,
+          id: currentUserUuid,
           name: currentUser.nickname || currentUser.username,
           avatar: currentUser.avatar || '👤',
         },
@@ -559,7 +666,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       }
 
       socket.emit('voice_message', {
-        from: currentUser.uuid,
+        from: currentUserUuid,
         to: receiverId,
         audioData: Array.from(audioData), // 转换为普通数组以便 JSON 传输
         duration: recordSeconds,
@@ -576,7 +683,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         audioUrl: uri, // 本地播放用
         duration: recordSeconds, // 添加时长信息
         timestamp: new Date(),
-        user: { id: currentUser.uuid, name: '我', avatar: '👤' },
+          user: { id: currentUserUuid, name: '我', avatar: '👤' },
       }]));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
@@ -734,7 +841,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       console.log('[SEND] 准备发送消息:', {
         receiverId: user.sender_uuid || user.id,
         content: inputText.trim(),
-        currentUserUuid: currentUser.uuid,
+        currentUserUuid: currentUserUuid,
         hasToken: !!token
       });
 
@@ -750,7 +857,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           text: inputText,
           timestamp: new Date(),
           user: {
-            id: currentUser.uuid, // 使用当前用户的 UUID
+            id: currentUserUuid, // 使用当前用户的 UUID
             name: '我',
             avatar: '👤',
           },
@@ -863,65 +970,105 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     <>
                       <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
                       <Text style={styles.userName}>{message.user.name}</Text>
-                      <Text style={styles.avatar}>{message.user.avatar}</Text>
+                      {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
+                        <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
+                      ) : (
+                        <Text style={styles.avatar}>{message.user.avatar || '👤'}</Text>
+                      )}
                     </>
                   ) : (
                     // 对方消息：头像 + 用户名 + 时间
                     <>
-                      <Text style={styles.avatar}>{message.user.avatar}</Text>
+                      {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
+                        <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
+                      ) : (
+                        <Text style={styles.avatar}>{message.user.avatar || '👤'}</Text>
+                      )}
                       <Text style={styles.userName}>{message.user.name}</Text>
                       <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
                     </>
                   )}
                 </View>
-                {message.imageUrl ? (
-                  // 图片消息使用特殊容器，无气泡背景
-                  <View style={styles.imageMessageContainer}>
-                    <TouchableOpacity onPress={() => {
-                      console.log('[Image] 点击图片消息:', {
-                        id: message.id,
-                        imageUrl: message.imageUrl,
-                        fullUrl: getImageUrl(message.imageUrl),
-                        width: message.width,
-                        height: message.height,
-                        type: message.type
-                      });
-                      console.log('[Image] 准备显示预览');
-                      showImagePreview(getImageUrl(message.imageUrl))
-                    }}>
-                      <View style={styles.imageContainer}>
-                        <Image 
-                          source={{ uri: getImageUrl(message.imageUrl) }} 
-                          style={[
-                            styles.imageMsg,
-                            message.width && message.height ? {
-                              width: Math.min(120, message.width),
-                              height: Math.min(120, message.height),
-                              aspectRatio: message.width / message.height
-                            } : {}
-                          ]} 
-                          resizeMode="cover"
-                          onLoad={() => console.log('[Image] 图片加载成功:', getImageUrl(message.imageUrl))}
-                          onError={(error) => {
-                            console.error('[Image] 图片加载失败:', error.nativeEvent.error, 'URL:', getImageUrl(message.imageUrl));
-                            // 显示错误占位符
-                          }}
-                        />
-                        {message.width && message.height && (
-                          <Text style={styles.imageSizeText}>
-                            {message.width} × {message.height}
-                          </Text>
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  </View>
-                ) : (
-                  // 文本和语音消息使用气泡样式
+                {(message.imageUrl || message.type === 'image') ? (
+                  // 阅后即焚图片消息样式
                   <View style={[
-                    styles.messageBubble,
-                    message.user.id === currentUserUuid ? styles.myBubble : styles.otherBubble,
-                    message.isBottle && styles.bottleBubble // 瓶子消息特殊样式
+                    styles.burnAfterReadingContainer,
+                    message.user.id === currentUserUuid ? styles.burnAfterReadingRight : styles.burnAfterReadingLeft
                   ]}>
+                    {(() => {
+                      const imageUrl = message.imageUrl || message.file_url;
+                      const isViewed = viewedImages.has(imageUrl);
+                      
+                      return (
+                        <View style={[
+                          styles.burnAfterReadingBubble,
+                          isViewed && styles.burnedBubble // 已查看的样式
+                        ]}>
+                          {/* 闪电图标 */}
+                          <View style={styles.lightningIcon}>
+                            <Text style={styles.lightningSymbol}>⚡</Text>
+                          </View>
+                          
+                          {/* 状态文字 */}
+                          <Text style={styles.burnAfterReadingTitle}>
+                            {isViewed ? '已阅后即焚' : '阅后即焚'}
+                          </Text>
+                          
+                          {/* 操作提示 */}
+                          <Text style={styles.burnAfterReadingHint}>
+                            {isViewed ? '图片已销毁' : '长按查看图片'}
+                          </Text>
+                          
+                          {/* 长按功能（仅未查看时可用） */}
+                          {!isViewed && (
+                            <TouchableOpacity 
+                              onLongPress={() => {
+                                console.log('[Image] 长按图片消息:', {
+                                  id: message.id,
+                                  imageUrl: message.imageUrl,
+                                  file_url: message.file_url,
+                                  finalUrl: imageUrl,
+                                  fullUrl: getImageUrl(imageUrl),
+                                  width: message.width,
+                                  height: message.height,
+                                  type: message.type,
+                                  isViewed: isViewed
+                                });
+                                console.log('[Image] 准备显示预览');
+                                if (imageUrl) {
+                                  showImagePreview(imageUrl);
+                                } else {
+                                  console.error('[Image] 图片URL为空，无法预览');
+                                }
+                              }}
+                              delayLongPress={800} // 长按800毫秒后触发
+                              onPress={() => {
+                                // 短按无操作，提示用户长按
+                                console.log('[Image] 短按图片，请长按查看');
+                              }}
+                              style={styles.imageTouchArea}
+                            />
+                          )}
+                        </View>
+                      );
+                    })()}
+                  </View>
+                  ) : (
+                    // 文本和语音消息使用气泡样式
+                    <View style={[
+                      styles.messageBubble,
+                      message.user.id === currentUserUuid ? styles.myBubble : styles.otherBubble,
+                      message.isBottle && styles.bottleBubble // 瓶子消息特殊样式
+                    ]}>
+                      {/* 调试日志：显示消息数据 */}
+                      {console.log('[ChatDetail] 渲染消息:', {
+                        id: message.id,
+                        type: message.type,
+                        imageUrl: message.imageUrl,
+                        file_url: message.file_url,
+                        content: message.text,
+                        isImage: !!(message.imageUrl || message.type === 'image')
+                      })}
                     {message.isBottle && (
                       <Text style={styles.bottleLabel}>🌊 漂流瓶</Text>
                     )}
@@ -1039,34 +1186,42 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         </TouchableOpacity>
       </View>
 
-      {/* 图片预览 Modal */}
+      {/* 图片预览 Modal（阅后即焚版本） */}
       <Modal
         visible={imagePreviewVisible}
         transparent={true}
         animationType="fade"
-        onRequestClose={hideImagePreview}
+        onRequestClose={closeImagePreview}
       >
         <View style={styles.imagePreviewContainer}>
           <TouchableOpacity 
             style={styles.imagePreviewBackground}
             activeOpacity={1}
-            onPress={hideImagePreview}
+            onPress={closeImagePreview}
           >
             <View style={styles.imagePreviewContent}>
-              <TouchableOpacity 
-                style={styles.closeButton}
-                onPress={hideImagePreview}
-              >
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
+              {/* 移除叉号按钮，改为下滑关闭 */}
+              <View style={styles.swipeIndicator}>
+                <Text style={styles.swipeHintText}>下滑关闭</Text>
+              </View>
               <Image
                 source={{ uri: previewImageUrl }}
                 style={styles.previewImage}
                 resizeMode="contain"
                 onError={(error) => {
-                  console.error('[Image] 预览图片加载失败:', error);
+                  console.error('[Image] 预览图片加载失败:', {
+                    error: error,
+                    previewImageUrl: previewImageUrl,
+                    imageSource: { uri: previewImageUrl }
+                  });
+                  // 关闭预览
+                  closeImagePreview();
                 }}
               />
+              {/* 阅后即焚倒计时提示 */}
+              <View style={styles.burnTimerContainer}>
+                <Text style={styles.burnTimerText}>阅后即焚 • 3秒后自动关闭</Text>
+              </View>
             </View>
           </TouchableOpacity>
         </View>
@@ -1119,6 +1274,12 @@ const styles = StyleSheet.create({
   },
   avatar: {
     fontSize: 20,
+    marginHorizontal: 5,
+  },
+  userAvatarImage: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
     marginHorizontal: 5,
   },
   userName: {
@@ -1268,6 +1429,78 @@ const styles = StyleSheet.create({
     color: '#666',
     marginTop: 4,
   },
+  longPressHint: {
+    position: 'absolute',
+    top: 5,
+    right: 5,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  longPressHintText: {
+    fontSize: 8,
+    color: 'white',
+    fontWeight: '500',
+  },
+  // 阅后即焚样式
+  burnAfterReadingContainer: {
+    marginVertical: 4,
+    marginHorizontal: 10,
+  },
+  burnAfterReadingRight: {
+    alignItems: 'flex-end',
+  },
+  burnAfterReadingLeft: {
+    alignItems: 'flex-start',
+  },
+  burnAfterReadingBubble: {
+    backgroundColor: '#FFB366', // 橙色背景
+    borderRadius: 16,
+    paddingVertical: 16,
+    paddingHorizontal: 20,
+    minWidth: 120,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  lightningIcon: {
+    marginBottom: 8,
+  },
+  lightningSymbol: {
+    fontSize: 24,
+    color: '#FF6B35', // 深橙色闪电
+  },
+  burnAfterReadingTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF6B35', // 深橙色文字
+    marginBottom: 4,
+  },
+  burnAfterReadingHint: {
+    fontSize: 12,
+    color: '#FF8C42', // 中等橙色
+    fontWeight: '500',
+  },
+  // 已查看的图片样式
+  burnedBubble: {
+    backgroundColor: '#CCCCCC', // 灰色背景
+    opacity: 0.7, // 半透明效果
+  },
+  imageTouchArea: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+  },
   // 语音消息样式
   voiceMessageContainer: {
     flexDirection: 'column',
@@ -1334,22 +1567,42 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingVertical: 50,
   },
-  closeButton: {
+  // 下滑关闭提示
+  swipeIndicator: {
     position: 'absolute',
     top: 50,
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    justifyContent: 'center',
+    left: 0,
+    right: 0,
     alignItems: 'center',
     zIndex: 1000,
   },
-  closeButtonText: {
-    color: '#FFFFFF',
-    fontSize: 18,
-    fontWeight: 'bold',
+  swipeHintText: {
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontSize: 14,
+    fontWeight: '500',
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  // 阅后即焚倒计时
+  burnTimerContainer: {
+    position: 'absolute',
+    bottom: 80,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  burnTimerText: {
+    color: 'rgba(255, 255, 255, 0.9)',
+    fontSize: 16,
+    fontWeight: '600',
+    backgroundColor: 'rgba(255, 107, 53, 0.8)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    textAlign: 'center',
   },
   previewImage: {
     width: '100%',

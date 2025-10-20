@@ -256,33 +256,6 @@ export default function MemberCenterScreen({ navigation }) {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* 会员权益说明 */}
-        <View style={styles.benefitsSection}>
-          <Text style={styles.sectionTitle}>会员专享权益</Text>
-          <View style={styles.benefitsGrid}>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>👑</Text>
-              <Text style={styles.benefitTitle}>专属标识</Text>
-              <Text style={styles.benefitDesc}>显示会员身份</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>🎁</Text>
-              <Text style={styles.benefitTitle}>每日积分</Text>
-              <Text style={styles.benefitDesc}>签到获得更多积分</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>💬</Text>
-              <Text style={styles.benefitTitle}>专属客服</Text>
-              <Text style={styles.benefitDesc}>优先响应服务</Text>
-            </View>
-            <View style={styles.benefitItem}>
-              <Text style={styles.benefitIcon}>🚫</Text>
-              <Text style={styles.benefitTitle}>无广告</Text>
-              <Text style={styles.benefitDesc}>纯净使用体验</Text>
-            </View>
-          </View>
-        </View>
-
         {/* 会员套餐选择 */}
         <View style={styles.plansSection}>
           <Text style={styles.sectionTitle}>选择会员套餐</Text>
@@ -361,10 +334,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 20,
   },
-  benefitsSection: {
-    marginTop: 20,
-    marginBottom: 30,
-  },
   sectionTitle: {
     fontSize: 20,
     fontWeight: 'bold',
@@ -372,40 +341,8 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     textAlign: 'center',
   },
-  benefitsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
-  },
-  benefitItem: {
-    width: (width - 60) / 2,
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    alignItems: 'center',
-    marginBottom: 15,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  benefitIcon: {
-    fontSize: 30,
-    marginBottom: 10,
-  },
-  benefitTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 5,
-  },
-  benefitDesc: {
-    fontSize: 12,
-    color: '#666',
-    textAlign: 'center',
-  },
   plansSection: {
+    marginTop: 20,
     marginBottom: 30,
   },
   plansContainer: {

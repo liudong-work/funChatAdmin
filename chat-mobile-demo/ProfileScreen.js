@@ -114,19 +114,23 @@ export default function ProfileScreen({ onLogout, navigation }) {
 
   const menuItems = [
     { id: 0, title: '每日签到', icon: '📅', action: 'checkin' },
-    { id: 1, title: '个人信息', icon: '👤', action: 'profile' },
-    { id: 2, title: '账号设置', icon: '⚙️', action: 'settings' },
-    { id: 3, title: '主题设置', icon: '🎨', action: 'theme' },
-    { id: 4, title: '隐私设置', icon: '🔒', action: 'privacy' },
-    { id: 5, title: '通知设置', icon: '🔔', action: 'notifications' },
-    { id: 6, title: '帮助中心', icon: '❓', action: 'help' },
-    { id: 7, title: '关于我们', icon: 'ℹ️', action: 'about' },
+    { id: 1, title: '会员中心', icon: '👑', action: 'member' },
+    { id: 2, title: '个人信息', icon: '👤', action: 'profile' },
+    { id: 3, title: '账号设置', icon: '⚙️', action: 'settings' },
+    { id: 4, title: '主题设置', icon: '🎨', action: 'theme' },
+    { id: 5, title: '隐私设置', icon: '🔒', action: 'privacy' },
+    { id: 6, title: '通知设置', icon: '🔔', action: 'notifications' },
+    { id: 7, title: '帮助中心', icon: '❓', action: 'help' },
+    { id: 8, title: '关于我们', icon: 'ℹ️', action: 'about' },
   ];
 
   const handleMenuPress = (action) => {
     switch (action) {
       case 'checkin':
         navigation.navigate('Checkin');
+        break;
+      case 'member':
+        navigation.navigate('MemberCenter');
         break;
       case 'theme':
         Alert.alert(

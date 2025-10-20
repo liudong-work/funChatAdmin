@@ -23,6 +23,7 @@ import FollowListScreen from './FollowListScreen';
 import EditProfileScreen from './EditProfileScreen';
 import CheckinScreen from './CheckinScreen';
 import PaymentScreen from './PaymentScreen';
+import MemberCenterScreen from './MemberCenterScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -195,6 +196,14 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         }}
       >
         {(props) => <PaymentScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="MemberCenter" 
+        options={{
+          headerShown: false, // 使用自定义header
+        }}
+      >
+        {(props) => <MemberCenterScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );

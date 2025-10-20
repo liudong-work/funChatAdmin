@@ -1262,6 +1262,7 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
 app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async (req, res) => {
   try {
     const { userId1, userId2 } = req.params;
+    const { page = 0, pageSize = 20 } = req.query;
     
     // 验证用户权限
     if (req.user.uuid !== userId1 && req.user.uuid !== userId2) {
@@ -1282,9 +1283,13 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
       });
     }
 
-    log.info(`[MESSAGE] 查询对话历史: ${user1.id} (${userId1.slice(-8)}) <-> ${user2.id} (${userId2.slice(-8)})`);
+    const pageNum = parseInt(page);
+    const limit = parseInt(pageSize);
+    const offset = pageNum * limit;
 
-    // 获取两个用户之间的所有消息
+    log.info(`[MESSAGE] 查询对话历史: ${user1.id} (${userId1.slice(-8)}) <-> ${user2.id} (${userId2.slice(-8)}), 分页: ${pageNum}/${limit}, offset: ${offset}`);
+
+    // 获取两个用户之间的消息（分页）
     const messages = await Message.findAll({
       attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'file_url', 'file_type', 'file_size', 'width', 'height', 'status', 'created_at', 'updated_at'],
       where: {
@@ -1306,7 +1311,9 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
           attributes: ['id', 'uuid', 'nickname', 'avatar']
         }
       ],
-      order: [['created_at', 'ASC']]
+      order: [['created_at', 'DESC']],
+      limit: limit,
+      offset: offset
     });
 
     log.info(`[MESSAGE] 找到 ${messages.length} 条消息`);
@@ -1348,7 +1355,12 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
       status: true,
       message: '获取成功',
       data: {
-        messages: formattedMessages
+        messages: formattedMessages,
+        pagination: {
+          page: pageNum,
+          pageSize: limit,
+          hasMore: formattedMessages.length === limit
+        }
       }
     });
   } catch (error) {

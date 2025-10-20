@@ -107,6 +107,12 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   // 语音输入模式状态
   const [isVoiceMode, setIsVoiceMode] = useState(false);
   
+  // 分页加载相关状态
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState(true);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [pageSize] = useState(20); // 每页加载20条消息
+  
   // 语音播放状态管理
   const [playingMessageId, setPlayingMessageId] = useState(null);
   const [playingProgress, setPlayingProgress] = useState(0);
@@ -245,7 +251,14 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       
       await loadCurrentUserAvatar(); // 加载当前用户头像到状态
       await loadViewedImages(); // 加载已查看的图片状态
-      await loadConversationHistory(userAvatar); // 传递头像给历史消息加载
+      await loadConversationHistory(userAvatar, 0, false); // 首次加载，只加载最新20条
+      
+      // 确保消息加载完成后滚动到底部
+      setTimeout(() => {
+        if (scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: false });
+        }
+      }, 300);
     };
     loadAll();
   }, []);
@@ -385,7 +398,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     };
   }, [burnTimer]);
 
-  const loadConversationHistory = async (userAvatar = null) => {
+  const loadConversationHistory = async (userAvatar = null, page = 0, isLoadMore = false) => {
     try {
       const token = await AsyncStorage.getItem('authToken');
       const userInfo = await AsyncStorage.getItem('userInfo');
@@ -399,8 +412,9 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       const currentUser = JSON.parse(userInfo);
       const otherUserId = user.sender_uuid || user.id;
       
-      // 调用后端接口获取对话历史
-      const response = await messageApi.getConversation(currentUserUuid, otherUserId, token);
+      // 调用后端接口获取对话历史（分页）
+      console.log('[ChatDetail] 请求分页数据:', { page, pageSize, isLoadMore });
+      const response = await messageApi.getConversation(currentUserUuid, otherUserId, token, page, pageSize);
       
       if (response.status && response.data.messages) {
         console.log('[ChatDetail] 后端返回的消息数据:', response.data.messages);
@@ -447,9 +461,40 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         console.log('[ChatDetail] 加载对话历史成功:', {
           messageCount: conversationMessages.length,
           currentUserUuid: currentUserUuid,
-          otherUserId: otherUserId
+          otherUserId: otherUserId,
+          page: page,
+          isLoadMore: isLoadMore
         });
-        setMessages(conversationMessages);
+        
+        if (isLoadMore) {
+          // 加载更多消息，添加到现有消息前面
+          // 由于后端返回的是倒序，需要反转后再添加
+          const reversedMessages = [...conversationMessages].reverse();
+          setMessages(prevMessages => [...reversedMessages, ...prevMessages]);
+          setCurrentPage(page);
+        } else {
+          // 首次加载或刷新，替换所有消息
+          // 由于后端返回的是倒序，需要反转后显示
+          const reversedMessages = [...conversationMessages].reverse();
+          setMessages(reversedMessages);
+          setCurrentPage(0);
+        }
+        
+        // 检查是否还有更多消息
+        if (response.data.pagination) {
+          setHasMoreMessages(response.data.pagination.hasMore);
+        } else {
+          setHasMoreMessages(conversationMessages.length === pageSize);
+        }
+        
+        // 确保消息设置完成后滚动到底部（仅在首次加载时）
+        if (!isLoadMore) {
+          setTimeout(() => {
+            if (scrollViewRef.current) {
+              scrollViewRef.current.scrollToEnd({ animated: true });
+            }
+          }, 100);
+        }
       } else {
         console.warn('加载对话历史失败:', response.message);
         // 如果没有历史消息，且是从瓶子来的，显示瓶子消息
@@ -483,6 +528,28 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       }
     } finally {
       setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  };
+
+  // 加载更多历史消息
+  const loadMoreMessages = async () => {
+    if (isLoadingMore || !hasMoreMessages) return;
+    
+    setIsLoadingMore(true);
+    const nextPage = currentPage + 1;
+    
+    try {
+      const userInfo = await AsyncStorage.getItem('userInfo');
+      let userAvatar = '👤';
+      if (userInfo) {
+        const currentUser = JSON.parse(userInfo);
+        userAvatar = currentUser.avatar || '👤';
+      }
+      
+      await loadConversationHistory(userAvatar, nextPage, true);
+    } catch (error) {
+      console.error('加载更多消息失败:', error);
     }
   };
   
@@ -830,9 +897,11 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   };
 
   useEffect(() => {
-    // 自动滚动到底部
-    if (scrollViewRef.current) {
-      scrollViewRef.current.scrollToEnd({ animated: true });
+    // 自动滚动到底部 - 使用setTimeout确保DOM更新完成
+    if (messages.length > 0 && scrollViewRef.current) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 50);
     }
   }, [messages]);
 
@@ -953,13 +1022,29 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           ]}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
+          onScroll={(event) => {
+            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+            const isNearTop = contentOffset.y <= 100; // 距离顶部100px时触发加载更多
+            
+            if (isNearTop && hasMoreMessages && !isLoadingMore) {
+              loadMoreMessages();
+            }
+          }}
+          scrollEventThrottle={400}
         >
         <View style={styles.messagesContainer}>
+          {/* 加载更多指示器 */}
+          {isLoadingMore && (
+            <View style={styles.loadMoreContainer}>
+              <Text style={styles.loadMoreText}>加载历史消息...</Text>
+            </View>
+          )}
+          
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <Text style={styles.loadingText}>加载对话中...</Text>
             </View>
-                ) : (
+          ) : (
                   messages.map((message) => {
                     // 调试日志：检查消息对齐逻辑
                     const isMyMessage = message.user.id === currentUserUuid;
@@ -1429,6 +1514,17 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#666',
     textAlign: 'center',
+  },
+  loadMoreContainer: {
+    paddingVertical: 15,
+    alignItems: 'center',
+    backgroundColor: '#f8f8f8',
+    marginHorizontal: -15,
+    marginTop: -10,
+  },
+  loadMoreText: {
+    fontSize: 14,
+    color: '#999',
   },
   bottleBubble: {
     borderWidth: 2,

@@ -353,11 +353,13 @@ export const messageApi = {
     apiService.authenticatedPost(API_CONFIG.ENDPOINTS.MESSAGE.SEND, { receiverId, content }, token),
 
   // 获取对话
-  getConversation: (userId1, userId2, token) => 
-    apiService.authenticatedGet(API_CONFIG.ENDPOINTS.MESSAGE.GET_CONVERSATION(userId1, userId2), token, {
+  getConversation: (userId1, userId2, token, page = 0, pageSize = 20) => {
+    const url = `${API_CONFIG.ENDPOINTS.MESSAGE.GET_CONVERSATION(userId1, userId2)}?page=${page}&pageSize=${pageSize}`;
+    return apiService.authenticatedGet(url, token, {
       'Cache-Control': 'no-cache',
       'Pragma': 'no-cache'
-    }),
+    });
+  },
 
   // 获取用户的消息列表（所有对话）
   getConversations: (userId, token) => 

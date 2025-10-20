@@ -15,7 +15,7 @@ const { width } = Dimensions.get('window');
 
 export default function MemberCenterScreen({ navigation }) {
   const [userInfo, setUserInfo] = useState({});
-  const [selectedPlan, setSelectedPlan] = useState('monthly');
+  const [selectedPlan, setSelectedPlan] = useState('quarterly'); // 默认选择推荐套餐
 
   useEffect(() => {
     loadUserInfo();
@@ -126,7 +126,8 @@ export default function MemberCenterScreen({ navigation }) {
     // });
   };
 
-  const renderPlanCard = (plan) => {
+  // 渲染单个套餐选择按钮（横向排列）
+  const renderPlanSelectionCard = (plan) => {
     const isSelected = selectedPlan === plan.id;
     const isPopular = plan.popular;
 
@@ -134,52 +135,96 @@ export default function MemberCenterScreen({ navigation }) {
       <TouchableOpacity
         key={plan.id}
         style={[
-          styles.planCard,
-          isSelected && styles.selectedPlan,
-          isPopular && styles.popularPlan
+          styles.planSelectionCard,
+          isSelected && styles.selectedPlanSelection,
+          isPopular && styles.popularPlanSelection
         ]}
         onPress={() => handleSelectPlan(plan.id)}
       >
         {isPopular && (
-          <View style={styles.popularBadge}>
-            <Text style={styles.popularText}>推荐</Text>
+          <View style={styles.popularBadgeSmall}>
+            <Text style={styles.popularTextSmall}>推荐</Text>
           </View>
         )}
         
-        <View style={styles.planHeader}>
-          <Text style={styles.planTitle}>{plan.title}</Text>
-          <View style={styles.priceContainer}>
-            <Text style={styles.currentPrice}>{plan.price}</Text>
-            <Text style={styles.originalPrice}>{plan.originalPrice}</Text>
-          </View>
-          <Text style={styles.planDuration}>{plan.duration}</Text>
+        <Text style={[
+          styles.planSelectionTitle,
+          isSelected && styles.selectedPlanTitle
+        ]}>
+          {plan.title}
+        </Text>
+        
+        <View style={styles.planSelectionPrice}>
+          <Text style={[
+            styles.planSelectionPriceText,
+            isSelected && styles.selectedPlanPriceText
+          ]}>
+            {plan.price}
+          </Text>
+          <Text style={styles.planSelectionOriginalPrice}>{plan.originalPrice}</Text>
+        </View>
+        
+        <Text style={[
+          styles.planSelectionDuration,
+          isSelected && styles.selectedPlanDuration
+        ]}>
+          {plan.duration}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
+
+  // 渲染选中套餐的权益详情
+  const renderSelectedPlanDetails = () => {
+    const selectedPlanData = membershipPlans.find(plan => plan.id === selectedPlan);
+    if (!selectedPlanData) return null;
+
+    const isPopular = selectedPlanData.popular;
+
+    return (
+      <View style={styles.planDetailsContainer}>
+        <View style={styles.planDetailsHeader}>
+          <Text style={styles.planDetailsTitle}>{selectedPlanData.title}权益</Text>
+          {isPopular && (
+            <View style={styles.recommendedBadge}>
+              <Text style={styles.recommendedText}>推荐</Text>
+            </View>
+          )}
         </View>
 
-        <View style={styles.featuresContainer}>
-          {plan.features.map((feature, index) => (
-            <View key={index} style={styles.featureItem}>
-              <Text style={styles.featureIcon}>✓</Text>
-              <Text style={styles.featureText}>{feature}</Text>
-            </View>
-          ))}
+        <View style={styles.planDetailsContent}>
+          <View style={styles.planDetailsInfo}>
+            <Text style={styles.planDetailsPrice}>{selectedPlanData.price}</Text>
+            <Text style={styles.planDetailsOriginalPrice}>{selectedPlanData.originalPrice}</Text>
+            <Text style={styles.planDetailsDuration}>{selectedPlanData.duration}</Text>
+          </View>
+
+          <View style={styles.planFeaturesList}>
+            <Text style={styles.featuresListTitle}>包含权益：</Text>
+            {selectedPlanData.features.map((feature, index) => (
+              <View key={index} style={styles.featureDetailItem}>
+                <Text style={styles.featureDetailIcon}>✨</Text>
+                <Text style={styles.featureDetailText}>{feature}</Text>
+              </View>
+            ))}
+          </View>
         </View>
 
         <TouchableOpacity
           style={[
-            styles.purchaseButton,
-            isSelected && styles.selectedPurchaseButton,
-            isPopular && styles.popularPurchaseButton
+            styles.purchaseButtonLarge,
+            isPopular && styles.popularPurchaseButtonLarge
           ]}
-          onPress={() => handlePurchase(plan)}
+          onPress={() => handlePurchase(selectedPlanData)}
         >
           <Text style={[
-            styles.purchaseButtonText,
-            (isSelected || isPopular) && styles.selectedPurchaseButtonText
+            styles.purchaseButtonLargeText,
+            isPopular && styles.popularPurchaseButtonText
           ]}>
-            {isSelected ? '立即购买' : '选择套餐'}
+            立即购买 {selectedPlanData.title}
           </Text>
         </TouchableOpacity>
-      </TouchableOpacity>
+      </View>
     );
   };
 
@@ -241,10 +286,13 @@ export default function MemberCenterScreen({ navigation }) {
         {/* 会员套餐选择 */}
         <View style={styles.plansSection}>
           <Text style={styles.sectionTitle}>选择会员套餐</Text>
-          <View style={styles.plansContainer}>
-            {membershipPlans.map(renderPlanCard)}
+          <View style={styles.plansSelectionRow}>
+            {membershipPlans.map(renderPlanSelectionCard)}
           </View>
         </View>
+
+        {/* 选中套餐的权益详情 */}
+        {renderSelectedPlanDetails()}
 
         {/* 购买说明 */}
         <View style={styles.noteSection}>
@@ -362,6 +410,86 @@ const styles = StyleSheet.create({
   },
   plansContainer: {
     gap: 15,
+  },
+  // 新的横向套餐选择样式
+  plansSelectionRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    paddingHorizontal: 10,
+  },
+  planSelectionCard: {
+    flex: 1,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 15,
+    marginHorizontal: 5,
+    borderWidth: 2,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    position: 'relative',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  selectedPlanSelection: {
+    borderColor: '#FF6B35',
+    backgroundColor: '#FFF5F0',
+  },
+  popularPlanSelection: {
+    borderColor: '#FFD700',
+  },
+  popularBadgeSmall: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  popularTextSmall: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  planSelectionTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  selectedPlanTitle: {
+    color: '#FF6B35',
+  },
+  planSelectionPrice: {
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  planSelectionPriceText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  selectedPlanPriceText: {
+    color: '#FF6B35',
+  },
+  planSelectionOriginalPrice: {
+    fontSize: 12,
+    color: '#999',
+    textDecorationLine: 'line-through',
+  },
+  planSelectionDuration: {
+    fontSize: 12,
+    color: '#666',
+    textAlign: 'center',
+  },
+  selectedPlanDuration: {
+    color: '#FF6B35',
+    fontWeight: '500',
   },
   planCard: {
     backgroundColor: '#fff',
@@ -482,5 +610,110 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 22,
+  },
+  // 选中套餐详情样式
+  planDetailsContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginTop: 20,
+    marginHorizontal: 20,
+    marginBottom: 30,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 6,
+  },
+  planDetailsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  planDetailsTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  recommendedBadge: {
+    backgroundColor: '#FFD700',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 15,
+  },
+  recommendedText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#333',
+  },
+  planDetailsContent: {
+    marginBottom: 25,
+  },
+  planDetailsInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
+    paddingBottom: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+  },
+  planDetailsPrice: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FF6B35',
+    marginRight: 15,
+  },
+  planDetailsOriginalPrice: {
+    fontSize: 16,
+    color: '#999',
+    textDecorationLine: 'line-through',
+    marginRight: 15,
+  },
+  planDetailsDuration: {
+    fontSize: 16,
+    color: '#666',
+    fontWeight: '500',
+  },
+  planFeaturesList: {
+    marginTop: 10,
+  },
+  featuresListTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 15,
+  },
+  featureDetailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    paddingLeft: 10,
+  },
+  featureDetailIcon: {
+    fontSize: 16,
+    marginRight: 15,
+  },
+  featureDetailText: {
+    fontSize: 15,
+    color: '#333',
+    flex: 1,
+  },
+  purchaseButtonLarge: {
+    backgroundColor: '#FF6B35',
+    borderRadius: 25,
+    paddingVertical: 18,
+    alignItems: 'center',
+  },
+  popularPurchaseButtonLarge: {
+    backgroundColor: '#FFD700',
+  },
+  purchaseButtonLargeText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#fff',
+  },
+  popularPurchaseButtonText: {
+    color: '#333',
   },
 });

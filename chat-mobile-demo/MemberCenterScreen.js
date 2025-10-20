@@ -10,7 +10,6 @@ import {
   ImageBackground
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import LinearGradient from 'react-native-linear-gradient';
 
 const { width } = Dimensions.get('window');
 
@@ -187,12 +186,7 @@ export default function MemberCenterScreen({ navigation }) {
   return (
     <View style={styles.container}>
       {/* 顶部背景 */}
-      <LinearGradient
-        colors={['#FFD700', '#FFA500', '#FF8C00']}
-        style={styles.headerBackground}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
+      <View style={styles.headerBackground}>
         <View style={styles.header}>
           <TouchableOpacity 
             style={styles.backButton}
@@ -214,7 +208,7 @@ export default function MemberCenterScreen({ navigation }) {
             </Text>
           )}
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* 会员权益说明 */}
@@ -275,6 +269,7 @@ const styles = StyleSheet.create({
   headerBackground: {
     paddingTop: 50,
     paddingBottom: 30,
+    backgroundColor: '#FFD700', // 金色背景
   },
   header: {
     flexDirection: 'row',

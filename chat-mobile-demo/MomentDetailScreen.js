@@ -172,6 +172,13 @@ export default function MomentDetailScreen({ route, navigation }) {
         // 如果失败，回滚UI
         setMomentData(momentData);
         Alert.alert('错误', response.message || '点赞失败');
+      } else {
+        // 更新UI状态
+        setMomentData(prev => ({
+          ...prev,
+          is_liked: response.data.is_liked,
+          likes_count: response.data.likes_count
+        }));
       }
     } catch (error) {
       console.error('点赞失败:', error);

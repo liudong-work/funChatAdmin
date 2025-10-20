@@ -6,7 +6,7 @@ import { createStackNavigator } from '@react-navigation/stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import io from 'socket.io-client';
 import { getWebSocketUrl } from './config/api.js';
-// import notificationService from './services/notificationService.js'; // 暂时禁用推送通知
+// import notificationService from './services/notificationService.js'; // 暂时禁用，Expo Go 不支持推送
 
 import HomeScreen from './HomeScreen';
 import MessagesScreen from './MessagesScreen';
@@ -22,6 +22,7 @@ import UserProfileScreen from './UserProfileScreen';
 import FollowListScreen from './FollowListScreen';
 import EditProfileScreen from './EditProfileScreen';
 import CheckinScreen from './CheckinScreen';
+import PaymentScreen from './PaymentScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -178,6 +179,22 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         }}
       >
         {(props) => <CheckinScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="Payment" 
+        options={{
+          headerShown: true,
+          title: '微信支付',
+          headerStyle: {
+            backgroundColor: '#07C160',
+          },
+          headerTintColor: '#fff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      >
+        {(props) => <PaymentScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );
@@ -366,24 +383,12 @@ export default function App() {
     }
   };
 
-  // 初始化推送通知 (暂时禁用)
-  // const initializePushNotifications = async (user) => {
-  //   try {
-  //     console.log('初始化推送通知...');
-  //     
-  //     // 获取推送令牌
-  //     const pushToken = await notificationService.getExpoPushToken();
-  //     if (pushToken) {
-  //       // 注册推送令牌到后端
-  //       await notificationService.registerPushToken(user.uuid, pushToken);
-  //       console.log('推送通知初始化成功');
-  //     } else {
-  //       console.warn('无法获取推送令牌');
-  //     }
-  //   } catch (error) {
-  //     console.error('初始化推送通知失败:', error);
-  //   }
-  // };
+  // 初始化推送通知（暂时禁用，Expo Go 不支持）
+  const initializePushNotifications = async (user) => {
+    console.log('[推送] 推送通知已禁用 - Expo Go 不支持推送通知');
+    console.log('[推送] 请使用 EAS Development Build 来测试推送功能');
+    // 推送通知功能暂时禁用，因为 Expo Go 在 SDK 53 中移除了推送支持
+  };
 
   const connectWebSocket = async (userInfo) => {
     try {
@@ -395,8 +400,8 @@ export default function App() {
         timeout: 20000,
       });
       
-      // 初始化推送通知 (暂时禁用)
-      // await initializePushNotifications(user);
+      // 初始化推送通知
+      await initializePushNotifications(user);
       
       socketInstance.on('connect', () => {
         console.log('WebSocket连接成功');
@@ -526,6 +531,10 @@ export default function App() {
 
   const handleLogout = async () => {
     try {
+      // 推送通知功能已禁用
+      // notificationService.removeListeners();
+      // await notificationService.clearBadge();
+      
       await AsyncStorage.removeItem('authToken');
       await AsyncStorage.removeItem('userInfo');
       setIsAuthenticated(false);
@@ -533,6 +542,17 @@ export default function App() {
       console.error('退出登录失败:', error);
     }
   };
+
+  // 推送通知监听器已禁用
+  // useEffect(() => {
+  //   if (isAuthenticated && navigationRef.current) {
+  //     notificationService.setupNotificationListeners(navigationRef.current);
+  //     
+  //     return () => {
+  //       notificationService.removeListeners();
+  //     };
+  //   }
+  // }, [isAuthenticated]);
 
   // 显示加载状态
   if (isLoading) {

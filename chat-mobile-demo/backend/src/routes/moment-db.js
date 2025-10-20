@@ -3,6 +3,7 @@ import { Op } from 'sequelize';
 import { authenticateToken } from '../middleware/auth.js';
 import { log } from '../config/logger.js';
 import { User, Moment, Comment, Like, Follow } from '../models/index.js';
+import pushService from '../services/pushService.js';
 
 const router = express.Router();
 
@@ -376,6 +377,25 @@ router.post('/:moment_uuid/like', authenticateToken, async (req, res) => {
 
       log.info(`点赞动态: ${moment_uuid} (用户: ${currentUser.id})`);
 
+      // 发送推送通知给动态作者（如果不是自己点赞自己）
+      if (moment.user_id !== currentUser.id) {
+        try {
+          const author = await User.findByPk(moment.user_id);
+          if (author) {
+            await pushService.sendLikeNotification(
+              author.uuid,
+              currentUser.nickname || currentUser.phone,
+              currentUser.uuid,
+              moment_uuid,
+              moment.content
+            );
+            log.info(`[推送] 已向动态作者 ${author.uuid} 发送点赞推送`);
+          }
+        } catch (pushError) {
+          log.error('[推送] 发送点赞推送失败:', pushError);
+        }
+      }
+
       return res.json({
         status: true,
         message: '点赞成功',
@@ -440,6 +460,25 @@ router.post('/:moment_uuid/comment', authenticateToken, async (req, res) => {
     await moment.increment('comments_count');
 
     log.info(`评论动态: ${moment_uuid} (用户: ${currentUser.id})`);
+
+    // 发送推送通知给动态作者（如果不是自己评论自己）
+    if (moment.user_id !== currentUser.id) {
+      try {
+        const author = await User.findByPk(moment.user_id);
+        if (author) {
+          await pushService.sendCommentNotification(
+            author.uuid,
+            currentUser.nickname || currentUser.phone,
+            currentUser.uuid,
+            moment_uuid,
+            content.trim()
+          );
+          log.info(`[推送] 已向动态作者 ${author.uuid} 发送评论推送`);
+        }
+      } catch (pushError) {
+        log.error('[推送] 发送评论推送失败:', pushError);
+      }
+    }
 
     res.status(201).json({
       status: true,

@@ -1,0 +1,13 @@
+# 忽略不需要的文件
+backend/elasticsearch-8.11.0/
+backend/kibana-8.11.0/
+backend/*.tar.gz
+backend/test-*.js
+*.backup.js
+*.md
+.git/
+node_modules/
+.expo/
+dist/
+build/
+*.log

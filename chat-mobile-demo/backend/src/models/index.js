@@ -8,6 +8,7 @@ import Message from './Message.js';
 import Bottle from './Bottle.js';
 import UserPointsModel from './UserPoints.js';
 import CheckinRecordModel from './CheckinRecord.js';
+import Order from './Order.js';
 
 // 初始化积分相关模型
 const UserPoints = UserPointsModel(sequelize);
@@ -141,6 +142,16 @@ CheckinRecord.belongsTo(User, {
   as: 'user'
 });
 
+// Order 关系 (一对多)
+User.hasMany(Order, {
+  foreignKey: 'userId',
+  as: 'orders'
+});
+Order.belongsTo(User, {
+  foreignKey: 'userId',
+  as: 'user'
+});
+
 // ========== 同步数据库 ==========
 export const syncDatabase = async (options = {}) => {
   try {
@@ -164,7 +175,8 @@ export {
   Message,
   Bottle,
   UserPoints,
-  CheckinRecord
+  CheckinRecord,
+  Order
 };
 
 export default {
@@ -178,5 +190,6 @@ export default {
   Bottle,
   UserPoints,
   CheckinRecord,
+  Order,
   syncDatabase
 };

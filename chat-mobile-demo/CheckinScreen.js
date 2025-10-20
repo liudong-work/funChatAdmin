@@ -91,8 +91,31 @@ const CheckinScreen = ({ navigation }) => {
 
   // 渲染本周签到日历（任务中心风格）
   const renderWeekCalendar = () => {
-    const days = ['今天', '明天', '10/16', '10/17', '10/18', '10/19', '10/20'];
-    const rewards = ['✓', '+20', '🎁', '+40', '+50', '🎁', '🎁'];
+    // 生成本周的日期
+    const generateWeekDates = () => {
+      const today = new Date();
+      const dates = [];
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(today);
+        date.setDate(today.getDate() + i);
+        
+        if (i === 0) {
+          dates.push('今天');
+        } else if (i === 1) {
+          dates.push('明天');
+        } else {
+          const month = date.getMonth() + 1;
+          const day = date.getDate();
+          dates.push(`${month}/${day}`);
+        }
+      }
+      
+      return dates;
+    };
+
+    const days = generateWeekDates();
+    const rewards = ['✓', '+10', '+10', '+10', '+10', '+10', '+10']; // 简化奖励显示
     const today = 0; // 今天是第一个
     const todayCheckedIn = pointsInfo?.is_checked_in_today;
 
@@ -114,12 +137,14 @@ const CheckinScreen = ({ navigation }) => {
                     <Text style={styles.checkMark}>✓</Text>
                   ) : (
                     <Text style={styles.rewardIcon}>
-                      {index === 1 ? '🐚' : index === 3 ? '🐚' : index === 4 ? '🐚' : '🎁'}
+                      {index === 0 ? '🎯' : '💰'}
                     </Text>
                   )}
                 </View>
                 <Text style={styles.dayText}>{day}</Text>
-                <Text style={styles.rewardText}>{rewards[index]}</Text>
+                <Text style={styles.rewardText}>
+                  {isChecked ? '已签到' : rewards[index]}
+                </Text>
               </View>
             );
           })}
@@ -165,8 +190,11 @@ const CheckinScreen = ({ navigation }) => {
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>签到 (1/7)</Text>
             <View style={styles.cardActions}>
-              <TouchableOpacity style={styles.actionButton}>
-                <Text style={styles.actionButtonText}>补签列表</Text>
+              <TouchableOpacity 
+                style={styles.actionButton}
+                onPress={() => navigation.navigate('Payment', { productType: 'COIN_PACKAGES' })}
+              >
+                <Text style={styles.actionButtonText}>积分充值</Text>
               </TouchableOpacity>
               <TouchableOpacity 
                 style={[
@@ -196,7 +224,8 @@ const CheckinScreen = ({ navigation }) => {
           {renderWeekCalendar()}
         </View>
 
-        {/* 宝箱奖励卡片 */}
+        {/* 宝箱奖励卡片 - 暂时注释掉 */}
+        {/* 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>宝箱 (0/5)</Text>
@@ -218,8 +247,10 @@ const CheckinScreen = ({ navigation }) => {
             </View>
           </View>
         </View>
+        */}
 
-        {/* 任务卡片 */}
+        {/* 任务卡片 - 暂时注释掉 */}
+        {/* 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <Text style={styles.cardTitle}>任务 (0/3)</Text>
@@ -260,6 +291,7 @@ const CheckinScreen = ({ navigation }) => {
             </View>
           </View>
         </View>
+        */}
       </ScrollView>
     </SafeAreaView>
   );

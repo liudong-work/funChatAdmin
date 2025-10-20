@@ -15,9 +15,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.liudong.chatmobiledemo",
+      "buildNumber": "1.0.0",
       "infoPlist": {
         "NSCameraUsageDescription": "需要访问摄像头进行视频通话",
-        "NSMicrophoneUsageDescription": "需要访问麦克风进行语音通话"
+        "NSMicrophoneUsageDescription": "需要访问麦克风进行语音通话",
+        "UIBackgroundModes": ["remote-notification"]
       }
     },
     "android": {
@@ -27,6 +29,7 @@
       },
       "edgeToEdgeEnabled": true,
       "package": "com.liudong.chatmobiledemo",
+      "versionCode": 1,
       "permissions": [
         "CAMERA",
         "RECORD_AUDIO",
@@ -34,7 +37,23 @@
         "INTERNET",
         "ACCESS_NETWORK_STATE",
         "WRITE_EXTERNAL_STORAGE",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE"
+      ],
+      "useNextNotificationsApi": true,
+      "intentFilters": [
+        {
+          "action": "VIEW",
+          "data": [
+            {
+              "scheme": "weixin",
+              "host": "pay"
+            }
+          ],
+          "category": ["BROWSABLE", "DEFAULT"]
+        }
       ]
     },
     "notification": {
@@ -48,8 +67,19 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-dev-client"
+      "expo-dev-client",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#007AFF",
+          "sounds": []
+        }
+      ]
     ],
+    "developmentClient": {
+      "silentLaunch": true
+    },
     "extra": {
       "eas": {
         "projectId": "1f4d00b0-3ca2-4249-b6fb-4a3624b1db23"

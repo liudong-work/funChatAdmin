@@ -29,9 +29,12 @@ import { authenticateToken, generateToken } from './middleware/auth.js';
 import momentRoutes from './routes/moment-db.js';
 import adminMomentRoutes from './routes/adminMoment-db.js';
 import adminUserRoutes from './routes/adminUser-db.js';
+import pushRoutes from './routes/push.js';
+import wechatPaymentRoutes from './routes/wechatPayment.js';
 
 // 导入服务
 import userService from './services/userService.js';
+import pushService from './services/pushService.js';
 
 const app = express();
 const server = createServer(app);
@@ -587,6 +590,10 @@ app.use('/api/moment', momentRoutes);
 
 // ========== 管理动态API ==========
 app.use('/api/admin/moments', adminMomentRoutes);
+
+// ========== 推送通知API ==========
+app.use('/api/push', pushRoutes);
+app.use('/api/payment/wechat', wechatPaymentRoutes);
 
 // ========== 管理员登录接口 ==========
 app.post('/api/admin/login', (req, res) => {
@@ -1845,6 +1852,17 @@ io.on('connection', (socket) => {
         // 更新消息状态为已送达
         await newMessage.update({ status: 'delivered' });
         messageData.status = 'delivered';
+      } else {
+        // 接收者不在线，发送推送通知
+        const messagePreview = message.length > 50 ? message.substring(0, 50) + '...' : message;
+        await pushService.sendNewMessageNotification(
+          to,
+          sender.nickname || sender.phone,
+          from,
+          messagePreview,
+          sender.avatar
+        );
+        log.info(`[推送] 已向离线用户 ${to} 发送推送通知`);
       }
 
       // 回传给发送者确认
@@ -1998,7 +2016,15 @@ io.on('connection', (socket) => {
         receiverSocket.emit('image_message', imageMessageData);
         log.info(`聊天图片消息已推送给接收者: ${to}`);
       } else {
-        log.warn(`接收者不在线，图片消息未推送: ${to}, 当前在线用户:`, Array.from(connectedUsers.keys()));
+        // 接收者不在线，发送推送通知
+        await pushService.sendNewMessageNotification(
+          to,
+          sender.nickname || sender.phone,
+          from,
+          '📷 [图片消息]',
+          sender.avatar
+        );
+        log.info(`[推送] 已向离线用户 ${to} 发送图片消息推送通知`);
       }
 
       // 回执给发送者

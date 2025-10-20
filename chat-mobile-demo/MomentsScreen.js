@@ -178,6 +178,19 @@ export default function MomentsScreen({ navigation }) {
         // 如果失败，回滚UI
         setMoments(moments);
         Alert.alert('错误', response.message || '点赞失败');
+      } else {
+        // 更新UI状态
+        const updatedMoments = moments.map(m => {
+          if (m.uuid === momentItem.uuid) {
+            return {
+              ...m,
+              is_liked: response.data.is_liked,
+              likes_count: response.data.likes_count
+            };
+          }
+          return m;
+        });
+        setMoments(updatedMoments);
       }
     } catch (error) {
       console.error('点赞失败:', error);

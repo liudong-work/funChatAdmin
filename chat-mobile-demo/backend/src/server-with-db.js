@@ -18,7 +18,7 @@ import { testConnection } from './config/database.js';
 import { uploadToOSS, uploadBufferToOSS, checkOSSConfig, deleteFromOSS } from './services/ossService.js';
 
 // 导入模型
-import { User, Moment, Comment, Like, Follow, Message, Bottle, UserPoints, CheckinRecord } from './models/index.js';
+import { User, Moment, Comment, Like, Follow, Message, Bottle, UserPoints, CheckinRecord, MembershipPlan } from './models/index.js';
 import { Op } from 'sequelize';
 
 // 导入中间件
@@ -31,6 +31,7 @@ import adminMomentRoutes from './routes/adminMoment-db.js';
 import adminUserRoutes from './routes/adminUser-db.js';
 import pushRoutes from './routes/push.js';
 import wechatPaymentRoutes from './routes/wechatPayment.js';
+import membershipPlanRoutes from './routes/membershipPlan.js';
 
 // 导入服务
 import userService from './services/userService.js';
@@ -590,6 +591,33 @@ app.use('/api/moment', momentRoutes);
 
 // ========== 管理动态API ==========
 app.use('/api/admin/moments', adminMomentRoutes);
+
+// ========== 会员套餐API ==========
+app.use('/api/admin/membership-plans', membershipPlanRoutes);
+
+// 公开的会员套餐接口（不需要认证）
+app.get('/api/membership-plans/public', async (req, res) => {
+  try {
+    const plans = await MembershipPlan.findAll({
+      where: { isActive: true },
+      order: [['sortOrder', 'DESC'], ['created_at', 'ASC']],
+      attributes: ['id', 'name', 'type', 'price', 'originalPrice', 'duration', 'durationText', 'features', 'isPopular', 'description']
+    });
+
+    res.json({
+      status: true,
+      message: '获取会员套餐成功',
+      data: plans
+    });
+  } catch (error) {
+    log.error('获取会员套餐失败:', error);
+    res.status(500).json({
+      status: false,
+      message: '获取会员套餐失败',
+      error: error.message
+    });
+  }
+});
 
 // ========== 推送通知API ==========
 app.use('/api/push', pushRoutes);
@@ -1291,7 +1319,7 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
 
     // 获取两个用户之间的消息（分页）
     const messages = await Message.findAll({
-      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'file_url', 'file_type', 'file_size', 'width', 'height', 'status', 'created_at', 'updated_at'],
+      attributes: ['id', 'uuid', 'sender_id', 'receiver_id', 'content', 'message_type', 'file_url', 'file_type', 'file_size', 'duration', 'width', 'height', 'status', 'created_at', 'updated_at'],
       where: {
         [Op.or]: [
           {
@@ -1317,6 +1345,22 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
     });
 
     log.info(`[MESSAGE] 找到 ${messages.length} 条消息`);
+    
+    // 添加详细的消息类型分析
+    const audioMessages = messages.filter(msg => {
+      const messageData = msg.get ? msg.get({ plain: true }) : msg;
+      return messageData.message_type === 'audio';
+    });
+    log.info(`[MESSAGE] 其中语音消息数量: ${audioMessages.length}`);
+    if (audioMessages.length > 0) {
+      log.info(`[MESSAGE] 第一条语音消息数据:`, {
+        uuid: audioMessages[0].uuid,
+        message_type: audioMessages[0].message_type,
+        file_url: audioMessages[0].file_url,
+        duration: audioMessages[0].duration,
+        content: audioMessages[0].content
+      });
+    }
 
     // 格式化消息，确保字段正确
     const formattedMessages = messages.map((msg, index) => {
@@ -1329,6 +1373,19 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
           hasCreatedAt: !!messageData.created_at,
           created_at: messageData.created_at,
           created_at_type: typeof messageData.created_at
+        });
+      }
+      
+      const isAudioMessage = messageData.message_type === 'audio';
+      
+      // 添加语音消息调试日志
+      if (isAudioMessage) {
+        log.info(`[MESSAGE] 处理语音消息 ${index}:`, {
+          uuid: messageData.uuid,
+          message_type: messageData.message_type,
+          file_url: messageData.file_url,
+          duration: messageData.duration,
+          content: messageData.content
         });
       }
       
@@ -1347,7 +1404,10 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
         file_type: messageData.file_type,
         file_size: messageData.file_size,
         width: messageData.width,
-        height: messageData.height
+        height: messageData.height,
+        // 语音消息相关字段
+        duration: isAudioMessage ? (messageData.duration || 0) : 0,
+        audioUrl: isAudioMessage ? messageData.file_url : null // 只有语音消息才设置audioUrl
       };
     });
 
@@ -2050,6 +2110,209 @@ io.on('connection', (socket) => {
     } catch (error) {
       log.error('处理图片消息失败:', error);
       socket.emit('error', { message: '图片消息处理失败: ' + error.message });
+    }
+  });
+
+  // 处理语音消息
+  socket.on('voice_message', async (data) => {
+    try {
+      const { from, to, audioData, duration, mimeType } = data || {};
+      log.info('[WS] 收到语音消息:', {
+        from,
+        to,
+        hasAudioData: !!audioData,
+        length: Array.isArray(audioData) ? audioData.length : 0,
+        duration,
+        mimeType,
+      });
+
+      if (!from || !to || !audioData) {
+        socket.emit('error', { message: '语音消息数据不完整' });
+        return;
+      }
+
+      // 生成文件名 - 确保使用兼容的音频格式
+      let fileExtension = 'm4a'; // 默认使用m4a格式
+      if (mimeType) {
+        const mimeTypeLower = mimeType.toLowerCase();
+        if (mimeTypeLower.includes('m4a') || mimeTypeLower.includes('mp4')) {
+          fileExtension = 'm4a';
+        } else if (mimeTypeLower.includes('webm')) {
+          // webm格式转换为m4a以确保兼容性
+          fileExtension = 'm4a';
+          log.info('[Voice] webm格式转换为m4a以确保兼容性');
+        } else if (mimeTypeLower.includes('mp3')) {
+          fileExtension = 'mp3';
+        } else if (mimeTypeLower.includes('wav')) {
+          fileExtension = 'wav';
+        }
+      }
+      const filename = `chat-voice-${Date.now()}-${Math.floor(Math.random() * 1000000000)}.${fileExtension}`;
+      
+      // 根据文件扩展名设置正确的Content-Type
+      let contentType = 'audio/m4a'; // 默认
+      if (fileExtension === 'mp3') {
+        contentType = 'audio/mpeg';
+      } else if (fileExtension === 'wav') {
+        contentType = 'audio/wav';
+      } else {
+        contentType = 'audio/m4a';
+      }
+      
+      // 将音频数据转换为Buffer
+      const buffer = Buffer.from(new Uint8Array(audioData));
+      
+      let fileUrl;
+      let fileSize = buffer.length;
+
+      // 检查OSS配置并上传语音文件
+      const ossConfigAvailable = checkOSSConfig();
+      if (ossConfigAvailable) {
+        try {
+          const objectName = `chats/voice/${filename}`;
+          const ossResult = await uploadBufferToOSS(buffer, objectName, {
+            headers: {
+              'Content-Type': contentType,
+            }
+          });
+
+          if (ossResult.success) {
+            fileUrl = ossResult.url;
+            log.info(`语音文件已上传到OSS: ${ossResult.url}`);
+          } else {
+            log.error('OSS上传失败:', ossResult.error);
+            // OSS上传失败，保存到本地作为备选
+            const localFilePath = path.join(uploadsDir, filename);
+            fs.writeFileSync(localFilePath, buffer);
+            fileUrl = `/uploads/${filename}`;
+            log.info(`OSS上传失败，保存到本地: ${fileUrl}`);
+          }
+        } catch (error) {
+          log.error('OSS上传异常:', error);
+          // OSS上传异常，保存到本地作为备选
+          const localFilePath = path.join(uploadsDir, filename);
+          fs.writeFileSync(localFilePath, buffer);
+          fileUrl = `/uploads/${filename}`;
+          log.info(`OSS上传异常，保存到本地: ${fileUrl}`);
+        }
+      } else {
+        // OSS未配置，保存到本地
+        const localFilePath = path.join(uploadsDir, filename);
+        fs.writeFileSync(localFilePath, buffer);
+        fileUrl = `/uploads/${filename}`;
+        log.info(`OSS未配置，保存到本地: ${fileUrl}`);
+      }
+
+      // 查找发送者和接收者
+      const sender = await User.findOne({ where: { uuid: from } });
+      const receiver = await User.findOne({ where: { uuid: to } });
+
+      if (!sender) {
+        socket.emit('error', { message: '发送者不存在' });
+        return;
+      }
+
+      // 创建语音消息记录
+      const message = await Message.create({
+        uuid: `voice_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        sender_id: sender.id,
+        receiver_id: receiver ? receiver.id : null,
+        content: '[语音消息]',
+        message_type: 'audio',
+        file_url: fileUrl,
+        file_type: contentType, // 使用标准化的contentType而不是原始mimeType
+        file_size: fileSize,
+        duration: duration || 0,
+        status: 'sent'
+      });
+
+      log.info(`聊天语音消息创建成功: ${message.uuid}`);
+      
+      // 调试：检查保存的消息数据
+      log.info(`[DEBUG] 保存的语音消息数据:`, {
+        id: message.id,
+        uuid: message.uuid,
+        message_type: message.message_type,
+        file_url: message.file_url,
+        file_type: message.file_type,
+        file_size: message.file_size
+      });
+
+      // 索引到Elasticsearch
+      try {
+        await MessageSearch.saveMessage({
+          uuid: message.uuid,
+          sender_id: sender.id,
+          receiver_id: receiver ? receiver.id : null,
+          content: '[语音消息]',
+          message_type: 'audio',
+          file_url: fileUrl,
+          file_type: contentType, // 使用标准化的contentType
+          file_size: fileSize,
+          duration: duration || 0,
+          status: 'sent',
+          created_at: message.created_at || message.createdAt
+        });
+        log.info(`语音消息已索引到ES: ${message.uuid}`);
+      } catch (error) {
+        log.error(`语音消息索引到ES失败: ${error.message}`);
+      }
+
+      // 推送给接收者
+      const receiverSocket = connectedUsers.get(to);
+      log.info(`[语音消息] 查找接收者: ${to}, 在线状态: ${!!receiverSocket}, 连接数: ${connectedUsers.size}`);
+      
+      if (receiverSocket) {
+        const voiceMessageData = {
+          message: {
+            id: message.uuid,
+            uuid: message.uuid,
+            sender_uuid: from,
+            receiver_uuid: to,
+            content: message.content,
+            type: message.message_type,
+            audioUrl: fileUrl,
+            audioData: audioData, // 保留原始数据用于实时播放
+            duration: duration || 0,
+            mimeType: mimeType || 'audio/m4a',
+            status: message.status,
+            created_at: message.created_at || message.createdAt
+          }
+        };
+        
+        log.info(`[语音消息] 准备推送数据:`, {
+          uuid: voiceMessageData.message.uuid,
+          sender_uuid: voiceMessageData.message.sender_uuid,
+          receiver_uuid: voiceMessageData.message.receiver_uuid,
+          audioUrl: voiceMessageData.message.audioUrl,
+          duration: voiceMessageData.message.duration
+        });
+        receiverSocket.emit('voice_message', voiceMessageData);
+        log.info(`聊天语音消息已推送给接收者: ${to}`);
+      } else {
+        // 接收者不在线，发送推送通知
+        await pushService.sendNewMessageNotification(
+          to,
+          sender.nickname || sender.phone,
+          from,
+          '🎤 [语音消息]',
+          sender.avatar
+        );
+        log.info(`[推送] 已向离线用户 ${to} 发送语音消息推送通知`);
+      }
+
+      // 回执给发送者
+      socket.emit('voice_message_sent', {
+        messageId: message.uuid,
+        audioUrl: fileUrl,
+        duration: duration || 0,
+        status: 'success',
+      });
+      log.info(`聊天语音消息发送确认已返回给发送者`);
+
+    } catch (error) {
+      log.error('处理语音消息失败:', error);
+      socket.emit('error', { message: '语音消息处理失败: ' + error.message });
     }
   });
 

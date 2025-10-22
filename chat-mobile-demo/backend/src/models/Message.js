@@ -49,6 +49,11 @@ const Message = sequelize.define('Message', {
     allowNull: true,
     comment: '文件大小（字节）'
   },
+  duration: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    comment: '音频/视频时长（秒）'
+  },
   width: {
     type: DataTypes.INTEGER,
     allowNull: true,

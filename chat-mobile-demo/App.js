@@ -229,8 +229,19 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
           return <Text style={{ fontSize: size, color }}>{iconName}</Text>;
         },
         tabBarActiveTintColor: '#007AFF',
-        tabBarInactiveTintColor: 'gray',
-        tabBarStyle: {
+        tabBarInactiveTintColor: route.name === 'Home' ? 'rgba(255, 255, 255, 0.7)' : 'gray',
+        tabBarStyle: route.name === 'Home' ? {
+          // 首页：透明样式
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          paddingBottom: 5,
+          paddingTop: 5,
+          height: 60,
+          position: 'absolute',
+          elevation: 0,
+          shadowOpacity: 0,
+        } : {
+          // 其他页面：白色背景样式
           backgroundColor: 'white',
           borderTopWidth: 1,
           borderTopColor: '#E5E5EA',
@@ -238,7 +249,15 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
           paddingTop: 5,
           height: 60,
         },
-        tabBarLabelStyle: {
+        tabBarLabelStyle: route.name === 'Home' ? {
+          // 首页：带阴影的文字样式
+          fontSize: 12,
+          fontWeight: '500',
+          textShadowColor: 'rgba(0, 0, 0, 0.3)',
+          textShadowOffset: { width: 0, height: 1 },
+          textShadowRadius: 2,
+        } : {
+          // 其他页面：普通文字样式
           fontSize: 12,
           fontWeight: '500',
         },
@@ -433,7 +452,8 @@ export default function App() {
           sender: data.message?.sender_uuid,
           receiver: data.message?.receiver_uuid,
           duration: data.message?.duration,
-          audioDataLength: data.message?.audioData ? data.message.audioData.length : 0
+          audioDataLength: data.message?.audioData ? data.message.audioData.length : 0,
+          audioUrl: data.message?.audioUrl
         });
         
         // 将语音消息转换为普通消息格式进行处理
@@ -441,7 +461,10 @@ export default function App() {
           message: {
             ...data.message,
             content: '[语音消息]', // 统一显示为语音消息
-            type: 'voice'
+            type: 'audio', // 修复：统一使用 'audio' 类型，与历史消息保持一致
+            // 优先使用OSS URL，如果没有则使用原始audioData
+            audioUrl: data.message?.audioUrl || null,
+            audioData: data.message?.audioUrl ? null : data.message?.audioData // 如果有URL就不传递原始数据
           },
           conversation_key: data.conversation_key
         };

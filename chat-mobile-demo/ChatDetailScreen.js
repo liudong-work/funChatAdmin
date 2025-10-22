@@ -42,6 +42,30 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     return fullUrl;
   };
 
+  // 辅助函数：处理音频 URL
+  const getAudioUrl = (url) => {
+    if (!url) {
+      console.log('[Audio] URL为空，返回null');
+      return null;
+    }
+    
+    // 如果是完整 URL 或本地文件路径，直接返回
+    if (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('file://')) {
+      console.log('[Audio] 完整URL，直接使用:', url);
+      return url;
+    }
+    
+    // 如果是相对路径，添加服务器地址
+    const baseUrl = getBaseUrl();
+    const fullUrl = `${baseUrl}${url}`;
+    console.log('[Audio] URL转换:', {
+      original: url,
+      baseUrl: baseUrl,
+      fullUrl: fullUrl
+    });
+    return fullUrl;
+  };
+
   // 加载已查看的图片状态
   const loadViewedImages = async () => {
     try {
@@ -331,18 +355,43 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     };
   }, [onRegisterChatMessageCallback, onSetCurrentChatUser, user]);
 
+  // 监控messages状态变化，用于调试语音消息显示问题
+  useEffect(() => {
+    const audioMessages = messages.filter(msg => msg.type === 'audio');
+    console.log('[ChatDetail] messages状态更新:', {
+      总消息数: messages.length,
+      语音消息数: audioMessages.length,
+      语音消息详情: audioMessages.map(msg => ({
+        id: msg.id,
+        type: msg.type,
+        audioUrl: msg.audioUrl,
+        file_url: msg.file_url,
+        duration: msg.duration
+      }))
+    });
+  }, [messages]);
+
   // 图片预览功能（阅后即焚版本）
   const showImagePreview = (imageUrl) => {
     console.log('[Image] 显示图片预览（阅后即焚）:', {
       originalUrl: imageUrl,
       processedUrl: getImageUrl(imageUrl),
       urlType: typeof imageUrl,
-      urlValid: !!imageUrl
+      urlValid: !!imageUrl,
+      urlLength: imageUrl?.length || 0
     });
     
     // 检查URL有效性
     if (!imageUrl) {
       console.error('[Image] 图片URL为空，无法预览');
+      Alert.alert('错误', '图片URL为空，无法预览');
+      return;
+    }
+    
+    // 检查URL格式
+    if (typeof imageUrl !== 'string') {
+      console.error('[Image] 图片URL格式错误:', typeof imageUrl, imageUrl);
+      Alert.alert('错误', '图片URL格式错误');
       return;
     }
     
@@ -352,6 +401,12 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     }
     
     const processedUrl = getImageUrl(imageUrl);
+    console.log('[Image] 处理后的URL:', {
+      original: imageUrl,
+      processed: processedUrl,
+      isProcessed: processedUrl !== imageUrl
+    });
+    
     setPreviewImageUrl(processedUrl);
     setImagePreviewVisible(true);
     
@@ -410,18 +465,141 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       }
 
       const currentUser = JSON.parse(userInfo);
-      const otherUserId = user.sender_uuid || user.id;
+      const otherUserId = user.sender_uuid || user.uuid || user.id;
+      
+      console.log('[ChatDetail] 用户ID信息:', {
+        currentUserUuid: currentUserUuid,
+        otherUserId: otherUserId,
+        userObject: {
+          id: user.id,
+          uuid: user.uuid,
+          sender_uuid: user.sender_uuid
+        }
+      });
       
       // 调用后端接口获取对话历史（分页）
       console.log('[ChatDetail] 请求分页数据:', { page, pageSize, isLoadMore });
       const response = await messageApi.getConversation(currentUserUuid, otherUserId, token, page, pageSize);
       
+      console.log('[ChatDetail] API响应完整数据:', {
+        status: response.status,
+        message: response.message,
+        hasData: !!response.data,
+        hasMessages: !!response.data?.messages,
+        messagesCount: response.data?.messages?.length || 0
+      });
+      
+      if (!response.status) {
+        console.error('[ChatDetail] API请求失败:', {
+          status: response.status,
+          message: response.message,
+          response: response
+        });
+        setIsLoading(false);
+        return;
+      }
+      
       if (response.status && response.data.messages) {
         console.log('[ChatDetail] 后端返回的消息数据:', response.data.messages);
+        
+        // 分析消息类型
+        const audioMessages = response.data.messages.filter(msg => 
+          (msg.type === 'audio' || msg.message_type === 'audio')
+        );
+        const textMessages = response.data.messages.filter(msg => 
+          (msg.type === 'text' || msg.message_type === 'text')
+        );
+        const imageMessages = response.data.messages.filter(msg => 
+          (msg.type === 'image' || msg.message_type === 'image')
+        );
+        
+        console.log('[ChatDetail] 消息类型分析:', {
+          总数量: response.data.messages.length,
+          语音消息: audioMessages.length,
+          文本消息: textMessages.length,
+          图片消息: imageMessages.length
+        });
+        
+        if (audioMessages.length > 0) {
+          console.log('[ChatDetail] 语音消息详情:', audioMessages.map(msg => ({
+            uuid: msg.uuid,
+            type: msg.type,
+            message_type: msg.message_type,
+            file_url: msg.file_url,
+            audioUrl: msg.audioUrl,
+            duration: msg.duration,
+            content: msg.content
+          })));
+        }
         // 转换后端消息格式为前端需要的格式
-        const conversationMessages = response.data.messages.map((msg, index) => {
+          const conversationMessages = response.data.messages.map((msg, index) => {
           const imageUrl = msg.imageUrl || msg.file_url || null;
-          const messageType = msg.type || msg.message_type || 'text';
+          
+          // 调试：检查图片消息的URL
+          if (msg.message_type === 'image' || msg.type === 'image') {
+            console.log('[ChatDetail] 检测到图片消息:', {
+              uuid: msg.uuid,
+              message_type: msg.message_type,
+              type: msg.type,
+              msgImageUrl: msg.imageUrl,
+              msgFileUrl: msg.file_url,
+              finalImageUrl: imageUrl,
+              urlType: typeof imageUrl,
+              urlValid: !!imageUrl
+            });
+          }
+          // 确保正确获取消息类型，优先使用后端返回的字段
+          const messageType = msg.message_type || msg.type || 'text';
+          
+          // 调试：检查所有消息的类型，特别是语音消息
+          if (msg.message_type === 'audio' || msg.type === 'audio' || msg.type === 'voice' || msg.uuid?.startsWith('voice_')) {
+            console.log('[ChatDetail] 检测到可能的语音消息:', {
+              uuid: msg.uuid,
+              message_type: msg.message_type,
+              type: msg.type,
+              finalMessageType: messageType,
+              msgAudioUrl: msg.audioUrl,
+              msgFileUrl: msg.file_url,
+              fullMsg: msg
+            });
+          }
+          
+          // 修复语音消息URL映射逻辑 - 更宽松的判断
+          let audioUrl = null;
+          
+          // 先判断是否为语音消息，然后设置audioUrl
+          let isAudioMessage = messageType === 'audio' || messageType === 'voice' || msg.message_type === 'audio' || msg.type === 'voice' || msg.uuid?.startsWith('voice_') || msg.file_url?.includes('voice') || msg.file_url?.includes('/chats/voice/') || !!msg.audioUrl;
+          
+          if (isAudioMessage) {
+            audioUrl = msg.audioUrl || msg.file_url || null;
+            console.log('[ChatDetail] 处理语音消息:', {
+              uuid: msg.uuid,
+              messageType: messageType,
+              msgMessageType: msg.message_type,
+              isAudioMessage: isAudioMessage,
+              msgAudioUrl: msg.audioUrl,
+              msgFileUrl: msg.file_url,
+              finalAudioUrl: audioUrl
+            });
+          } else if (msg.file_url?.includes('chat-voice') || msg.file_url?.includes('/chats/voice/')) {
+            // 额外检查：如果file_url包含chat-voice，也认为是语音消息
+            audioUrl = msg.file_url;
+            isAudioMessage = true; // 更新isAudioMessage状态
+            console.log('[ChatDetail] 通过file_url识别语音消息:', {
+              uuid: msg.uuid,
+              fileUrl: msg.file_url,
+              finalAudioUrl: audioUrl
+            });
+          } else if (msg.audioUrl) {
+            // 如果后端直接返回了audioUrl，即使其他条件不匹配也认为是语音消息
+            audioUrl = msg.audioUrl;
+            isAudioMessage = true; // 更新isAudioMessage状态
+            console.log('[ChatDetail] 通过后端audioUrl识别语音消息:', {
+              uuid: msg.uuid,
+              audioUrl: msg.audioUrl,
+              finalAudioUrl: audioUrl
+            });
+          }
           
           // 调试日志：检查图片消息数据
           if (imageUrl || messageType === 'image') {
@@ -437,19 +615,39 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
             });
           }
           
+          // 调试日志：检查语音消息数据
+          if (audioUrl || messageType === 'audio') {
+            console.log('[ChatDetail] 发现语音消息:', {
+              id: msg.uuid || index,
+              audioUrl: audioUrl,
+              file_url: msg.file_url,
+              type: messageType,
+              message_type: msg.message_type,
+              content: msg.content,
+              duration: msg.duration,
+              // 添加更多调试信息
+              msgAudioUrl: msg.audioUrl,
+              fallbackAudioUrl: messageType === 'audio' ? msg.file_url : null,
+              finalAudioUrl: audioUrl
+            });
+          }
+          
           return {
-            id: msg.uuid || index,
+            id: msg.uuid || `msg_${index}_${Math.random().toString(36).substr(2, 9)}`,
             // 对于图片消息，不显示content作为文本
-            text: (msg.content && !imageUrl) ? msg.content : '',
+            text: (msg.content && !imageUrl && !audioUrl) ? msg.content : '',
             timestamp: new Date(msg.created_at),
             isBottle: msg.status === 'bottle', // 标记是否为瓶子消息
             duration: msg.duration || 0, // 添加时长信息
             audioData: msg.audioData || null, // 添加音频数据
-            audioUrl: msg.audioUrl || null, // 添加音频URL
+            audioUrl: audioUrl, // 添加音频URL（支持audioUrl和file_url字段）
+            file_url: msg.file_url, // 直接映射file_url字段
             imageUrl: imageUrl, // 添加图片URL（支持imageUrl和file_url字段）
             width: msg.width || null, // 添加图片宽度
             height: msg.height || null, // 添加图片高度
-            type: messageType, // 添加消息类型（支持type和message_type字段）
+            type: (isAudioMessage || audioUrl || msg.file_url?.includes('chat-voice') || msg.file_url?.includes('/chats/voice/')) ? 'audio' : 
+                   (imageUrl || msg.message_type === 'image' || msg.type === 'image') ? 'image' : 
+                   (messageType || 'text'), // 确保语音消息和图片消息有正确的类型
             user: {
               id: msg.sender_uuid === currentUserUuid ? currentUserUuid : msg.sender_uuid, // 使用实际的UUID
               name: msg.sender_uuid === currentUserUuid ? '我' : (user.name || '对方'),
@@ -458,8 +656,22 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           };
         });
         
+        // 检查映射后的消息
+        const mappedAudioMessages = conversationMessages.filter(msg => msg.type === 'audio');
+        console.log('[ChatDetail] 映射后的语音消息数量:', mappedAudioMessages.length);
+        if (mappedAudioMessages.length > 0) {
+          console.log('[ChatDetail] 映射后的语音消息:', mappedAudioMessages.map(msg => ({
+            id: msg.id,
+            type: msg.type,
+            audioUrl: msg.audioUrl,
+            file_url: msg.file_url,
+            duration: msg.duration
+          })));
+        }
+        
         console.log('[ChatDetail] 加载对话历史成功:', {
           messageCount: conversationMessages.length,
+          语音消息数量: mappedAudioMessages.length,
           currentUserUuid: currentUserUuid,
           otherUserId: otherUserId,
           page: page,
@@ -476,8 +688,42 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           // 首次加载或刷新，替换所有消息
           // 由于后端返回的是倒序，需要反转后显示
           const reversedMessages = [...conversationMessages].reverse();
+          
+          // 检查设置前的语音消息
+          const audioBeforeSet = reversedMessages.filter(msg => msg.type === 'audio');
+          console.log('[ChatDetail] 设置消息前，语音消息数量:', audioBeforeSet.length);
+          if (audioBeforeSet.length > 0) {
+            console.log('[ChatDetail] 设置前语音消息详情:', audioBeforeSet.map(msg => ({
+              id: msg.id,
+              type: msg.type,
+              audioUrl: msg.audioUrl,
+              file_url: msg.file_url
+            })));
+          }
+          
           setMessages(reversedMessages);
           setCurrentPage(0);
+          
+          // 延迟验证消息是否正确设置并强制重新检查
+          setTimeout(() => {
+            console.log('[ChatDetail] 消息状态设置完成，请检查UI是否显示语音消息');
+            
+            // 强制重新检查消息状态
+            setMessages(prevMessages => {
+              const audioMessagesFinal = prevMessages.filter(msg => msg.type === 'audio');
+              console.log('[ChatDetail] 最终状态检查 - 语音消息数量:', audioMessagesFinal.length);
+              if (audioMessagesFinal.length > 0) {
+                console.log('[ChatDetail] 最终语音消息详情:', audioMessagesFinal.map(msg => ({
+                  id: msg.id,
+                  type: msg.type,
+                  audioUrl: msg.audioUrl,
+                  file_url: msg.file_url,
+                  hasAudioUrl: !!msg.audioUrl
+                })));
+              }
+              return prevMessages; // 返回相同状态以触发重渲染
+            });
+          }, 300);
         }
         
         // 检查是否还有更多消息
@@ -495,8 +741,19 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
             }
           }, 100);
         }
+      } else if (response.status && (!response.data || !response.data.messages)) {
+        console.warn('API成功但没有消息数据:', {
+          status: response.status,
+          data: response.data,
+          message: response.message
+        });
+        setMessages([]);
       } else {
-        console.warn('加载对话历史失败:', response.message);
+        console.warn('加载对话历史失败:', {
+          status: response.status,
+          message: response.message,
+          data: response.data
+        });
         // 如果没有历史消息，且是从瓶子来的，显示瓶子消息
         if (user.bottleMessage) {
           setMessages([{
@@ -869,8 +1126,34 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       } else if (url) {
         // 播放本地或远程 URL
         console.log('[Voice] 播放音频 URL:', url);
-        const { sound: soundObject } = await Audio.Sound.createAsync({ uri: url }, { shouldPlay: true });
-        sound = soundObject;
+        
+        // 检查音频文件扩展名，确保格式支持
+        const supportedFormats = ['.m4a', '.mp4', '.aac', '.mp3', '.wav'];
+        const hasSupportedFormat = supportedFormats.some(format => 
+          url.toLowerCase().includes(format) || url.includes('mimeType=audio')
+        );
+        
+        if (!hasSupportedFormat) {
+          console.warn('[Voice] 音频格式可能不支持，尝试播放:', url);
+        }
+        
+        try {
+          const { sound: soundObject } = await Audio.Sound.createAsync({ uri: url }, { 
+            shouldPlay: true,
+            isLooping: false,
+            progressUpdateIntervalMillis: 100
+          });
+          sound = soundObject;
+          console.log('[Voice] 音频播放器创建成功');
+        } catch (urlError) {
+          console.error('[Voice] URL播放失败:', urlError);
+          // 如果是格式不支持的错误，尝试添加MIME类型提示
+          if (urlError.message && urlError.message.includes('format is not supported')) {
+            console.error('[Voice] 音频格式不支持，URL:', url);
+            throw new Error(`音频格式不支持: ${url}`);
+          }
+          throw urlError;
+        }
       } else {
         console.error('[Voice] 没有可播放的音频数据');
         return;
@@ -1059,6 +1342,31 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                       messageUserName: message.user.name
                     });
                     
+                    // 强制检查每条消息是否为语音消息
+                    const isVoiceMessage = message.type === 'audio' || message.audioUrl || message.audioData || message.file_url?.includes('voice') || message.file_url?.includes('chat-voice');
+                    
+                    if (isVoiceMessage) {
+                      console.log('[Voice] 发现语音消息渲染:', {
+                        messageId: message.id,
+                        messageType: message.type,
+                        hasAudioUrl: !!message.audioUrl,
+                        hasAudioData: !!message.audioData,
+                        hasFileUrl: !!message.file_url,
+                        fileUrl: message.file_url,
+                        duration: message.duration,
+                        fullMessage: message
+                      });
+                    }
+                    
+                    // 额外检查：如果file_url包含chat-voice，强制认为是语音消息
+                    if (message.file_url?.includes('chat-voice')) {
+                      console.log('[Voice] 通过file_url强制识别为语音消息:', {
+                        messageId: message.id,
+                        fileUrl: message.file_url,
+                        willRender: true
+                      });
+                    }
+                    
                     // 调试日志：检查消息数据
                     if (message.audioUrl || message.audioData) {
                       console.log('[Voice] 发现语音消息:', {
@@ -1184,20 +1492,69 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                         imageUrl: message.imageUrl,
                         file_url: message.file_url,
                         content: message.text,
-                        isImage: !!(message.imageUrl || message.type === 'image')
+                        isImage: !!(message.imageUrl || message.type === 'image'),
+                        isAudio: !!(message.audioUrl || message.audioData || message.type === 'audio'),
+                        audioUrl: message.audioUrl,
+                        audioData: message.audioData,
+                        duration: message.duration,
+                        // 检查条件渲染的判断
+                        condition1: !!message.audioUrl,
+                        condition2: !!message.audioData,
+                        condition3: message.type === 'audio',
+                        finalCondition: !!(message.audioUrl || message.audioData || message.type === 'audio'),
+                        // 完整的消息对象（仅对语音消息）
+                        fullMessage: message.type === 'audio' ? message : 'not audio'
                       })}
                     {message.isBottle && (
                       <Text style={styles.bottleLabel}>🌊 漂流瓶</Text>
                     )}
-                    {message.audioUrl || message.audioData ? (
+                    {(() => {
+                      const shouldShowVoice = message.audioUrl || message.audioData || message.type === 'audio' || message.type === 'voice' || message.file_url?.includes('voice') || message.file_url?.includes('chat-voice') || message.file_url?.includes('/chats/voice/') || message.uuid?.startsWith('voice_');
+                      if (shouldShowVoice) {
+                        console.log('[Voice] 准备渲染语音消息:', {
+                          messageId: message.id,
+                          audioUrl: message.audioUrl,
+                          audioData: !!message.audioData,
+                          type: message.type,
+                          fileUrl: message.file_url,
+                          shouldRender: true
+                        });
+                      }
+                      return shouldShowVoice;
+                    })() ? (
                     <TouchableOpacity onPress={() => {
+                      // 获取音频URL - 确保所有可能的URL都尝试
+                      let audioUrl = message.audioUrl || message.file_url || null;
+                      
+                      // 如果是语音消息但没有URL，尝试其他字段
+                      if (!audioUrl && message.type === 'audio') {
+                        console.warn('[Voice] 语音消息没有找到URL，检查所有可能的字段:', {
+                          messageAudioUrl: message.audioUrl,
+                          messageFileUrl: message.file_url,
+                          fullMessage: message
+                        });
+                      }
+                      
+                      const processedAudioUrl = getAudioUrl(audioUrl);
+                      
                       console.log('[Voice] 点击播放按钮，音频数据:', {
                         hasAudioUrl: !!message.audioUrl,
                         hasAudioData: !!message.audioData,
                         audioDataLength: message.audioData ? message.audioData.length : 0,
-                        audioUrl: message.audioUrl
+                        messageAudioUrl: message.audioUrl,
+                        messageFileUrl: message.file_url,
+                        type: message.type,
+                        finalAudioUrl: audioUrl,
+                        processedAudioUrl: processedAudioUrl,
+                        willPlay: !!processedAudioUrl
                       });
-                      playAudio(message.audioUrl, message.audioData, message.id);
+                      
+                      if (processedAudioUrl) {
+                        playAudio(processedAudioUrl, message.audioData, message.id);
+                      } else {
+                        console.error('[Voice] 没有可用的音频URL进行播放');
+                        Alert.alert('错误', '音频文件不可用');
+                      }
                     }}>
                       <View style={styles.voiceMessageContainer}>
                         <View style={styles.voiceMessageContent}>
@@ -1328,11 +1685,28 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                 onError={(error) => {
                   console.error('[Image] 预览图片加载失败:', {
                     error: error,
+                    errorMessage: error?.message || '未知错误',
+                    errorCode: error?.code || '无错误代码',
                     previewImageUrl: previewImageUrl,
-                    imageSource: { uri: previewImageUrl }
+                    imageSource: { uri: previewImageUrl },
+                    urlType: typeof previewImageUrl,
+                    urlLength: previewImageUrl?.length || 0
                   });
-                  // 关闭预览
-                  closeImagePreview();
+                  
+                  // 尝试显示错误信息给用户
+                  Alert.alert(
+                    '图片加载失败', 
+                    `无法加载图片：${previewImageUrl}\n错误：${error?.message || '网络或文件问题'}`,
+                    [
+                      { text: '重试', onPress: () => {
+                        // 重新尝试加载图片
+                        if (previewImageUrl) {
+                          console.log('[Image] 用户选择重试加载图片');
+                        }
+                      }},
+                      { text: '关闭', onPress: closeImagePreview }
+                    ]
+                  );
                 }}
               />
               {/* 阅后即焚倒计时提示 */}

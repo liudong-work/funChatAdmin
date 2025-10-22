@@ -24,6 +24,8 @@ export default function ProfileScreen({ onLogout, navigation }) {
     is_checked_in_today: false,
   });
 
+  const [momentCount, setMomentCount] = useState(0);
+
   // 加载用户信息
   useEffect(() => {
     loadUserInfo();
@@ -42,19 +44,32 @@ export default function ProfileScreen({ onLogout, navigation }) {
     return unsubscribe;
   }, [navigation]);
 
+  // 当用户uuid加载完成后，加载动态数量
+  useEffect(() => {
+    if (userInfo.uuid) {
+      loadMomentCount();
+    }
+  }, [userInfo.uuid]);
+
   const loadUserInfo = async () => {
     try {
       const userInfoStr = await AsyncStorage.getItem('userInfo');
       if (userInfoStr) {
         const user = JSON.parse(userInfoStr);
-        setUserInfo({
+        const userData = {
           name: user.nickname || user.username || '我的昵称',
           avatar: user.avatar || '👤',
           phone: user.phone ? `${user.phone.slice(0, 3)}****${user.phone.slice(-4)}` : '138****8888',
           email: user.email || 'user@example.com',
           joinDate: '2024-01-01',
           uuid: user.uuid || '',
-        });
+        };
+        setUserInfo(userData);
+        
+        // 如果用户uuid存在，立即加载动态数量
+        if (userData.uuid) {
+          loadMomentCount(userData.uuid);
+        }
       }
     } catch (error) {
       console.error('加载用户信息失败:', error);
@@ -95,6 +110,22 @@ export default function ProfileScreen({ onLogout, navigation }) {
       }
     } catch (error) {
       console.error('加载关注统计失败:', error);
+    }
+  };
+
+  // 加载用户动态数量
+  const loadMomentCount = async (userUuid = null) => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      const uuid = userUuid || userInfo.uuid;
+      if (!token || !uuid) return;
+
+      const response = await userApi.getUserMoments(uuid, { page: 1, pageSize: 1 }, token);
+      if (response && response.status && response.data) {
+        setMomentCount(response.data.total || 0);
+      }
+    } catch (error) {
+      console.error('加载动态数量失败:', error);
     }
   };
 
@@ -227,7 +258,7 @@ export default function ProfileScreen({ onLogout, navigation }) {
             <Text style={styles.statLabel}>粉丝</Text>
           </TouchableOpacity>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>0</Text>
+            <Text style={styles.statNumber}>{momentCount}</Text>
             <Text style={styles.statLabel}>动态</Text>
           </View>
         </View>

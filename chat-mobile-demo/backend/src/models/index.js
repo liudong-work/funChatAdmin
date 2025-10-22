@@ -9,10 +9,12 @@ import Bottle from './Bottle.js';
 import UserPointsModel from './UserPoints.js';
 import CheckinRecordModel from './CheckinRecord.js';
 import Order from './Order.js';
+import MembershipPlanModel from './MembershipPlan.js';
 
 // 初始化积分相关模型
 const UserPoints = UserPointsModel(sequelize);
 const CheckinRecord = CheckinRecordModel(sequelize);
+const MembershipPlan = MembershipPlanModel(sequelize);
 
 // ========== 定义模型关联 ==========
 
@@ -176,7 +178,8 @@ export {
   Bottle,
   UserPoints,
   CheckinRecord,
-  Order
+  Order,
+  MembershipPlan
 };
 
 export default {
@@ -191,5 +194,6 @@ export default {
   UserPoints,
   CheckinRecord,
   Order,
+  MembershipPlan,
   syncDatabase
 };

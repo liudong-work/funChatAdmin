@@ -50,6 +50,12 @@ const API_CONFIG = {
       SEND_NOTIFICATION: '/api/push/send',
     },
     
+    // 会员套餐相关
+    MEMBERSHIP: {
+      GET_PLANS: '/api/membership-plans',
+      GET_PUBLIC_PLANS: '/api/membership-plans/public',
+    },
+    
     // WebSocket
     WEBSOCKET: 'ws://192.168.1.6:8889',
   },

@@ -402,13 +402,13 @@ const HomeScreen = ({ navigation }) => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#1e3a8a" />
       
-      {/* 背景渐变 */}
+      {/* 背景图片 */}
       <View style={styles.background}>
-        {/* 天空渐变 */}
-        <View style={styles.skyGradient} />
-        
-        {/* 海洋渐变 */}
-        <View style={styles.oceanGradient} />
+        <Image 
+          source={require('./assets/home_bg.png')} 
+          style={styles.backgroundImage}
+          resizeMode="cover"
+        />
         
         {/* 波浪层 */}
         <View style={styles.waveContainer}>
@@ -665,21 +665,14 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  skyGradient: {
+  backgroundImage: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: height * 0.6,
-    backgroundColor: '#1e40af',
-  },
-  oceanGradient: {
-    position: 'absolute',
-    top: height * 0.4,
-    left: 0,
-    right: 0,
     bottom: 0,
-    backgroundColor: '#1e3a8a',
+    width: '100%',
+    height: '100%',
   },
   waveContainer: {
     position: 'absolute',
@@ -687,6 +680,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    opacity: 0.3, // 降低透明度，让背景图片更清晰
   },
   waveLayer: {
     position: 'absolute',

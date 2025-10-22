@@ -7,18 +7,23 @@ import {
   TouchableOpacity, 
   Alert,
   Dimensions,
-  ImageBackground
+  ImageBackground,
+  ActivityIndicator
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { membershipApi } from './services/apiService.js';
 
 const { width } = Dimensions.get('window');
 
 export default function MemberCenterScreen({ navigation }) {
   const [userInfo, setUserInfo] = useState({});
   const [selectedPlan, setSelectedPlan] = useState('quarterly'); // 默认选择推荐套餐
+  const [membershipPlans, setMembershipPlans] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadUserInfo();
+    loadMembershipPlans();
   }, []);
 
   const loadUserInfo = async () => {
@@ -33,8 +38,44 @@ export default function MemberCenterScreen({ navigation }) {
     }
   };
 
-  // 会员套餐配置
-  const membershipPlans = [
+  const loadMembershipPlans = async () => {
+    try {
+      setLoading(true);
+      const response = await membershipApi.getPublicPlans();
+      
+      if (response && response.status && response.data) {
+        // 转换API数据格式以适应前端显示
+        const apiPlans = response.data.map(plan => ({
+          id: plan.type,
+          title: plan.name,
+          price: `¥${plan.price}`,
+          originalPrice: plan.originalPrice ? `¥${plan.originalPrice}` : null,
+          duration: plan.durationText,
+          features: Array.isArray(plan.features) ? plan.features : [],
+          popular: plan.isPopular,
+          type: plan.type,
+          rawData: plan
+        }));
+        
+        setMembershipPlans(apiPlans);
+        
+        // 如果有推荐套餐，设置为默认选择
+        const popularPlan = apiPlans.find(plan => plan.popular);
+        if (popularPlan) {
+          setSelectedPlan(popularPlan.id);
+        }
+      }
+    } catch (error) {
+      console.error('加载会员套餐失败:', error);
+      // 如果API失败，使用默认数据作为备选
+      setMembershipPlans(getDefaultPlans());
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 默认会员套餐配置（作为API失败时的备选）
+  const getDefaultPlans = () => [
     {
       id: 'monthly',
       title: '月度会员',
@@ -227,6 +268,30 @@ export default function MemberCenterScreen({ navigation }) {
       </View>
     );
   };
+
+  // 如果正在加载，显示loading状态
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.loadingContainer]}>
+        <View style={styles.headerBackground}>
+          <View style={styles.header}>
+            <TouchableOpacity 
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <Text style={styles.backButtonText}>‹ 返回</Text>
+            </TouchableOpacity>
+            <Text style={styles.headerTitle}>👑 会员中心</Text>
+            <View style={styles.placeholder} />
+          </View>
+        </View>
+        <View style={styles.loadingContent}>
+          <ActivityIndicator size="large" color="#FFD700" />
+          <Text style={styles.loadingText}>加载会员套餐中...</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -652,5 +717,22 @@ const styles = StyleSheet.create({
   },
   popularPurchaseButtonText: {
     color: '#333',
+  },
+  // Loading 样式
+  loadingContainer: {
+    flex: 1,
+    backgroundColor: '#f5f5f5',
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  loadingText: {
+    marginTop: 20,
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 });

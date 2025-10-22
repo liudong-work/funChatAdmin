@@ -238,6 +238,15 @@ export const userApi = {
           return apiService.authenticatedGet(`/api/moment/list?${queryString}`, token);
         },
 
+        // 获取用户动态列表
+        getUserMoments: (user_uuid, params = {}, token) => {
+          const queryString = new URLSearchParams({
+            page: params.page || 1,
+            pageSize: params.pageSize || 10
+          }).toString();
+          return apiService.authenticatedGet(`/api/moment/user/${user_uuid}?${queryString}`, token);
+        },
+
         // 点赞/取消点赞动态
         likeMoment: (uuid, token) => 
           apiService.authenticatedPost(`/api/moment/${uuid}/like`, {}, token),
@@ -344,6 +353,17 @@ export const pointsApi = {
   // 获取签到历史
   getCheckinHistory: (page, limit, token) =>
     apiService.authenticatedGet(`${API_CONFIG.ENDPOINTS.POINTS.CHECKIN_HISTORY}?page=${page}&limit=${limit}`, token),
+};
+
+// 会员套餐相关API
+export const membershipApi = {
+  // 获取会员套餐列表（公开接口）
+  getPlans: () => 
+    apiService.get(API_CONFIG.ENDPOINTS.MEMBERSHIP.GET_PLANS),
+  
+  // 获取公开的会员套餐列表
+  getPublicPlans: () => 
+    apiService.get(API_CONFIG.ENDPOINTS.MEMBERSHIP.GET_PUBLIC_PLANS),
 };
 
 // 消息相关API

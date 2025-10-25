@@ -62,14 +62,12 @@ const CheckinScreen = ({ navigation }) => {
 
       const response = await pointsApi.checkin(token);
       if (response && response.status) {
-        const { points_earned, continuous_days, bonus_message } = response.data;
+        const { points_earned, week_checkin_count, bonus_message, completion_message } = response.data;
         
-        let message = `签到成功！获得 ${points_earned} 积分`;
-        if (continuous_days > 1) {
-          message += `\n已连续签到 ${continuous_days} 天`;
-        }
+        let message = `签到成功！获得 ${points_earned} 积分\n`;
+        message += completion_message || `本周已打卡 ${week_checkin_count}/7 天`;
         if (bonus_message) {
-          message += `\n${bonus_message}`;
+          message += `\n\n${bonus_message}`;
         }
 
         Alert.alert('签到成功', message, [
@@ -89,61 +87,51 @@ const CheckinScreen = ({ navigation }) => {
     }
   };
 
-  // 渲染本周签到日历（任务中心风格）
+  // 渲染本周签到日历（周一到周日）
   const renderWeekCalendar = () => {
-    // 生成本周的日期
-    const generateWeekDates = () => {
-      const today = new Date();
-      const dates = [];
-      
-      for (let i = 0; i < 7; i++) {
-        const date = new Date(today);
-        date.setDate(today.getDate() + i);
-        
-        if (i === 0) {
-          dates.push('今天');
-        } else if (i === 1) {
-          dates.push('明天');
-        } else {
-          const month = date.getMonth() + 1;
-          const day = date.getDate();
-          dates.push(`${month}/${day}`);
-        }
-      }
-      
-      return dates;
-    };
-
-    const days = generateWeekDates();
-    const rewards = ['✓', '+10', '+10', '+10', '+10', '+10', '+10']; // 简化奖励显示
-    const today = 0; // 今天是第一个
-    const todayCheckedIn = pointsInfo?.is_checked_in_today;
+    const weekDays = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
+    const rewards = ['+10', '+10', '+20', '+10', '+30', '+10', '+60']; // 不同天数的奖励
+    const today = new Date().toISOString().split('T')[0];
+    
+    // 使用后端返回的本周打卡数据
+    const weekCheckins = pointsInfo?.week_checkins || [];
 
     return (
       <View style={styles.calendarContainer}>
         <View style={styles.weekDays}>
-          {days.map((day, index) => {
-            const isToday = index === today;
-            const isChecked = isToday && todayCheckedIn;
+          {weekDays.map((dayName, index) => {
+            const dayData = weekCheckins[index] || {};
+            const isChecked = dayData.isCheckedIn;
+            const isToday = dayData.date === today;
+            const isPast = dayData.date && new Date(dayData.date) < new Date(today);
             
             return (
               <View key={index} style={styles.dayItem}>
                 <View style={[
                   styles.dayCircle,
                   isChecked && styles.checkedCircle,
-                  isToday && !isChecked && styles.todayCircle
+                  isToday && !isChecked && styles.todayCircle,
+                  isPast && !isChecked && styles.missedCircle
                 ]}>
                   {isChecked ? (
                     <Text style={styles.checkMark}>✓</Text>
+                  ) : isPast ? (
+                    <Text style={styles.missedIcon}>✕</Text>
+                  ) : isToday ? (
+                    <Text style={styles.rewardIcon}>📅</Text>
                   ) : (
-                    <Text style={styles.rewardIcon}>
-                      {index === 0 ? '🎯' : '💰'}
-                    </Text>
+                    <Text style={styles.futureIcon}>⭕</Text>
                   )}
                 </View>
-                <Text style={styles.dayText}>{day}</Text>
+                <Text style={[
+                  styles.dayText,
+                  isToday && styles.todayText
+                ]}>{dayName}</Text>
                 <Text style={styles.rewardText}>
-                  {isChecked ? '已签到' : rewards[index]}
+                  {isChecked ? `+${dayData.pointsEarned || 10}` : 
+                   isPast ? '未打卡' :
+                   isToday ? '今天' : 
+                   rewards[index]}
                 </Text>
               </View>
             );
@@ -188,7 +176,9 @@ const CheckinScreen = ({ navigation }) => {
         {/* 签到卡片 */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>签到 (1/7)</Text>
+            <Text style={styles.cardTitle}>
+              本周打卡 ({pointsInfo?.week_checkin_count || 0}/7)
+            </Text>
             <View style={styles.cardActions}>
               <TouchableOpacity 
                 style={styles.actionButton}
@@ -209,7 +199,7 @@ const CheckinScreen = ({ navigation }) => {
                   <ActivityIndicator size="small" color="#fff" />
                 ) : (
                   <Text style={styles.checkinButtonText}>
-                    {pointsInfo?.is_checked_in_today ? '已签到' : '立即签到'}
+                    {pointsInfo?.is_checked_in_today ? '已打卡' : '立即打卡'}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -217,7 +207,9 @@ const CheckinScreen = ({ navigation }) => {
           </View>
           
           <Text style={styles.streakText}>
-            已经连续签到{pointsInfo?.continuous_days || 0}天
+            {pointsInfo?.week_checkin_count === 7 
+              ? '🎉 本周打卡已完成！下周一开始新周期' 
+              : `本周还需打卡 ${7 - (pointsInfo?.week_checkin_count || 0)} 天`}
           </Text>
 
           {/* 签到日历 */}
@@ -432,22 +424,39 @@ const styles = StyleSheet.create({
     backgroundColor: '#eff6ff',
   },
   checkedCircle: {
-    backgroundColor: '#3b82f6',
-    borderColor: '#3b82f6',
+    backgroundColor: '#10b981',
+    borderColor: '#10b981',
+  },
+  missedCircle: {
+    backgroundColor: '#fee2e2',
+    borderColor: '#ef4444',
   },
   checkMark: {
     fontSize: 18,
     color: '#fff',
     fontWeight: 'bold',
   },
+  missedIcon: {
+    fontSize: 16,
+    color: '#ef4444',
+    fontWeight: 'bold',
+  },
   rewardIcon: {
     fontSize: 16,
+  },
+  futureIcon: {
+    fontSize: 14,
+    color: '#cbd5e1',
   },
   dayText: {
     fontSize: 12,
     color: '#333',
     marginBottom: 4,
     textAlign: 'center',
+  },
+  todayText: {
+    fontWeight: '600',
+    color: '#3b82f6',
   },
   rewardText: {
     fontSize: 10,

@@ -24,6 +24,10 @@ import EditProfileScreen from './EditProfileScreen';
 import CheckinScreen from './CheckinScreen';
 import PaymentScreen from './PaymentScreen';
 import MemberCenterScreen from './MemberCenterScreen';
+import PrivacySettingsScreen from './PrivacySettingsScreen';
+import AccountSecurityScreen from './AccountSecurityScreen';
+import AccountDeletionScreen from './AccountDeletionScreen';
+import FeedbackScreen from './FeedbackScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -204,6 +208,38 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         }}
       >
         {(props) => <MemberCenterScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="PrivacySettings" 
+        options={{
+          headerShown: false, // 使用自定义header
+        }}
+      >
+        {(props) => <PrivacySettingsScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="AccountSecurity" 
+        options={{
+          headerShown: false, // 使用自定义header
+        }}
+      >
+        {(props) => <AccountSecurityScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="AccountDeletion" 
+        options={{
+          headerShown: false, // 使用自定义header
+        }}
+      >
+        {(props) => <AccountDeletionScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="Feedback" 
+        options={{
+          headerShown: false, // 使用自定义header
+        }}
+      >
+        {(props) => <FeedbackScreen {...props} />}
       </Stack.Screen>
     </Stack.Navigator>
   );

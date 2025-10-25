@@ -333,19 +333,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#F0F2F5',
   },
   header: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E3F2FD', // 淡蓝色背景
     paddingVertical: 15,
     paddingHorizontal: 20,
     paddingTop: 60,
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#2196F3',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 4,
     elevation: 3,
   },
   headerTitle: {
-    color: 'white',
+    color: '#1976D2', // 深蓝色文字
     fontSize: 22,
     fontWeight: 'bold',
   },

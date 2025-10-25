@@ -20,7 +20,7 @@ import {
 } from 'react-native';
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Rect } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { bottleApi } from './services/apiService';
+import { bottleApi, bottleConfigApi } from './services/apiService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -33,10 +33,175 @@ const HomeScreen = ({ navigation }) => {
   const [availableBottle, setAvailableBottle] = useState(null);
   const [availableBottles, setAvailableBottles] = useState([]); // 存储多个瓶子
   
+  // 捞瓶子次数限制相关状态
+  const [freeFishCount, setFreeFishCount] = useState(3); // 免费捞瓶子次数
+  const [usedFishCount, setUsedFishCount] = useState(0); // 已使用的捞瓶子次数
+  const [fishCountLoaded, setFishCountLoaded] = useState(false); // 是否已加载次数配置
+  
+  // 扔瓶子次数限制相关状态
+  const [freeThrowCount, setFreeThrowCount] = useState(5); // 免费扔瓶子次数
+  const [usedThrowCount, setUsedThrowCount] = useState(0); // 已使用的扔瓶子次数
+  const [throwCountLoaded, setThrowCountLoaded] = useState(false); // 是否已加载扔瓶子次数配置
+  
+  // 用户性别
+  const [userGender, setUserGender] = useState(null); // 用户性别
+  
   // 动画值
   const bottleFloat = useRef(new Animated.Value(0)).current;
   const bottleMove = useRef(new Animated.Value(0)).current;
   const bottleRotate = useRef(new Animated.Value(0)).current;
+
+  // 组件挂载时加载配置
+  useEffect(() => {
+    loadUserGender();
+    loadFishCountConfig();
+    loadThrowCountConfig();
+    loadUsedFishCount();
+    loadUsedThrowCount();
+  }, []);
+
+  // 加载用户性别
+  const loadUserGender = async () => {
+    try {
+      const userInfoStr = await AsyncStorage.getItem('userInfo');
+      if (userInfoStr) {
+        const user = JSON.parse(userInfoStr);
+        setUserGender(user.gender || null);
+        console.log('[Gender] 用户性别:', user.gender || '未设置');
+      }
+    } catch (error) {
+      console.error('[Gender] 加载用户性别失败:', error);
+    }
+  };
+
+  // 加载捞瓶子次数配置
+  const loadFishCountConfig = async () => {
+    try {
+      console.log('[FishCount] 开始加载捞瓶子次数配置...');
+      console.log('[FishCount] bottleConfigApi:', bottleConfigApi);
+      
+      if (!bottleConfigApi) {
+        console.error('[FishCount] bottleConfigApi 未定义');
+        setFreeFishCount(3);
+        setFishCountLoaded(true);
+        return;
+      }
+      
+      const response = await bottleConfigApi.getFreeFishCount(userGender);
+      
+      if (response && response.status) {
+        const count = response.data?.free_fish_count || 3;
+        setFreeFishCount(count);
+        console.log('[FishCount] 免费捞瓶子次数配置加载成功:', count, '性别:', response.data?.gender);
+      } else {
+        console.warn('[FishCount] 配置加载失败，使用默认值:', response?.message);
+        setFreeFishCount(3); // 使用默认值
+      }
+    } catch (error) {
+      console.error('[FishCount] 配置加载异常:', error);
+      setFreeFishCount(3); // 使用默认值
+    } finally {
+      setFishCountLoaded(true);
+    }
+  };
+
+  // 加载扔瓶子次数配置
+  const loadThrowCountConfig = async () => {
+    try {
+      console.log('[ThrowCount] 开始加载扔瓶子次数配置...');
+      
+      if (!bottleConfigApi) {
+        console.error('[ThrowCount] bottleConfigApi 未定义');
+        setFreeThrowCount(5);
+        setThrowCountLoaded(true);
+        return;
+      }
+      
+      const response = await bottleConfigApi.getFreeThrowCount(userGender);
+      
+      if (response && response.status) {
+        const count = response.data?.free_throw_count || 5;
+        setFreeThrowCount(count);
+        console.log('[ThrowCount] 免费扔瓶子次数配置加载成功:', count, '性别:', response.data?.gender);
+      } else {
+        console.warn('[ThrowCount] 配置加载失败，使用默认值:', response?.message);
+        setFreeThrowCount(5); // 使用默认值
+      }
+    } catch (error) {
+      console.error('[ThrowCount] 配置加载异常:', error);
+      setFreeThrowCount(5); // 使用默认值
+    } finally {
+      setThrowCountLoaded(true);
+    }
+  };
+
+  // 加载已使用的捞瓶子次数
+  const loadUsedFishCount = async () => {
+    try {
+      const today = new Date().toDateString();
+      const stored = await AsyncStorage.getItem('usedFishCount');
+      const data = stored ? JSON.parse(stored) : {};
+      
+      if (data.date === today) {
+        setUsedFishCount(data.count || 0);
+        console.log('[FishCount] 今日已使用捞瓶子次数:', data.count || 0);
+      } else {
+        // 新的一天，重置计数
+        setUsedFishCount(0);
+        await AsyncStorage.setItem('usedFishCount', JSON.stringify({ date: today, count: 0 }));
+        console.log('[FishCount] 新的一天，重置捞瓶子次数');
+      }
+    } catch (error) {
+      console.error('[FishCount] 加载已使用次数失败:', error);
+      setUsedFishCount(0);
+    }
+  };
+
+  // 保存已使用的捞瓶子次数
+  const saveUsedFishCount = async (count) => {
+    try {
+      const today = new Date().toDateString();
+      await AsyncStorage.setItem('usedFishCount', JSON.stringify({ date: today, count }));
+      setUsedFishCount(count);
+      console.log('[FishCount] 保存已使用捞瓶子次数:', count);
+    } catch (error) {
+      console.error('[FishCount] 保存已使用次数失败:', error);
+    }
+  };
+
+  // 加载已使用的扔瓶子次数
+  const loadUsedThrowCount = async () => {
+    try {
+      const today = new Date().toDateString();
+      const stored = await AsyncStorage.getItem('usedThrowCount');
+      const data = stored ? JSON.parse(stored) : {};
+      
+      if (data.date === today) {
+        setUsedThrowCount(data.count || 0);
+        console.log('[ThrowCount] 今日已使用扔瓶子次数:', data.count || 0);
+      } else {
+        // 新的一天，重置计数
+        setUsedThrowCount(0);
+        await AsyncStorage.setItem('usedThrowCount', JSON.stringify({ date: today, count: 0 }));
+        console.log('[ThrowCount] 新的一天，重置扔瓶子次数');
+      }
+    } catch (error) {
+      console.error('[ThrowCount] 加载已使用次数失败:', error);
+      setUsedThrowCount(0);
+    }
+  };
+
+  // 保存已使用的扔瓶子次数
+  const saveUsedThrowCount = async (count) => {
+    try {
+      const today = new Date().toDateString();
+      await AsyncStorage.setItem('usedThrowCount', JSON.stringify({ date: today, count }));
+      setUsedThrowCount(count);
+      console.log('[ThrowCount] 保存已使用扔瓶子次数:', count);
+    } catch (error) {
+      console.error('[ThrowCount] 保存已使用次数失败:', error);
+    }
+  };
 
   // 检查是否有可捞的瓶子
   const checkAvailableBottles = async () => {
@@ -264,10 +429,16 @@ const HomeScreen = ({ navigation }) => {
         return;
       }
 
+      console.log('[ThrowCount] 开始扔瓶子，当前已使用次数:', usedThrowCount, '总次数:', freeThrowCount);
+
       // 调用扔瓶子API
       const response = await bottleApi.throwBottle(bottleMessage.trim(), '', token);
       
       if (response && response.status) {
+        // 成功扔瓶子，增加使用次数
+        const newUsedCount = usedThrowCount + 1;
+        await saveUsedThrowCount(newUsedCount);
+        
         Alert.alert('成功', '瓶子已扔入大海！', [
           {
             text: '确定',
@@ -280,6 +451,8 @@ const HomeScreen = ({ navigation }) => {
             }
           }
         ]);
+        
+        console.log('[ThrowCount] 扔瓶子成功，更新使用次数:', newUsedCount);
       } else {
         Alert.alert('失败', response?.message || '扔瓶子失败，请重试');
         setIsThrowing(false);
@@ -305,11 +478,17 @@ const HomeScreen = ({ navigation }) => {
         return;
       }
 
+      console.log('[FishCount] 开始捞瓶子，当前已使用次数:', usedFishCount, '总次数:', freeFishCount);
+
       // 调用捡瓶子API
       const response = await bottleApi.fishBottle(token);
       
       if (response && response.status) {
         if (response.data) {
+          // 成功捡到瓶子，增加使用次数
+          const newUsedCount = usedFishCount + 1;
+          await saveUsedFishCount(newUsedCount);
+          
           // 成功捡到瓶子
           const bottleData = response.data;
           setFoundBottle({
@@ -320,6 +499,8 @@ const HomeScreen = ({ navigation }) => {
             mood: bottleData.mood,
             bottleUuid: bottleData.uuid
           });
+          
+          console.log('[FishCount] 捞瓶子成功，更新使用次数:', newUsedCount);
         } else {
           Alert.alert('提示', response.message || '当前海里没有可捞的瓶子');
         }
@@ -477,23 +658,71 @@ const HomeScreen = ({ navigation }) => {
           {/* 右侧操作按钮 */}
           <View style={styles.actionContainer}>
             <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => setIsModalVisible(true)}
+              style={[
+                styles.actionButton,
+                (usedThrowCount >= freeThrowCount) && styles.disabledButton
+              ]}
+              onPress={() => {
+                if (usedThrowCount >= freeThrowCount) {
+                  Alert.alert(
+                    '扔瓶子次数已用完',
+                    `今日免费次数已用完（${usedThrowCount}/${freeThrowCount}）\n\n开通会员可获得更多次数！`,
+                    [
+                      { text: '明天再来', style: 'cancel' },
+                      { 
+                        text: '开通会员', 
+                        onPress: () => navigation.navigate('MemberCenter')
+                      }
+                    ]
+                  );
+                } else {
+                  setIsModalVisible(true);
+                }
+              }}
               disabled={isThrowing}
             >
               <Text style={styles.buttonText}>
                 {isThrowing ? '扔中...' : '扔一个'}
               </Text>
+              {throwCountLoaded && (
+                <Text style={styles.countText}>
+                  {usedThrowCount}/{freeThrowCount}
+                </Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={handlePickBottle}
+              style={[
+                styles.actionButton,
+                (usedFishCount >= freeFishCount) && styles.disabledButton
+              ]}
+              onPress={() => {
+                if (usedFishCount >= freeFishCount) {
+                  Alert.alert(
+                    '捡瓶子次数已用完',
+                    `今日免费次数已用完（${usedFishCount}/${freeFishCount}）\n\n开通会员可获得更多次数！`,
+                    [
+                      { text: '明天再来', style: 'cancel' },
+                      { 
+                        text: '开通会员', 
+                        onPress: () => navigation.navigate('MemberCenter')
+                      }
+                    ]
+                  );
+                } else {
+                  handlePickBottle();
+                }
+              }}
               disabled={isPicking}
             >
               <Text style={styles.buttonText}>
                 {isPicking ? '捡中...' : '捡一个'}
               </Text>
+              {fishCountLoaded && (
+                <Text style={styles.countText}>
+                  {usedFishCount}/{freeFishCount}
+                </Text>
+              )}
             </TouchableOpacity>
           </View>
         </View>
@@ -766,6 +995,17 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     fontWeight: '600',
+    textAlign: 'center',
+  },
+  disabledButton: {
+    backgroundColor: 'rgba(255,255,255,0.1)',
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  countText: {
+    color: 'rgba(255,255,255,0.8)',
+    fontSize: 12,
+    marginTop: 4,
+    fontWeight: '500',
     textAlign: 'center',
   },
   modalOverlay: {

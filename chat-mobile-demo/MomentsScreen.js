@@ -353,21 +353,21 @@ const styles = StyleSheet.create({
     backgroundColor: '#F5F5F5',
   },
   header: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E3F2FD', // 淡蓝色背景
     paddingVertical: 15,
     paddingTop: 45,
     paddingHorizontal: 20,
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    shadowColor: '#000',
+    shadowColor: '#2196F3',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
+    shadowOpacity: 0.15,
     shadowRadius: 3,
     elevation: 5,
   },
   headerTitle: {
-    color: 'white',
+    color: '#1976D2', // 深蓝色文字
     fontSize: 20,
     fontWeight: 'bold',
   },

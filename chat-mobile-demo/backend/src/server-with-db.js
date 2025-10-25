@@ -2849,6 +2849,22 @@ app.get('/health', (req, res) => {
 
 // ========== 积分和签到相关API ==========
 
+// 获取本周的开始日期（周一）
+function getWeekStart(date = new Date()) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // 调整到周一
+  return new Date(d.setDate(diff));
+}
+
+// 获取本周的结束日期（周日）
+function getWeekEnd(date = new Date()) {
+  const weekStart = getWeekStart(date);
+  const weekEnd = new Date(weekStart);
+  weekEnd.setDate(weekStart.getDate() + 6);
+  return weekEnd;
+}
+
 // 获取用户积分信息
 app.get('/api/points/info', authenticateToken, async (req, res) => {
   try {
@@ -2866,14 +2882,41 @@ app.get('/api/points/info', authenticateToken, async (req, res) => {
       });
     }
     
-    // 检查今天是否已签到
-    const today = new Date().toISOString().split('T')[0];
-    const todayCheckin = await CheckinRecord.findOne({
+    // 获取本周的打卡记录
+    const weekStart = getWeekStart();
+    const weekEnd = getWeekEnd();
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
+    
+    const weekCheckins = await CheckinRecord.findAll({
       where: {
         user_id: userId,
-        checkin_date: today
-      }
+        checkin_date: {
+          [Op.between]: [weekStartStr, weekEndStr]
+        }
+      },
+      order: [['checkin_date', 'ASC']]
     });
+    
+    // 检查今天是否已签到
+    const today = new Date().toISOString().split('T')[0];
+    const todayCheckin = weekCheckins.find(c => c.checkin_date === today);
+    
+    // 生成本周7天的签到状态
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(weekStart);
+      date.setDate(weekStart.getDate() + i);
+      const dateStr = date.toISOString().split('T')[0];
+      const checkin = weekCheckins.find(c => c.checkin_date === dateStr);
+      
+      weekDays.push({
+        date: dateStr,
+        dayOfWeek: i + 1, // 1=周一, 7=周日
+        isCheckedIn: !!checkin,
+        pointsEarned: checkin ? checkin.points_earned : 0
+      });
+    }
     
     return res.status(200).json({
       status: true,
@@ -2882,7 +2925,11 @@ app.get('/api/points/info', authenticateToken, async (req, res) => {
         total_points: userPoints.total_points,
         continuous_days: userPoints.continuous_days,
         last_checkin_date: userPoints.last_checkin_date,
-        is_checked_in_today: !!todayCheckin
+        is_checked_in_today: !!todayCheckin,
+        week_checkins: weekDays,
+        week_checkin_count: weekCheckins.length,
+        week_start: weekStartStr,
+        week_end: weekEndStr
       }
     });
   } catch (error) {
@@ -2891,7 +2938,7 @@ app.get('/api/points/info', authenticateToken, async (req, res) => {
   }
 });
 
-// 每日签到
+// 每日签到（周期性打卡：周一到周日）
 app.post('/api/points/checkin', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -2924,30 +2971,46 @@ app.post('/api/points/checkin', authenticateToken, async (req, res) => {
       });
     }
     
-    // 计算连续签到天数
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yesterdayStr = yesterday.toISOString().split('T')[0];
+    // 获取本周的打卡记录
+    const weekStart = getWeekStart();
+    const weekEnd = getWeekEnd();
+    const weekStartStr = weekStart.toISOString().split('T')[0];
+    const weekEndStr = weekEnd.toISOString().split('T')[0];
     
-    let continuousDays = 1;
-    if (userPoints.last_checkin_date === yesterdayStr) {
-      // 连续签到
-      continuousDays = userPoints.continuous_days + 1;
-    }
+    const weekCheckins = await CheckinRecord.findAll({
+      where: {
+        user_id: userId,
+        checkin_date: {
+          [Op.between]: [weekStartStr, weekEndStr]
+        }
+      }
+    });
     
-    // 计算签到获得的积分（基础积分5，连续签到额外奖励）
-    let pointsEarned = 5;
-    if (continuousDays >= 7) {
-      pointsEarned += 10; // 连续7天额外10积分
-    } else if (continuousDays >= 3) {
-      pointsEarned += 5; // 连续3天额外5积分
+    // 本周已打卡天数（包括今天）
+    const weekCheckinCount = weekCheckins.length + 1;
+    
+    // 计算签到获得的积分
+    let pointsEarned = 10; // 基础积分10
+    let bonusMessage = '';
+    
+    // 根据本周打卡天数给予奖励
+    if (weekCheckinCount === 7) {
+      // 完成一周打卡，额外奖励
+      pointsEarned += 50; // 完成7天奖励50积分
+      bonusMessage = '🎉 完成本周全部打卡！额外奖励50积分！';
+    } else if (weekCheckinCount === 3) {
+      pointsEarned += 10; // 打卡3天奖励10积分
+      bonusMessage = '加油！打卡3天奖励10积分';
+    } else if (weekCheckinCount === 5) {
+      pointsEarned += 20; // 打卡5天奖励20积分
+      bonusMessage = '坚持！打卡5天奖励20积分';
     }
     
     // 更新用户积分
     await userPoints.update({
       points: userPoints.points + pointsEarned,
       total_points: userPoints.total_points + pointsEarned,
-      continuous_days: continuousDays,
+      continuous_days: weekCheckinCount,
       last_checkin_date: today
     });
     
@@ -2956,20 +3019,25 @@ app.post('/api/points/checkin', authenticateToken, async (req, res) => {
       user_id: userId,
       checkin_date: today,
       points_earned: pointsEarned,
-      continuous_days: continuousDays
+      continuous_days: weekCheckinCount
     });
     
-    log.info(`[CHECKIN] 用户 ${userId} 签到成功，连续${continuousDays}天，获得${pointsEarned}积分`);
+    log.info(`[CHECKIN] 用户 ${userId} 签到成功，本周第${weekCheckinCount}天，获得${pointsEarned}积分`);
+    
+    // 检查是否完成本周全部打卡，如果是则给额外提示
+    const completionMessage = weekCheckinCount === 7 
+      ? '恭喜完成本周全部打卡！下周一开始新的打卡周期。' 
+      : `本周已打卡 ${weekCheckinCount}/7 天`;
     
     return res.status(200).json({
       status: true,
       message: '签到成功',
       data: {
         points_earned: pointsEarned,
-        continuous_days: continuousDays,
-        total_points: userPoints.points,
-        bonus_message: continuousDays >= 7 ? '连续签到7天，额外奖励10积分！' : 
-                      continuousDays >= 3 ? '连续签到3天，额外奖励5积分！' : null
+        week_checkin_count: weekCheckinCount,
+        total_points: userPoints.points + pointsEarned,
+        bonus_message: bonusMessage,
+        completion_message: completionMessage
       }
     });
   } catch (error) {
@@ -3005,6 +3073,61 @@ app.get('/api/points/checkin-history', authenticateToken, async (req, res) => {
   } catch (error) {
     log.error('获取签到历史失败:', error);
     return res.status(500).json({ status: false, message: '获取签到历史失败' });
+  }
+});
+
+// ========== 账号注销相关API ==========
+
+// 申请注销账号
+app.post('/api/user/delete-account', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userUuid = req.user.uuid;
+    const { reason } = req.body; // 注销原因（可选）
+    
+    log.info(`[账号注销] 收到注销申请:`, {
+      userId,
+      userUuid,
+      reason: reason || '未提供'
+    });
+
+    // 查找用户
+    const user = await User.findByPk(userId);
+    
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        message: '用户不存在'
+      });
+    }
+
+    // 检查用户是否有未完成的事务（可选）
+    // 例如：未完成的订单、进行中的纠纷等
+    
+    // 软删除用户账号（设置删除时间，实际数据保留7天后再物理删除）
+    await user.destroy();
+    
+    log.info(`[账号注销] 用户注销成功:`, {
+      userId,
+      userUuid,
+      nickname: user.nickname,
+      phone: user.phone
+    });
+    
+    return res.status(200).json({
+      status: true,
+      message: '注销申请已提交',
+      data: {
+        message: '您的账号注销申请已提交成功，我们将在7个工作日内处理完成。',
+        process_days: 7
+      }
+    });
+  } catch (error) {
+    log.error('[账号注销] 注销失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '注销申请提交失败'
+    });
   }
 });
 

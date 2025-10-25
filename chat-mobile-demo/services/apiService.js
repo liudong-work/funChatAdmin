@@ -311,6 +311,10 @@ export const userApi = {
   // 获取好友列表
   getFriends: (uuid, token) => 
     apiService.authenticatedGet(API_CONFIG.ENDPOINTS.USER.GET_FRIENDS(uuid), token),
+
+  // 申请注销账号
+  deleteAccount: (reason, token) => 
+    apiService.authenticatedPost('/api/user/delete-account', { reason }, token),
 };
 
 

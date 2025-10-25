@@ -144,15 +144,12 @@ export default function ProfileScreen({ onLogout, navigation }) {
   };
 
   const menuItems = [
-    { id: 0, title: '每日签到', icon: '📅', action: 'checkin' },
-    { id: 1, title: '会员中心', icon: '👑', action: 'member' },
-    { id: 2, title: '个人信息', icon: '👤', action: 'profile' },
-    { id: 3, title: '账号设置', icon: '⚙️', action: 'settings' },
-    { id: 4, title: '主题设置', icon: '🎨', action: 'theme' },
-    { id: 5, title: '隐私设置', icon: '🔒', action: 'privacy' },
-    { id: 6, title: '通知设置', icon: '🔔', action: 'notifications' },
-    { id: 7, title: '帮助中心', icon: '❓', action: 'help' },
-    { id: 8, title: '关于我们', icon: 'ℹ️', action: 'about' },
+    { id: 0, title: '个人信息', icon: '👤', action: 'profile' },
+    { id: 1, title: '隐私设置', icon: '🔒', action: 'privacy' },
+    { id: 2, title: '账号安全', icon: '🛡️', action: 'settings' },
+    { id: 3, title: '通知设置', icon: '🔔', action: 'notifications' },
+    { id: 4, title: '用户反馈', icon: '💬', action: 'feedback' },
+    { id: 5, title: '关于我们', icon: 'ℹ️', action: 'about' },
   ];
 
   const handleMenuPress = (action) => {
@@ -163,32 +160,20 @@ export default function ProfileScreen({ onLogout, navigation }) {
       case 'member':
         navigation.navigate('MemberCenter');
         break;
-      case 'theme':
-        Alert.alert(
-          '主题设置',
-          '选择你喜欢的主题风格：',
-          [
-            { text: '海洋蓝', onPress: () => Alert.alert('提示', '已切换到海洋蓝主题') },
-            { text: '深色模式', onPress: () => Alert.alert('提示', '已切换到深色模式') },
-            { text: '浅色模式', onPress: () => Alert.alert('提示', '已切换到浅色模式') },
-            { text: '取消', style: 'cancel' }
-          ]
-        );
-        break;
       case 'profile':
         Alert.alert('个人信息', '这里可以编辑个人资料、头像等信息');
         break;
       case 'settings':
-        Alert.alert('账号设置', '这里可以修改密码、绑定手机号等');
+        navigation.navigate('AccountSecurity');
         break;
       case 'privacy':
-        Alert.alert('隐私设置', '这里可以设置隐私权限、黑名单等');
+        navigation.navigate('PrivacySettings');
         break;
       case 'notifications':
         Alert.alert('通知设置', '这里可以设置消息通知、推送权限等');
         break;
-      case 'help':
-        Alert.alert('帮助中心', '这里可以查看常见问题、联系客服等');
+      case 'feedback':
+        navigation.navigate('Feedback');
         break;
       case 'about':
         Alert.alert('关于我们', '漂流瓶 v1.0.0\n\n一个连接心灵的海洋聊天应用');
@@ -264,6 +249,45 @@ export default function ProfileScreen({ onLogout, navigation }) {
         </View>
       </View>
 
+      {/* 会员中心卡片 - 醒目设计 */}
+      <TouchableOpacity 
+        style={styles.vipCard}
+        onPress={() => navigation.navigate('MemberCenter')}
+        activeOpacity={0.8}
+      >
+        <View style={styles.vipGradient}>
+          <View style={styles.vipHeader}>
+            <View style={styles.vipTitleRow}>
+              <Text style={styles.vipIcon}>👑</Text>
+              <View>
+                <Text style={styles.vipTitle}>会员中心</Text>
+                <Text style={styles.vipSubtitle}>专属特权等你解锁</Text>
+              </View>
+            </View>
+            <View style={styles.vipBadge}>
+              <Text style={styles.vipBadgeText}>VIP</Text>
+            </View>
+          </View>
+          <View style={styles.vipFeatures}>
+            <View style={styles.vipFeatureItem}>
+              <Text style={styles.vipFeatureIcon}>⚡</Text>
+              <Text style={styles.vipFeatureText}>无限次数</Text>
+            </View>
+            <View style={styles.vipFeatureItem}>
+              <Text style={styles.vipFeatureIcon}>🎁</Text>
+              <Text style={styles.vipFeatureText}>专属礼包</Text>
+            </View>
+            <View style={styles.vipFeatureItem}>
+              <Text style={styles.vipFeatureIcon}>🌟</Text>
+              <Text style={styles.vipFeatureText}>特殊标识</Text>
+            </View>
+          </View>
+          <View style={styles.vipAction}>
+            <Text style={styles.vipActionText}>立即开通 ›</Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+
       {/* 签到卡片 */}
       <TouchableOpacity 
         style={styles.checkinCard}
@@ -329,14 +353,19 @@ const styles = StyleSheet.create({
     backgroundColor: '#f5f5f5',
   },
   header: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#E3F2FD', // 淡蓝色背景
     paddingVertical: 15,
     paddingHorizontal: 20,
     paddingTop: 60,
     alignItems: 'center',
+    shadowColor: '#2196F3',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerTitle: {
-    color: 'white',
+    color: '#1976D2', // 深蓝色文字
     fontSize: 20,
     fontWeight: 'bold',
   },
@@ -547,5 +576,90 @@ const styles = StyleSheet.create({
     color: '#f59e0b',
     marginTop: 4,
     fontWeight: '600',
+  },
+  // 会员中心卡片样式 - 醒目设计
+  vipCard: {
+    marginHorizontal: 15,
+    marginBottom: 15,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  vipGradient: {
+    background: 'linear-gradient(135deg, #FFD700 0%, #FFA500 100%)',
+    backgroundColor: '#FFD700',
+    padding: 20,
+  },
+  vipHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 16,
+  },
+  vipTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  vipIcon: {
+    fontSize: 40,
+    marginRight: 12,
+  },
+  vipTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 4,
+  },
+  vipSubtitle: {
+    fontSize: 13,
+    color: '#666',
+  },
+  vipBadge: {
+    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: '#FF6B00',
+  },
+  vipBadgeText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#FF6B00',
+  },
+  vipFeatures: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderRadius: 12,
+  },
+  vipFeatureItem: {
+    alignItems: 'center',
+  },
+  vipFeatureIcon: {
+    fontSize: 24,
+    marginBottom: 4,
+  },
+  vipFeatureText: {
+    fontSize: 12,
+    color: '#333',
+    fontWeight: '500',
+  },
+  vipAction: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  vipActionText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FF6B00',
   },
 });

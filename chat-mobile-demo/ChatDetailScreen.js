@@ -533,7 +533,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         }
         // 转换后端消息格式为前端需要的格式
           const conversationMessages = response.data.messages.map((msg, index) => {
-          const imageUrl = msg.imageUrl || msg.file_url || null;
+          // 修复：只有图片消息才设置imageUrl
+          const imageUrl = (msg.message_type === 'image' || msg.type === 'image') 
+            ? (msg.imageUrl || msg.file_url) 
+            : null;
           
           // 调试：检查图片消息的URL
           if (msg.message_type === 'image' || msg.type === 'image') {
@@ -564,11 +567,19 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
             });
           }
           
-          // 修复语音消息URL映射逻辑 - 更宽松的判断
+          // 修复语音消息URL映射逻辑 - 更严格和优先的判断
           let audioUrl = null;
           
-          // 先判断是否为语音消息，然后设置audioUrl
-          let isAudioMessage = messageType === 'audio' || messageType === 'voice' || msg.message_type === 'audio' || msg.type === 'voice' || msg.uuid?.startsWith('voice_') || msg.file_url?.includes('voice') || msg.file_url?.includes('/chats/voice/') || !!msg.audioUrl;
+          // 先判断是否为语音消息（使用message_type作为最优先判断）
+          let isAudioMessage = msg.message_type === 'audio' || 
+                              messageType === 'audio' || 
+                              messageType === 'voice' || 
+                              msg.type === 'audio' || 
+                              msg.type === 'voice' || 
+                              msg.uuid?.startsWith('voice_') || 
+                              msg.file_url?.includes('voice') || 
+                              msg.file_url?.includes('/chats/voice/') || 
+                              !!msg.audioUrl;
           
           if (isAudioMessage) {
             audioUrl = msg.audioUrl || msg.file_url || null;
@@ -645,9 +656,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
             imageUrl: imageUrl, // 添加图片URL（支持imageUrl和file_url字段）
             width: msg.width || null, // 添加图片宽度
             height: msg.height || null, // 添加图片高度
-            type: (isAudioMessage || audioUrl || msg.file_url?.includes('chat-voice') || msg.file_url?.includes('/chats/voice/')) ? 'audio' : 
-                   (imageUrl || msg.message_type === 'image' || msg.type === 'image') ? 'image' : 
-                   (messageType || 'text'), // 确保语音消息和图片消息有正确的类型
+            // 关键修复：根据message_type优先判断，确保类型正确
+            type: msg.message_type === 'audio' ? 'audio' : 
+                  msg.message_type === 'image' ? 'image' :
+                  msg.message_type || msg.type || 'text',
             user: {
               id: msg.sender_uuid === currentUserUuid ? currentUserUuid : msg.sender_uuid, // 使用实际的UUID
               name: msg.sender_uuid === currentUserUuid ? '我' : (user.name || '对方'),
@@ -1034,12 +1046,16 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       // 添加到本地消息列表
       setMessages((prev) => ([...prev, {
         id: Date.now(),
-        text: '',
+        uuid: `voice_${Date.now()}_local`,
+        text: '[语音消息]',
+        type: 'audio', // 重要：明确标记为audio类型
+        message_type: 'audio', // 也添加这个字段以保持一致性
         audioData: audioData, // 存储音频数据
         audioUrl: uri, // 本地播放用
+        file_url: uri, // 添加file_url字段
         duration: recordSeconds, // 添加时长信息
         timestamp: new Date(),
-          user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
+        user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
       }]));
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
@@ -1268,6 +1284,49 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     }
   };
 
+  // 删除消息
+  const deleteMessage = async (messageUuid) => {
+    try {
+      console.log('[DELETE] 开始删除消息流程:', messageUuid);
+      
+      const token = await AsyncStorage.getItem('authToken');
+      
+      if (!token) {
+        console.log('[DELETE] 未找到认证token');
+        Alert.alert('提示', '请先登录');
+        return;
+      }
+
+      console.log('[DELETE] 准备删除消息:', messageUuid);
+
+      // 调用后端API删除消息
+      const response = await messageApi.deleteMessage(messageUuid, token);
+      
+      console.log('[DELETE] 后端响应:', response);
+      
+      if (response.status) {
+        // 删除成功，从本地消息列表中移除
+        console.log('[DELETE] 删除成功，从本地消息列表移除:', messageUuid);
+        setMessages(prev => {
+          const filtered = prev.filter(msg => msg.uuid !== messageUuid);
+          console.log('[DELETE] 本地消息列表更新:', {
+            原数量: prev.length,
+            新数量: filtered.length,
+            删除的消息UUID: messageUuid
+          });
+          return filtered;
+        });
+        console.log('[DELETE] 消息已从本地列表删除:', messageUuid);
+      } else {
+        console.log('[DELETE] 删除失败:', response.message);
+        Alert.alert('删除失败', response.message || '消息删除失败');
+      }
+    } catch (error) {
+      console.error('[DELETE] 删除消息异常:', error);
+      Alert.alert('错误', '网络连接失败，请稍后再试');
+    }
+  };
+
   const formatTime = (date) => {
     try {
       const dateObj = new Date(date);
@@ -1414,8 +1473,36 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     </>
                   )}
                 </View>
-                {(message.imageUrl || message.type === 'image') ? (
-                  // 阅后即焚图片消息样式
+                {/* 优先判断语音消息，避免被图片消息逻辑覆盖 */}
+                {(() => {
+                  const shouldShowVoice = message.type === 'audio' || 
+                                         message.audioUrl || 
+                                         message.audioData || 
+                                         message.type === 'voice' || 
+                                         message.file_url?.includes('voice') || 
+                                         message.file_url?.includes('chat-voice') || 
+                                         message.file_url?.includes('/chats/voice/') || 
+                                         message.uuid?.startsWith('voice_');
+                  
+                  console.log('[Render] 消息类型判断:', {
+                    id: message.id,
+                    type: message.type,
+                    shouldShowVoice: shouldShowVoice,
+                    hasImageUrl: !!message.imageUrl,
+                    hasFileUrl: !!message.file_url,
+                    fileUrlIncludesVoice: message.file_url?.includes('voice'),
+                    willRenderAsImage: !shouldShowVoice && message.type === 'image'
+                  });
+                  
+                  // 如果是语音消息，不再检查图片逻辑
+                  if (shouldShowVoice) {
+                    return false; // 跳过图片渲染
+                  }
+                  
+                  // 只有非语音消息且type为image时才渲染图片
+                  return message.type === 'image' && (message.imageUrl || message.file_url);
+                })() ? (
+                  // 阅后即焚图片消息样式（只有type明确为image才渲染图片）
                   <View style={[
                     styles.burnAfterReadingContainer,
                     message.user.id === currentUserUuid ? styles.burnAfterReadingRight : styles.burnAfterReadingLeft
@@ -1480,11 +1567,48 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                   </View>
                   ) : (
                     // 文本和语音消息使用气泡样式
-                    <View style={[
-                      styles.messageBubble,
-                      message.user.id === currentUserUuid ? styles.myBubble : styles.otherBubble,
-                      message.isBottle && styles.bottleBubble // 瓶子消息特殊样式
-                    ]}>
+                    <TouchableOpacity 
+                      style={[
+                        styles.messageBubble,
+                        message.user.id === currentUserUuid ? styles.myBubble : styles.otherBubble,
+                        message.isBottle && styles.bottleBubble // 瓶子消息特殊样式
+                      ]}
+                      onLongPress={() => {
+                        console.log('[DELETE] 长按消息触发:', {
+                          messageId: message.id,
+                          messageUuid: message.uuid,
+                          messageUserId: message.user.id,
+                          currentUserUuid: currentUserUuid,
+                          isMyMessage: message.user.id === currentUserUuid
+                        });
+                        
+                        // 只有自己发送的消息才能删除
+                        if (message.user.id === currentUserUuid) {
+                          console.log('[DELETE] 显示删除确认对话框');
+                          Alert.alert(
+                            '删除消息',
+                            '确定要删除这条消息吗？',
+                            [
+                              {
+                                text: '取消',
+                                style: 'cancel'
+                              },
+                              {
+                                text: '删除',
+                                style: 'destructive',
+                                onPress: () => {
+                                  console.log('[DELETE] 用户确认删除消息:', message.uuid);
+                                  deleteMessage(message.uuid);
+                                }
+                              }
+                            ]
+                          );
+                        } else {
+                          console.log('[DELETE] 无权限删除此消息，发送者:', message.user.id, '当前用户:', currentUserUuid);
+                        }
+                      }}
+                      delayLongPress={800}
+                    >
                       {/* 调试日志：显示消息数据 */}
                       {console.log('[ChatDetail] 渲染消息:', {
                         id: message.id,
@@ -1597,7 +1721,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                       {message.text}
                     </Text>
                   )}
-                  </View>
+                    </TouchableOpacity>
                 )}
               </View>
             </View>

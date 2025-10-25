@@ -313,32 +313,6 @@ export const userApi = {
     apiService.authenticatedGet(API_CONFIG.ENDPOINTS.USER.GET_FRIENDS(uuid), token),
 };
 
-// 漂流瓶相关API (待实现)
-export const bottleApi = {
-  // 检查是否有可捞的瓶子
-  checkBottle: (token) => 
-    apiService.authenticatedGet('/api/bottle/check', token),
-
-  // 扔瓶子
-  throwBottle: (content, mood, token) => 
-    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.THROW, { content, mood }, token),
-
-  // 捞瓶子
-  fishBottle: (token) => 
-    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.FISH, {}, token),
-
-  // 获取我的瓶子
-  getMyBottles: (uuid, token) => 
-    apiService.authenticatedGet(API_CONFIG.ENDPOINTS.BOTTLE.GET_MY_BOTTLES(uuid), token),
-
-  // 回复瓶子
-  replyBottle: (bottleId, reply, token) => 
-    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.REPLY, { bottleId, reply }, token),
-
-  // 扔回海里
-  throwBackBottle: (bottleUuid, token) => 
-    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.THROW_BACK, { bottleUuid }, token),
-};
 
 // 积分和签到相关API
 export const pointsApi = {
@@ -388,6 +362,14 @@ export const messageApi = {
   // 获取消息列表
   getMessages: (conversationId, token) => 
     apiService.authenticatedGet(API_CONFIG.ENDPOINTS.MESSAGE.GET_MESSAGES(conversationId), token),
+
+  // 删除消息
+  deleteMessage: (messageUuid, token) => 
+    apiService.authenticatedDelete(`/api/message/${messageUuid}`, token),
+
+  // 删除整个对话（包括所有消息）
+  deleteConversation: (otherUserUuid, token) => 
+    apiService.authenticatedDelete(`/api/conversation/${otherUserUuid}`, token),
 
   // 头像上传 (本地存储)
   uploadAvatar: async (fileUri, fileName, mimeType, token) => {
@@ -749,6 +731,82 @@ export const fileApi = {
       console.error('[FileAPI] 文件上传失败:', e);
       return { ok: false, status: 0, message: '文件上传失败' };
     }
+  },
+};
+
+// 捞瓶子配置相关API
+export const bottleConfigApi = {
+  // 获取免费捞瓶子次数
+  getFreeFishCount: (gender = null) => {
+    const url = gender 
+      ? `${API_CONFIG.ENDPOINTS.BOTTLE_CONFIG.GET_FREE_FISH_COUNT}?gender=${gender}`
+      : API_CONFIG.ENDPOINTS.BOTTLE_CONFIG.GET_FREE_FISH_COUNT;
+    return apiService.request(url);
+  },
+  
+  // 获取免费扔瓶子次数
+  getFreeThrowCount: (gender = null) => {
+    const url = gender 
+      ? `${API_CONFIG.ENDPOINTS.BOTTLE_CONFIG.GET_FREE_THROW_COUNT}?gender=${gender}`
+      : API_CONFIG.ENDPOINTS.BOTTLE_CONFIG.GET_FREE_THROW_COUNT;
+    return apiService.request(url);
+  },
+};
+
+// 漂流瓶相关API
+export const bottleApi = {
+  // 检查是否有可捞的瓶子
+  checkBottle: (token) => 
+    apiService.authenticatedGet('/api/bottle/check', token),
+
+  // 扔瓶子
+  throwBottle: (content, mood, token) => 
+    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.THROW, { content, mood }, token),
+
+  // 捞瓶子
+  fishBottle: (token) => 
+    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.FISH, {}, token),
+
+  // 获取我的瓶子
+  getMyBottles: (uuid, token) => 
+    apiService.authenticatedGet(API_CONFIG.ENDPOINTS.BOTTLE.GET_MY_BOTTLES(uuid), token),
+
+  // 回复瓶子
+  replyBottle: (bottleUuid, content, token) => 
+    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.REPLY, { bottleUuid, content }, token),
+
+  // 扔回海里
+  throwBackBottle: (bottleUuid, token) => 
+    apiService.authenticatedPost(API_CONFIG.ENDPOINTS.BOTTLE.THROW_BACK, { bottleUuid }, token),
+};
+
+// 用户反馈相关API
+export const feedbackApi = {
+  // 提交反馈
+  submit: async (formData, token) => {
+    try {
+      const response = await fetch(`${API_CONFIG.BASE_URL}/api/feedback/submit`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          // 不要设置 Content-Type，让浏览器自动设置 multipart/form-data 边界
+        },
+        body: formData
+      });
+      return await response.json();
+    } catch (error) {
+      console.error('提交反馈失败:', error);
+      throw error;
+    }
+  },
+
+  // 获取我的反馈列表
+  getMyFeedbacks: (params = {}, token) => {
+    const queryString = new URLSearchParams({
+      page: params.page || 1,
+      pageSize: params.pageSize || 10
+    }).toString();
+    return apiService.authenticatedGet(`/api/feedback/my-feedbacks?${queryString}`, token);
   },
 };
 

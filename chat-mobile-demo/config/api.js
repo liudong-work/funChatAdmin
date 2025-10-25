@@ -29,6 +29,12 @@ const API_CONFIG = {
       THROW_BACK: '/api/bottle/throw-back',
     },
     
+    // 漂流瓶配置相关
+    BOTTLE_CONFIG: {
+      GET_FREE_FISH_COUNT: '/api/bottle-configs/free-fish-count',
+      GET_FREE_THROW_COUNT: '/api/bottle-configs/free-throw-count',
+    },
+    
     // 积分和签到相关
     POINTS: {
       GET_INFO: '/api/points/info',
@@ -61,7 +67,7 @@ const API_CONFIG = {
   },
   
   // 请求超时时间 (毫秒)
-  TIMEOUT: 10000,
+  TIMEOUT: 30000, // 增加到30秒，避免删除大量消息时超时
   
   // 默认请求头
   DEFAULT_HEADERS: {

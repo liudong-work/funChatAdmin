@@ -18,7 +18,7 @@ import { testConnection } from './config/database.js';
 import { uploadToOSS, uploadBufferToOSS, checkOSSConfig, deleteFromOSS } from './services/ossService.js';
 
 // 导入模型
-import { User, Moment, Comment, Like, Follow, Message, Bottle, UserPoints, CheckinRecord, MembershipPlan } from './models/index.js';
+import { User, Moment, Comment, Like, Follow, Message, Bottle, UserPoints, CheckinRecord, MembershipPlan, Feedback } from './models/index.js';
 import { Op } from 'sequelize';
 
 // 导入中间件
@@ -32,6 +32,8 @@ import adminUserRoutes from './routes/adminUser-db.js';
 import pushRoutes from './routes/push.js';
 import wechatPaymentRoutes from './routes/wechatPayment.js';
 import membershipPlanRoutes from './routes/membershipPlan.js';
+import bottleConfigRoutes from './routes/bottleConfig.js';
+import feedbackRoutes from './routes/feedback.js';
 
 // 导入服务
 import userService from './services/userService.js';
@@ -594,6 +596,12 @@ app.use('/api/admin/moments', adminMomentRoutes);
 
 // ========== 会员套餐API ==========
 app.use('/api/admin/membership-plans', membershipPlanRoutes);
+
+// ========== 漂流瓶配置API ==========
+app.use('/', bottleConfigRoutes);
+
+// ========== 用户反馈API ==========
+app.use('/api/feedback', feedbackRoutes);
 
 // 公开的会员套餐接口（不需要认证）
 app.get('/api/membership-plans/public', async (req, res) => {
@@ -1428,6 +1436,161 @@ app.get('/api/message/conversation/:userId1/:userId2', authenticateToken, async 
     return res.status(500).json({
       status: false,
       message: '获取对话失败'
+    });
+  }
+});
+
+// 删除整个对话（包括所有消息）
+app.delete('/api/conversation/:otherUserUuid', authenticateToken, async (req, res) => {
+  try {
+    const { otherUserUuid } = req.params;
+    const userUuid = req.user.uuid;
+    
+    log.info(`[DELETE CONVERSATION] 收到删除对话请求:`, {
+      userUuid,
+      otherUserUuid
+    });
+
+    // 查找当前用户和对方用户
+    const currentUser = await User.findOne({ where: { uuid: userUuid } });
+    const otherUser = await User.findOne({ where: { uuid: otherUserUuid } });
+
+    if (!currentUser || !otherUser) {
+      return res.status(404).json({
+        status: false,
+        message: '用户不存在'
+      });
+    }
+
+    // 查找所有相关的消息
+    const messages = await Message.findAll({
+      where: {
+        [Op.or]: [
+          { sender_id: currentUser.id, receiver_id: otherUser.id },
+          { sender_id: otherUser.id, receiver_id: currentUser.id }
+        ]
+      }
+    });
+
+    log.info(`[DELETE CONVERSATION] 找到 ${messages.length} 条消息需要删除`);
+
+    // 删除所有相关消息
+    for (const message of messages) {
+      // 从数据库删除
+      await message.destroy();
+      
+      // 从Elasticsearch删除
+      try {
+        await MessageSearch.deleteMessage(message.id);
+      } catch (esError) {
+        log.error(`[DELETE CONVERSATION] ES删除失败:`, {
+          messageId: message.id,
+          error: esError.message
+        });
+      }
+    }
+
+    log.info(`[DELETE CONVERSATION] 对话删除成功: ${userUuid} <-> ${otherUserUuid}`);
+    
+    return res.status(200).json({
+      status: true,
+      message: '对话删除成功',
+      deletedCount: messages.length
+    });
+  } catch (error) {
+    log.error('删除对话失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '删除对话失败'
+    });
+  }
+});
+
+// 删除消息
+app.delete('/api/message/:messageUuid', authenticateToken, async (req, res) => {
+  try {
+    const { messageUuid } = req.params;
+    const userUuid = req.user.uuid;
+    
+    log.info(`[DELETE] 收到删除消息请求:`, {
+      messageUuid,
+      userUuid
+    });
+
+    // 查找消息
+    const message = await Message.findOne({
+      where: { uuid: messageUuid },
+      include: [
+        {
+          model: User,
+          as: 'sender',
+          attributes: ['id', 'uuid', 'nickname']
+        },
+        {
+          model: User,
+          as: 'receiver',
+          attributes: ['id', 'uuid', 'nickname']
+        }
+      ]
+    });
+
+    if (!message) {
+      return res.status(404).json({
+        status: false,
+        message: '消息不存在'
+      });
+    }
+
+    // 验证权限：只有发送者可以删除自己的消息
+    if (message.sender.uuid !== userUuid) {
+      return res.status(403).json({
+        status: false,
+        message: '无权限删除此消息'
+      });
+    }
+
+    // 硬删除：从数据库中完全删除消息
+    await message.destroy();
+
+    // 从Elasticsearch中删除消息
+    try {
+      await MessageSearch.deleteMessage(message.id);
+      log.info(`[DELETE] 消息已从ES删除: ${messageUuid}`);
+    } catch (esError) {
+      log.error(`[DELETE] ES删除失败:`, {
+        messageUuid,
+        error: esError.message
+      });
+      // 不影响主流程
+    }
+
+    // 通过WebSocket通知对方消息已删除
+    const receiverUuid = message.receiver.uuid;
+    const receiverSocket = connectedUsers.get(receiverUuid);
+    
+    if (receiverSocket) {
+      const wsMessage = {
+        type: 'message_deleted',
+        messageUuid: messageUuid,
+        senderUuid: userUuid,
+        receiverUuid: receiverUuid
+      };
+      
+      receiverSocket.emit('message_deleted', wsMessage);
+      log.info(`[DELETE] WebSocket删除通知已推送:`, wsMessage);
+    }
+
+    log.info(`[DELETE] 消息删除成功: ${messageUuid}`);
+    
+    return res.status(200).json({
+      status: true,
+      message: '消息删除成功'
+    });
+  } catch (error) {
+    log.error('删除消息失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '删除消息失败'
     });
   }
 });

@@ -56,13 +56,18 @@ export default function AccountDeletionScreen({ navigation }) {
                   [
                     {
                       text: '确定',
-                      onPress: () => {
-                        // 清除本地数据并返回登录页
-                        AsyncStorage.clear();
-                        navigation.reset({
-                          index: 0,
-                          routes: [{ name: 'Login' }],
-                        });
+                      onPress: async () => {
+                        try {
+                          // 清除本地数据
+                          await AsyncStorage.clear();
+                          console.log('[注销] 本地数据已清除');
+                          
+                          // 返回到我的页面
+                          navigation.navigate('Profile');
+                        } catch (error) {
+                          console.error('[注销] 清除数据失败:', error);
+                          navigation.goBack();
+                        }
                       }
                     }
                   ]

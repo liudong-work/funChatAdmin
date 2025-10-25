@@ -10,11 +10,14 @@ import UserPointsModel from './UserPoints.js';
 import CheckinRecordModel from './CheckinRecord.js';
 import Order from './Order.js';
 import MembershipPlanModel from './MembershipPlan.js';
+import BottleConfig from './BottleConfig.js';
+import FeedbackModel from './Feedback.js';
 
 // 初始化积分相关模型
 const UserPoints = UserPointsModel(sequelize);
 const CheckinRecord = CheckinRecordModel(sequelize);
 const MembershipPlan = MembershipPlanModel(sequelize);
+const Feedback = FeedbackModel(sequelize);
 
 // ========== 定义模型关联 ==========
 
@@ -154,6 +157,16 @@ Order.belongsTo(User, {
   as: 'user'
 });
 
+// Feedback 关系 (一对多)
+User.hasMany(Feedback, {
+  foreignKey: 'user_id',
+  as: 'feedbacks'
+});
+Feedback.belongsTo(User, {
+  foreignKey: 'user_id',
+  as: 'user'
+});
+
 // ========== 同步数据库 ==========
 export const syncDatabase = async (options = {}) => {
   try {
@@ -179,7 +192,9 @@ export {
   UserPoints,
   CheckinRecord,
   Order,
-  MembershipPlan
+  MembershipPlan,
+  BottleConfig,
+  Feedback
 };
 
 export default {
@@ -195,5 +210,7 @@ export default {
   CheckinRecord,
   Order,
   MembershipPlan,
+  BottleConfig,
+  Feedback,
   syncDatabase
 };

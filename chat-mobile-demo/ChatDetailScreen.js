@@ -1454,20 +1454,52 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     <>
                       <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
                       <Text style={styles.userName}>{message.user.name}</Text>
-                      {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
-                        <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
-                      ) : (
-                        <Text style={styles.avatar}>{message.user.avatar || currentUserAvatar}</Text>
-                      )}
+                      <TouchableOpacity 
+                        onPress={() => {
+                          // 点击头像进入个人主页
+                          if (message.user.id && message.user.id !== currentUserUuid) {
+                            navigation.navigate('UserProfile', { 
+                              userUuid: message.user.id,
+                              userInfo: {
+                                uuid: message.user.id,
+                                nickname: message.user.name,
+                                avatar: message.user.avatar
+                              }
+                            });
+                          }
+                        }}
+                      >
+                        {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
+                          <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
+                        ) : (
+                          <Text style={styles.avatar}>{message.user.avatar || currentUserAvatar}</Text>
+                        )}
+                      </TouchableOpacity>
                     </>
                   ) : (
                     // 对方消息：头像 + 用户名 + 时间
                     <>
-                      {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
-                        <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
-                      ) : (
-                        <Text style={styles.avatar}>{message.user.avatar || currentUserAvatar}</Text>
-                      )}
+                      <TouchableOpacity 
+                        onPress={() => {
+                          // 点击对方头像进入个人主页
+                          if (message.user.id && message.user.id !== currentUserUuid) {
+                            navigation.navigate('UserProfile', { 
+                              userUuid: message.user.id,
+                              userInfo: {
+                                uuid: message.user.id,
+                                nickname: message.user.name,
+                                avatar: message.user.avatar
+                              }
+                            });
+                          }
+                        }}
+                      >
+                        {typeof message.user.avatar === 'string' && message.user.avatar.startsWith('http') ? (
+                          <Image source={{ uri: message.user.avatar }} style={styles.userAvatarImage} />
+                        ) : (
+                          <Text style={styles.avatar}>{message.user.avatar || currentUserAvatar}</Text>
+                        )}
+                      </TouchableOpacity>
                       <Text style={styles.userName}>{message.user.name}</Text>
                       <Text style={styles.timestamp}>{formatTime(message.timestamp)}</Text>
                     </>

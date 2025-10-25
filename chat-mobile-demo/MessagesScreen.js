@@ -265,8 +265,24 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
         activeOpacity={0.7}
       >
         <View style={styles.cardContent}>
-          {/* 头像区域 */}
-          <View style={styles.avatarContainer}>
+          {/* 头像区域 - 可点击进入个人主页 */}
+          <TouchableOpacity 
+            style={styles.avatarContainer}
+            onPress={(e) => {
+              e.stopPropagation(); // 阻止触发卡片点击
+              if (item.id) {
+                navigation.getParent()?.navigate('UserProfile', { 
+                  userUuid: item.id,
+                  userInfo: {
+                    uuid: item.id,
+                    nickname: item.name,
+                    avatar: item.avatar
+                  }
+                });
+              }
+            }}
+            activeOpacity={0.7}
+          >
             {typeof item.avatar === 'string' && item.avatar.startsWith('http') ? (
               <Image source={{ uri: item.avatar }} style={styles.avatarImage} />
             ) : (
@@ -279,7 +295,7 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
                 <Text style={styles.unreadText}>{item.unreadCount}</Text>
               </View>
             )}
-          </View>
+          </TouchableOpacity>
           
           {/* 消息信息区域 */}
           <View style={styles.userInfo}>

@@ -8,18 +8,22 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
-  Alert
+  Alert,
+  Dimensions
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userApi } from './services/apiService';
+import { LinearGradient } from 'expo-linear-gradient';
+
+const { width } = Dimensions.get('window');
 
 export default function UserProfileScreen({ route, navigation }) {
-  const { userId, userUuid } = route.params || {}; // 从路由参数获取用户ID
+  const { userId, userUuid, userInfo: passedUserInfo } = route.params || {}; // 从路由参数获取用户ID和初始用户信息
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isCurrentUser, setIsCurrentUser] = useState(false);
   const [isFollowing, setIsFollowing] = useState(false);
-  const [userInfo, setUserInfo] = useState(null);
+  const [userInfo, setUserInfo] = useState(passedUserInfo || null); // 使用传递过来的初始信息
   const [userStats, setUserStats] = useState({
     followingCount: 0,
     followersCount: 0,
@@ -47,7 +51,11 @@ export default function UserProfileScreen({ route, navigation }) {
   // 加载用户主页数据
   const loadUserProfile = async () => {
     try {
-      setLoading(true);
+      // 如果有传递过来的用户信息，先不显示loading，让页面立即显示
+      if (!passedUserInfo) {
+        setLoading(true);
+      }
+      
       const token = await AsyncStorage.getItem('authToken');
       const currentUserInfo = await AsyncStorage.getItem('userInfo');
       
@@ -78,14 +86,17 @@ export default function UserProfileScreen({ route, navigation }) {
           bio: currentUser.bio || '这个人很懒，什么都没留下~',
         });
       } else {
-        // TODO: 从API获取其他用户信息
-        setUserInfo({
-          uuid: targetUuid,
-          username: `用户${targetUuid.slice(-4)}`,
-          nickname: `用户${targetUuid.slice(-4)}`,
-          avatar: '👤',
-          bio: '这个人很懒，什么都没留下~',
-        });
+        // 如果有传递过来的用户信息，优先使用；否则使用默认值
+        if (!passedUserInfo) {
+          setUserInfo({
+            uuid: targetUuid,
+            username: `用户${targetUuid.slice(-4)}`,
+            nickname: `用户${targetUuid.slice(-4)}`,
+            avatar: '👤',
+            bio: '这个人很懒，什么都没留下~',
+          });
+        }
+        // 如果有传递的信息，已经在useState初始化时设置了，这里不需要再次设置
       }
 
       // 获取统计数据
@@ -148,6 +159,19 @@ export default function UserProfileScreen({ route, navigation }) {
           moment => moment.author.uuid === targetUuid
         );
         setUserMoments(userMomentsList);
+        
+        // 如果动态列表有数据，从第一条动态中获取作者完整信息来更新userInfo
+        if (userMomentsList.length > 0 && userMomentsList[0].author) {
+          const authorInfo = userMomentsList[0].author;
+          setUserInfo(prevInfo => ({
+            ...prevInfo,
+            uuid: authorInfo.uuid || prevInfo.uuid,
+            nickname: authorInfo.nickname || prevInfo.nickname,
+            username: authorInfo.nickname || prevInfo.username,
+            avatar: authorInfo.avatar || prevInfo.avatar,
+            // bio保持不变，因为动态中没有bio信息
+          }));
+        }
         
         // 更新动态数量
         setUserStats(prev => ({ ...prev, momentsCount: userMomentsList.length }));
@@ -219,6 +243,17 @@ export default function UserProfileScreen({ route, navigation }) {
     navigation.navigate('EditProfile', { userInfo });
   };
 
+  // 发送消息
+  const handleSendMessage = () => {
+    navigation.navigate('ChatDetail', { 
+      user: {
+        id: userInfo.uuid,
+        name: userInfo.nickname,
+        avatar: userInfo.avatar,
+      }
+    });
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -240,112 +275,173 @@ export default function UserProfileScreen({ route, navigation }) {
   }
 
   return (
-    <ScrollView 
-      style={styles.container}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      {/* 顶部导航栏 */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBackButton}>
-          <Text style={styles.headerBackText}>‹ 返回</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>个人主页</Text>
-        <View style={styles.headerPlaceholder} />
-      </View>
-
-      {/* 用户信息卡片 */}
-      <View style={styles.profileCard}>
-        <View style={styles.profileHeader}>
-          {userInfo.avatar && userInfo.avatar.startsWith('http') ? (
-            <Image 
-              source={{ uri: userInfo.avatar }} 
-              style={styles.avatarImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <Text style={styles.avatar}>{userInfo.avatar || '👤'}</Text>
-          )}
-          <View style={styles.profileInfo}>
-            <Text style={styles.username}>{userInfo.nickname}</Text>
-            <Text style={styles.bio}>{userInfo.bio}</Text>
-          </View>
-        </View>
-
-        {/* 统计数据 */}
-        <View style={styles.statsContainer}>
-          <TouchableOpacity style={styles.statItem} onPress={handleViewFollowing}>
-            <Text style={styles.statNumber}>{userStats.followingCount}</Text>
-            <Text style={styles.statLabel}>关注</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.statItem} onPress={handleViewFollowers}>
-            <Text style={styles.statNumber}>{userStats.followersCount}</Text>
-            <Text style={styles.statLabel}>粉丝</Text>
-          </TouchableOpacity>
-          <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{userStats.momentsCount}</Text>
-            <Text style={styles.statLabel}>动态</Text>
-          </View>
-        </View>
-
-        {/* 操作按钮 */}
-        <View style={styles.actionButtons}>
-          {isCurrentUser ? (
-            <TouchableOpacity style={styles.editButton} onPress={handleEditProfile}>
-              <Text style={styles.editButtonText}>编辑资料</Text>
+    <View style={styles.container}>
+      <ScrollView 
+        style={styles.fullScrollView}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+        {/* 顶部封面图 */}
+        <View style={styles.coverSection}>
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.coverGradient}
+          >
+            {/* 返回按钮 */}
+            <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+              <Text style={styles.backButtonText}>‹</Text>
             </TouchableOpacity>
-          ) : (
+          </LinearGradient>
+          
+          {/* 头像悬浮在封面下方 */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarWrapper}>
+              {userInfo.avatar && userInfo.avatar.startsWith('http') ? (
+                <Image 
+                  source={{ uri: userInfo.avatar }} 
+                  style={styles.avatarImage}
+                  resizeMode="cover"
+                />
+              ) : (
+                <View style={styles.avatarPlaceholder}>
+                  <Text style={styles.avatarEmoji}>{userInfo.avatar || '👤'}</Text>
+                </View>
+              )}
+              {!isCurrentUser && (
+                <View style={styles.avatarBadge}>
+                  <Text style={styles.avatarBadgeText}>👋</Text>
+                </View>
+              )}
+            </View>
+          </View>
+        </View>
+
+        {/* 用户信息卡片 */}
+        <View style={styles.userInfoCard}>
+          <Text style={styles.username}>{userInfo.nickname}</Text>
+          <Text style={styles.bio}>{userInfo.bio || '这个人很懒，什么都没留下~'}</Text>
+          
+          {/* 统计数据 */}
+          <View style={styles.statsRow}>
+            <TouchableOpacity style={styles.statItem} onPress={handleViewFollowing}>
+              <Text style={styles.statNumber}>{userStats.followingCount}</Text>
+              <Text style={styles.statLabel}>关注</Text>
+            </TouchableOpacity>
+            <View style={styles.statDivider} />
+            <TouchableOpacity style={styles.statItem} onPress={handleViewFollowers}>
+              <Text style={styles.statNumber}>{userStats.followersCount}</Text>
+              <Text style={styles.statLabel}>粉丝</Text>
+            </TouchableOpacity>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{userStats.momentsCount}</Text>
+              <Text style={styles.statLabel}>动态</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* 非当前用户才显示操作按钮 */}
+        {!isCurrentUser && (
+          <View style={styles.actionButtonsContainer}>
             <TouchableOpacity 
-              style={[styles.followButton, isFollowing && styles.followingButton]} 
+              style={[styles.followButtonNew, isFollowing && styles.followingButtonNew]} 
               onPress={handleFollowToggle}
             >
-              <Text style={[styles.followButtonText, isFollowing && styles.followingButtonText]}>
-                {isFollowing ? '已关注' : '+ 关注'}
+              <Text style={[styles.followButtonTextNew, isFollowing && styles.followingButtonTextNew]}>
+                {isFollowing ? '✓ 已关注' : '+ 关注'}
               </Text>
             </TouchableOpacity>
-          )}
-        </View>
-      </View>
-
-      {/* 动态列表 */}
-      <View style={styles.momentsSection}>
-        <Text style={styles.sectionTitle}>TA的动态</Text>
-        {userMoments.length === 0 ? (
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>还没有发布动态</Text>
-          </View>
-        ) : (
-          <View style={styles.momentsList}>
-            {userMoments.map((moment) => (
-              <TouchableOpacity 
-                key={moment.uuid} 
-                style={styles.momentCard}
-                onPress={() => handleViewMoment(moment)}
-              >
-                <Text style={styles.momentContent} numberOfLines={3}>
-                  {moment.content}
-                </Text>
-                {moment.images && moment.images.length > 0 && (
-                  <View style={styles.momentImages}>
-                    {moment.images.slice(0, 3).map((img, index) => (
-                      <Image key={index} source={{ uri: img }} style={styles.momentImage} />
-                    ))}
-                  </View>
-                )}
-                <View style={styles.momentFooter}>
-                  <Text style={styles.momentTime}>{formatTime(moment.created_at)}</Text>
-                  <View style={styles.momentStats}>
-                    <Text style={styles.momentStat}>❤️ {moment.likes_count || 0}</Text>
-                    <Text style={styles.momentStat}>💬 {moment.comments_count || 0}</Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity 
+              style={styles.messageButtonNew} 
+              onPress={handleSendMessage}
+            >
+              <Text style={styles.messageButtonTextNew}>💬 发消息</Text>
+            </TouchableOpacity>
           </View>
         )}
-      </View>
-    </ScrollView>
+
+        {/* 动态列表 */}
+        <View style={styles.momentsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {isCurrentUser ? '我的动态' : 'TA的动态'}
+            </Text>
+            <Text style={styles.sectionCount}>{userMoments.length}条</Text>
+          </View>
+          
+          {userMoments.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyIcon}>📝</Text>
+              <Text style={styles.emptyText}>还没有发布动态</Text>
+            </View>
+          ) : (
+            <View style={styles.momentsList}>
+              {userMoments.map((moment) => (
+                <TouchableOpacity 
+                  key={moment.uuid} 
+                  style={styles.momentCard}
+                  onPress={() => handleViewMoment(moment)}
+                  activeOpacity={0.9}
+                >
+                  <Text style={styles.momentContent} numberOfLines={3}>
+                    {moment.content}
+                  </Text>
+                  {moment.images && moment.images.length > 0 && (
+                    <View style={styles.momentImages}>
+                      {moment.images.slice(0, 3).map((img, index) => (
+                        <Image key={index} source={{ uri: img }} style={styles.momentImage} />
+                      ))}
+                      {moment.images.length > 3 && (
+                        <View style={styles.moreImagesOverlay}>
+                          <Text style={styles.moreImagesText}>+{moment.images.length - 3}</Text>
+                        </View>
+                      )}
+                    </View>
+                  )}
+                  <View style={styles.momentFooter}>
+                    <Text style={styles.momentTime}>{formatTime(moment.created_at)}</Text>
+                    <View style={styles.momentStats}>
+                      <View style={styles.momentStatItem}>
+                        <Text style={styles.momentStatIcon}>❤️</Text>
+                        <Text style={styles.momentStatText}>{moment.likes_count || 0}</Text>
+                      </View>
+                      <View style={styles.momentStatItem}>
+                        <Text style={styles.momentStatIcon}>💬</Text>
+                        <Text style={styles.momentStatText}>{moment.comments_count || 0}</Text>
+                      </View>
+                    </View>
+                  </View>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+        </View>
+
+        {/* 底部操作按钮（仅当前用户） */}
+        {isCurrentUser && (
+          <View style={styles.bottomButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.editButton} 
+              onPress={handleEditProfile}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.bottomButtonText}>✏️ 编辑资料</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity 
+              style={styles.publishButton} 
+              onPress={() => navigation.navigate('PublishMoment')}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.bottomButtonText}>📝 发布动态</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -375,13 +471,16 @@ const formatTime = (dateString) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F0F2F5',
+  },
+  fullScrollView: {
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f5f5f5',
+    backgroundColor: '#F0F2F5',
   },
   loadingText: {
     marginTop: 10,
@@ -393,76 +492,93 @@ const styles = StyleSheet.create({
     color: '#666',
     marginBottom: 20,
   },
+  // 封面区域
+  coverSection: {
+    position: 'relative',
+    marginBottom: 60,
+  },
+  coverGradient: {
+    height: 180,
+    width: '100%',
+  },
   backButton: {
-    backgroundColor: '#007AFF',
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
+    position: 'absolute',
+    top: 50,
+    left: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
   },
   backButtonText: {
     color: 'white',
-    fontSize: 16,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    paddingVertical: 12,
-    paddingTop: 50,
-    backgroundColor: '#007AFF',
-  },
-  headerBackButton: {
-    padding: 5,
-  },
-  headerBackText: {
-    color: 'white',
-    fontSize: 28,
+    fontSize: 32,
     fontWeight: '300',
+    marginLeft: -2,
   },
-  headerTitle: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: 'bold',
+  // 头像区域
+  avatarSection: {
+    position: 'absolute',
+    bottom: -50,
+    left: 20,
   },
-  headerPlaceholder: {
-    width: 40,
-  },
-  profileCard: {
-    backgroundColor: 'white',
-    margin: 15,
-    padding: 20,
-    borderRadius: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  profileHeader: {
-    flexDirection: 'row',
-    marginBottom: 20,
-  },
-  avatar: {
-    fontSize: 60,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f0f0f0',
-    textAlign: 'center',
-    lineHeight: 80,
-    marginRight: 15,
+  avatarWrapper: {
+    position: 'relative',
   },
   avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 5,
+    borderColor: 'white',
     backgroundColor: '#f0f0f0',
-    marginRight: 15,
   },
-  profileInfo: {
-    flex: 1,
+  avatarPlaceholder: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: 'white',
     justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 5,
+    borderColor: 'white',
+  },
+  avatarEmoji: {
+    fontSize: 50,
+  },
+  avatarBadge: {
+    position: 'absolute',
+    bottom: 0,
+    right: 0,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#FFD700',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 3,
+    borderColor: 'white',
+  },
+  avatarBadgeText: {
+    fontSize: 16,
+  },
+  // 用户信息卡片
+  userInfoCard: {
+    backgroundColor: 'white',
+    marginHorizontal: 15,
+    marginBottom: 15,
+    paddingTop: 20,
+    paddingBottom: 15,
+    paddingHorizontal: 20,
+    borderRadius: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 3,
   },
   username: {
     fontSize: 22,
@@ -474,117 +590,166 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     lineHeight: 20,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingVertical: 15,
-    borderTopWidth: 1,
-    borderBottomWidth: 1,
-    borderColor: '#E5E5EA',
     marginBottom: 15,
   },
+  // 统计数据行
+  statsRow: {
+    flexDirection: 'row',
+    paddingTop: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
   statItem: {
+    flex: 1,
     alignItems: 'center',
+  },
+  statDivider: {
+    width: 1,
+    backgroundColor: '#E5E5EA',
+    marginVertical: 5,
   },
   statNumber: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#007AFF',
-    marginBottom: 4,
+    color: '#667eea',
+    marginBottom: 6,
   },
   statLabel: {
-    fontSize: 12,
-    color: '#666',
+    fontSize: 13,
+    color: '#999',
   },
-  actionButtons: {
+  // 操作按钮区域
+  actionButtonsContainer: {
     flexDirection: 'row',
+    paddingHorizontal: 15,
+    marginBottom: 15,
+    gap: 12,
   },
-  editButton: {
+  followButtonNew: {
     flex: 1,
-    backgroundColor: '#007AFF',
+    backgroundColor: '#667eea',
     paddingVertical: 12,
-    borderRadius: 8,
+    borderRadius: 10,
     alignItems: 'center',
   },
-  editButtonText: {
+  followButtonTextNew: {
     color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '600',
   },
-  followButton: {
-    flex: 1,
-    backgroundColor: '#007AFF',
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  followButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  followingButton: {
+  followingButtonNew: {
     backgroundColor: '#E5E5EA',
   },
-  followingButtonText: {
+  followingButtonTextNew: {
     color: '#666',
   },
+  messageButtonNew: {
+    flex: 1,
+    backgroundColor: '#34C759',
+    paddingVertical: 12,
+    borderRadius: 10,
+    alignItems: 'center',
+  },
+  messageButtonTextNew: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  // 动态区域
   momentsSection: {
     backgroundColor: 'white',
-    margin: 15,
-    marginTop: 0,
-    padding: 15,
-    borderRadius: 12,
+    marginHorizontal: 15,
+    marginBottom: 20,
+    padding: 16,
+    borderRadius: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
     elevation: 3,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
   },
   sectionTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 15,
+  },
+  sectionCount: {
+    fontSize: 14,
+    color: '#999',
+    backgroundColor: '#F0F2F5',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
   },
   emptyContainer: {
-    paddingVertical: 40,
+    paddingVertical: 60,
     alignItems: 'center',
+  },
+  emptyIcon: {
+    fontSize: 48,
+    marginBottom: 12,
+    opacity: 0.5,
   },
   emptyText: {
     fontSize: 14,
     color: '#999',
   },
   momentsList: {
-    gap: 15,
+    gap: 12,
   },
   momentCard: {
-    backgroundColor: '#f9f9f9',
-    padding: 15,
-    borderRadius: 8,
-    marginBottom: 10,
+    backgroundColor: '#F8F9FA',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#E9ECEF',
   },
   momentContent: {
     fontSize: 15,
     color: '#333',
-    lineHeight: 22,
-    marginBottom: 10,
+    lineHeight: 24,
+    marginBottom: 12,
   },
   momentImages: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 10,
+    gap: 6,
+    marginBottom: 12,
+    position: 'relative',
   },
   momentImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 4,
+    width: (width - 100) / 3,
+    height: (width - 100) / 3,
+    borderRadius: 8,
+  },
+  moreImagesOverlay: {
+    position: 'absolute',
+    right: 6,
+    bottom: 0,
+    width: (width - 100) / 3,
+    height: (width - 100) / 3,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  moreImagesText: {
+    color: 'white',
+    fontSize: 20,
+    fontWeight: 'bold',
   },
   momentFooter: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#E9ECEF',
   },
   momentTime: {
     fontSize: 12,
@@ -592,11 +757,48 @@ const styles = StyleSheet.create({
   },
   momentStats: {
     flexDirection: 'row',
-    gap: 15,
+    gap: 16,
   },
-  momentStat: {
-    fontSize: 12,
+  momentStatItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  momentStatIcon: {
+    fontSize: 14,
+  },
+  momentStatText: {
+    fontSize: 13,
     color: '#666',
+    fontWeight: '500',
+  },
+  // 底部按钮
+  bottomButtonsContainer: {
+    paddingHorizontal: 15,
+    paddingVertical: 20,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  publishButton: {
+    flex: 1,
+    backgroundColor: '#764ba2',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButton: {
+    flex: 1,
+    backgroundColor: '#667eea',
+    paddingVertical: 14,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bottomButtonText: {
+    color: 'white',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

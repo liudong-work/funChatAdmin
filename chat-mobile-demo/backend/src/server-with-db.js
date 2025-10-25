@@ -235,8 +235,17 @@ app.post('/api/user/login', async (req, res) => {
       log.info(`新用户自动注册: ${phone} (${user.uuid})`);
     }
 
-    // 更新最后登录时间
-    await user.update({ last_login: new Date() });
+    // 如果用户之前申请了注销（status为inactive），自动恢复为active
+    if (user.status === 'inactive') {
+      await user.update({ 
+        status: 'active',
+        last_login: new Date() 
+      });
+      log.info(`[账号恢复] 用户重新登录，自动恢复账号: ${phone} (${user.uuid})`);
+    } else {
+      // 更新最后登录时间
+      await user.update({ last_login: new Date() });
+    }
 
     // 生成token
     const token = generateToken({
@@ -1246,11 +1255,16 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
       
       return {
         otherUserId: conv.otherUserId,
-        otherUser: {
+        otherUser: conv.otherUser ? {
           id: conv.otherUser.id,
           uuid: conv.otherUser.uuid,
           nickname: conv.otherUser.nickname,
           avatar: conv.otherUser.avatar
+        } : {
+          id: 0,
+          uuid: conv.otherUserId || 'unknown',
+          nickname: '未知用户',
+          avatar: '👤'
         },
         lastMessage: {
           uuid: messageData.uuid,
@@ -1258,7 +1272,9 @@ app.get('/api/message/conversations/:userId', authenticateToken, async (req, res
           created_at: messageData.created_at instanceof Date 
             ? messageData.created_at.toISOString() 
             : messageData.created_at,
-          sender_uuid: rawMessage.sender_id === currentUser.id ? currentUser.uuid : conv.otherUser.uuid
+          sender_uuid: rawMessage.sender_id === currentUser.id 
+            ? currentUser.uuid 
+            : (conv.otherUser ? conv.otherUser.uuid : conv.otherUserId)
         },
         unreadCount: conv.unreadCount
       };
@@ -2616,6 +2632,7 @@ app.post('/api/bottle/fish', authenticateToken, async (req, res) => {
     if (sender && receiver) {
       try {
         const { v4: uuidv4 } = await import('uuid');
+        
         await Message.create({
           uuid: uuidv4(),
           sender_id: sender.id,
@@ -2629,6 +2646,8 @@ app.post('/api/bottle/fish', authenticateToken, async (req, res) => {
         log.error('[BOTTLE] 创建瓶子消息失败:', msgError);
         // 不影响捞瓶子的主流程，只记录错误
       }
+    } else if (!sender) {
+      log.warn(`[BOTTLE] 瓶子发送者不存在: ${bottle.sender_uuid}`);
     }
 
     return res.status(200).json({
@@ -2639,7 +2658,8 @@ app.post('/api/bottle/fish', authenticateToken, async (req, res) => {
         content: bottle.content,
         mood: bottle.mood,
         sender_uuid: bottle.sender_uuid,
-        sender_nickname: sender ? sender.nickname : `用户${bottle.sender_uuid.slice(-4)}`,
+        sender_nickname: sender ? (sender.nickname || sender.username) : `用户${bottle.sender_uuid.slice(-4)}`,
+        sender_avatar: sender ? (sender.avatar || '👤') : '👤',
         picked_at: bottle.picked_at,
         created_at: bottle.created_at
       }
@@ -3104,22 +3124,42 @@ app.post('/api/user/delete-account', authenticateToken, async (req, res) => {
     // 检查用户是否有未完成的事务（可选）
     // 例如：未完成的订单、进行中的纠纷等
     
-    // 软删除用户账号（设置删除时间，实际数据保留7天后再物理删除）
-    await user.destroy();
+    // 注意：这里只是提交注销申请，不立即删除用户
+    // 实际的账号注销应该由后台管理系统审核后执行
     
-    log.info(`[账号注销] 用户注销成功:`, {
+    // 注销设计理念：
+    // 1. 用户申请注销后，账号进入"注销中"状态，但不实际删除
+    // 2. 用户的所有历史行为（瓶子、动态、评论、消息）完全保留
+    // 3. 在显示时仍然使用用户的原始昵称和头像，就像正常用户一样
+    // 4. 用户可以随时后悔，重新登录即可恢复使用
+    // 5. 只有7天后用户仍未登录，才考虑真正删除
+    // 
+    // 优点：
+    // - 数据完整性：社区内容不受影响
+    // - 用户友好：可以反悔
+    // - 隐私保护：用户主动注销，数据保留7天符合法规
+    
+    // 将用户状态改为"注销中"，而不是删除
+    await user.update({
+      status: 'inactive' // 改为不活跃状态，而不是删除
+    });
+    
+    log.info(`[账号注销] 注销申请已提交，用户状态改为inactive:`, {
       userId,
       userUuid,
       nickname: user.nickname,
-      phone: user.phone
+      phone: user.phone,
+      reason: reason || '未提供',
+      说明: '用户所有数据保留，可重新登录恢复'
     });
     
     return res.status(200).json({
       status: true,
       message: '注销申请已提交',
       data: {
-        message: '您的账号注销申请已提交成功，我们将在7个工作日内处理完成。',
-        process_days: 7
+        message: '您的账号注销申请已提交成功。7天内您可以重新登录恢复账号，所有数据都会保留。',
+        process_days: 7,
+        can_restore: true
       }
     });
   } catch (error) {
@@ -3127,6 +3167,67 @@ app.post('/api/user/delete-account', authenticateToken, async (req, res) => {
     return res.status(500).json({
       status: false,
       message: '注销申请提交失败'
+    });
+  }
+});
+
+// 恢复被软删除的用户（仅用于测试和紧急恢复）
+app.post('/api/user/restore-account', async (req, res) => {
+  try {
+    const { phone } = req.body;
+    
+    if (!phone) {
+      return res.status(400).json({
+        status: false,
+        message: '请提供手机号'
+      });
+    }
+
+    log.info(`[账号恢复] 收到恢复请求: ${phone}`);
+
+    // 查找被软删除的用户（包括已删除的）
+    const user = await User.findOne({
+      where: { phone },
+      paranoid: false // 包括软删除的记录
+    });
+    
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        message: '用户不存在'
+      });
+    }
+
+    if (!user.deleted_at) {
+      return res.status(400).json({
+        status: false,
+        message: '该账号未被注销，无需恢复'
+      });
+    }
+
+    // 恢复用户
+    await user.restore();
+    
+    log.info(`[账号恢复] 用户恢复成功:`, {
+      userId: user.id,
+      userUuid: user.uuid,
+      phone: user.phone,
+      nickname: user.nickname
+    });
+    
+    return res.status(200).json({
+      status: true,
+      message: '账号已成功恢复',
+      data: {
+        userUuid: user.uuid,
+        phone: user.phone
+      }
+    });
+  } catch (error) {
+    log.error('[账号恢复] 恢复失败:', error);
+    return res.status(500).json({
+      status: false,
+      message: '账号恢复失败'
     });
   }
 });

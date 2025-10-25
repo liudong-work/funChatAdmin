@@ -181,13 +181,21 @@ router.get('/list', authenticateToken, async (req, res) => {
         is_liked: likedMomentIds.has(moment.id),
         created_at: moment.created_at || moment.createdAt,
         updated_at: moment.updated_at || moment.updatedAt,
-        author: {
+        author: moment.author ? {
           id: moment.author.id,
           uuid: moment.author.uuid,
           phone: moment.author.phone,
           username: moment.author.username || moment.author.phone,
           nickname: moment.author.nickname || moment.author.username,
           avatar: moment.author.avatar || '👤'
+        } : {
+          // 作者数据缺失的情况（理论上不应该发生）
+          id: 0,
+          uuid: 'unknown',
+          phone: '',
+          username: '匿名用户',
+          nickname: '匿名用户',
+          avatar: '👤'
         }
       };
     });
@@ -272,13 +280,20 @@ router.get('/:moment_uuid', authenticateToken, async (req, res) => {
       content: comment.content,
       likes_count: comment.likes_count,
       created_at: comment.created_at || comment.createdAt,
-      author: {
+      author: comment.author ? {
         id: comment.author.id,
         uuid: comment.author.uuid,
         phone: comment.author.phone,
         username: comment.author.username || comment.author.phone,
         nickname: comment.author.nickname || comment.author.username,
         avatar: comment.author.avatar || '👤'
+      } : {
+        id: 0,
+        uuid: 'unknown',
+        phone: '',
+        username: '匿名用户',
+        nickname: '匿名用户',
+        avatar: '👤'
       }
     }));
 
@@ -297,13 +312,20 @@ router.get('/:moment_uuid', authenticateToken, async (req, res) => {
           is_liked: !!like,
           created_at: moment.created_at || moment.createdAt,
           updated_at: moment.updated_at || moment.updatedAt,
-          author: {
+          author: moment.author ? {
             id: moment.author.id,
             uuid: moment.author.uuid,
             phone: moment.author.phone,
             username: moment.author.username || moment.author.phone,
             nickname: moment.author.nickname || moment.author.username,
             avatar: moment.author.avatar || '👤'
+          } : {
+            id: 0,
+            uuid: 'unknown',
+            phone: '',
+            username: '匿名用户',
+            nickname: '匿名用户',
+            avatar: '👤'
           },
           comments: formattedComments
         }
@@ -550,12 +572,18 @@ router.get('/:moment_uuid/comments', authenticateToken, async (req, res) => {
       uuid: comment.uuid,
       content: comment.content,
       created_at: comment.created_at || comment.createdAt,
-      author: {
+      author: comment.author ? {
         id: comment.author.id,
         uuid: comment.author.uuid,
         username: comment.author.username || comment.author.phone,
         nickname: comment.author.nickname || comment.author.username,
         avatar: comment.author.avatar || '👤'
+      } : {
+        id: 0,
+        uuid: 'unknown',
+        username: '匿名用户',
+        nickname: '匿名用户',
+        avatar: '👤'
       }
     }));
 
@@ -621,13 +649,20 @@ router.get('/user/:user_uuid', authenticateToken, async (req, res) => {
       likes_count: moment.likes_count,
       comments_count: moment.comments_count,
       created_at: moment.created_at || moment.createdAt,
-      author: {
+      author: moment.author ? {
         id: moment.author.id,
         uuid: moment.author.uuid,
         phone: moment.author.phone,
         username: moment.author.username || moment.author.phone,
         nickname: moment.author.nickname || moment.author.username,
         avatar: moment.author.avatar || '👤'
+      } : {
+        id: 0,
+        uuid: 'unknown',
+        phone: '',
+        username: '匿名用户',
+        nickname: '匿名用户',
+        avatar: '👤'
       }
     }));
 

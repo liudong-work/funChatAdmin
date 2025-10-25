@@ -210,7 +210,23 @@ export default function MomentsScreen({ navigation }) {
       activeOpacity={0.7}
     >
       <View style={styles.momentHeader}>
-        <View style={styles.userInfo}>
+        <TouchableOpacity 
+          style={styles.userInfo}
+          onPress={(e) => {
+            e.stopPropagation(); // 阻止触发动态卡片点击
+            if (item.author.uuid) {
+              navigation.navigate('UserProfile', { 
+                userUuid: item.author.uuid,
+                userInfo: {
+                  uuid: item.author.uuid,
+                  nickname: item.author.nickname,
+                  avatar: item.author.avatar
+                }
+              });
+            }
+          }}
+          activeOpacity={0.7}
+        >
           {item.author.avatar && item.author.avatar.startsWith('http') ? (
             <Image source={{ uri: item.author.avatar }} style={styles.userAvatarImage} />
           ) : (
@@ -224,7 +240,7 @@ export default function MomentsScreen({ navigation }) {
               <Text style={styles.time}>时间未知</Text>
             )}
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <Text style={styles.content}>{item.content}</Text>

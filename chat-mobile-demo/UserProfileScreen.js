@@ -428,7 +428,7 @@ export default function UserProfileScreen({ route, navigation }) {
               onPress={handleEditProfile}
               activeOpacity={0.8}
             >
-              <Text style={styles.bottomButtonText}>✏️ 编辑资料</Text>
+              <Text style={styles.bottomButtonText}>编辑资料</Text>
             </TouchableOpacity>
             
             <TouchableOpacity 
@@ -436,7 +436,7 @@ export default function UserProfileScreen({ route, navigation }) {
               onPress={() => navigation.navigate('PublishMoment')}
               activeOpacity={0.8}
             >
-              <Text style={styles.bottomButtonText}>📝 发布动态</Text>
+              <Text style={styles.bottomButtonText}>发布动态</Text>
             </TouchableOpacity>
           </View>
         )}

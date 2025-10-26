@@ -28,6 +28,8 @@ import PrivacySettingsScreen from './PrivacySettingsScreen';
 import AccountSecurityScreen from './AccountSecurityScreen';
 import AccountDeletionScreen from './AccountDeletionScreen';
 import FeedbackScreen from './FeedbackScreen';
+import PrivacyPolicyScreen from './PrivacyPolicyScreen';
+import UserAgreementScreen from './UserAgreementScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -218,6 +220,22 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
         {(props) => <PrivacySettingsScreen {...props} />}
       </Stack.Screen>
       <Stack.Screen 
+        name="PrivacyPolicy" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <PrivacyPolicyScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
+        name="UserAgreement" 
+        options={{
+          headerShown: false,
+        }}
+      >
+        {(props) => <UserAgreementScreen {...props} />}
+      </Stack.Screen>
+      <Stack.Screen 
         name="AccountSecurity" 
         options={{
           headerShown: false, // 使用自定义header
@@ -354,6 +372,8 @@ function AuthStack({ setIsAuthenticated }) {
         {(props) => <LoginScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
       </Stack.Screen>
       <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
+      <Stack.Screen name="UserAgreement" component={UserAgreementScreen} />
     </Stack.Navigator>
   );
 }

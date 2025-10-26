@@ -1026,10 +1026,19 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
 
       // 通过 WebSocket 发送语音消息
       console.log('[Voice] 通过 WebSocket 发送语音消息...');
+      console.log('[Voice] 检查 global.socket:', !!global.socket);
       const socket = global.socket; // 假设 socket 存储在全局变量中
       if (!socket) {
         console.error('[Voice] WebSocket 连接不存在');
-        Alert.alert('提示', '网络连接异常');
+        console.error('[Voice] global对象:', Object.keys(global));
+        Alert.alert('提示', '网络连接异常，请返回首页重新进入');
+        return;
+      }
+      
+      console.log('[Voice] Socket连接状态:', socket.connected);
+      if (!socket.connected) {
+        console.error('[Voice] Socket未连接');
+        Alert.alert('提示', 'WebSocket未连接，请返回首页重新进入');
         return;
       }
 

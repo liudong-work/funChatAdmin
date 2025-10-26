@@ -52,7 +52,21 @@ export default function FollowListScreen({ route, navigation }) {
       );
 
       if (response.status && response.data) {
-        const newUsers = response.data.list || [];
+        // 统一数据格式，处理后端返回的不同字段名
+        const rawUsers = response.data.list || [];
+        const newUsers = rawUsers.map(user => ({
+          uuid: user.uuid || user.user_uuid,
+          user_id: user.user_id,
+          phone: user.phone,
+          username: user.username,
+          nickname: user.nickname,
+          avatar: user.avatar,
+          bio: user.bio,
+          is_following: user.is_following !== undefined ? user.is_following : true,
+          followed_at: user.followed_at
+        }));
+        
+        console.log('[FollowList] 处理后的用户数据:', newUsers);
         
         if (append) {
           setUsers(prev => [...prev, ...newUsers]);

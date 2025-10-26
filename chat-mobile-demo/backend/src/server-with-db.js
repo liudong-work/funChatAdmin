@@ -135,12 +135,20 @@ app.post('/api/user/send-verification-code', (req, res) => {
 // 注册接口（同时支持两个路径以兼容前端）
 app.post('/api/user/register', async (req, res) => {
   try {
-    const { phone, username, nickname } = req.body;
+    const { phone, username, nickname, gender } = req.body;
 
     if (!phone) {
       return res.json({
         status: false,
         message: '手机号不能为空'
+      });
+    }
+
+    // 验证性别
+    if (!gender || !['male', 'female', 'other'].includes(gender)) {
+      return res.json({
+        status: false,
+        message: '请选择性别'
       });
     }
 
@@ -161,6 +169,7 @@ app.post('/api/user/register', async (req, res) => {
       nickname: nickname || `用户${phone.slice(-4)}`,
       password: '', // 手机号注册无需密码
       avatar: '👤',
+      gender: gender, // 性别（注册后不可修改）
       status: 'active'
     });
 
@@ -461,16 +470,20 @@ app.get('/api/follow/following/:user_uuid?', authenticateToken, async (req, res)
       order: [['created_at', 'DESC']]
     });
 
-    const followingList = rows.map(follow => ({
-      user_id: follow.following.id,
-      user_uuid: follow.following.uuid,
-      phone: follow.following.phone,
-      username: follow.following.username,
-      nickname: follow.following.nickname,
-      avatar: follow.following.avatar,
-      bio: follow.following.bio,
-      followed_at: follow.created_at
-    }));
+    // 过滤掉following为null的记录（用户已删除的情况）
+    const followingList = rows
+      .filter(follow => follow.following !== null)
+      .map(follow => ({
+        uuid: follow.following.uuid,
+        user_id: follow.following.id,
+        user_uuid: follow.following.uuid,
+        phone: follow.following.phone,
+        username: follow.following.username,
+        nickname: follow.following.nickname,
+        avatar: follow.following.avatar,
+        bio: follow.following.bio,
+        followed_at: follow.created_at
+      }));
 
     res.json({
       status: true,
@@ -524,16 +537,20 @@ app.get('/api/follow/followers/:user_uuid?', authenticateToken, async (req, res)
       order: [['created_at', 'DESC']]
     });
 
-    const followersList = rows.map(follow => ({
-      user_id: follow.follower.id,
-      user_uuid: follow.follower.uuid,
-      phone: follow.follower.phone,
-      username: follow.follower.username,
-      nickname: follow.follower.nickname,
-      avatar: follow.follower.avatar,
-      bio: follow.follower.bio,
-      followed_at: follow.created_at
-    }));
+    // 过滤掉follower为null的记录（用户已删除的情况）
+    const followersList = rows
+      .filter(follow => follow.follower !== null)
+      .map(follow => ({
+        uuid: follow.follower.uuid,
+        user_id: follow.follower.id,
+        user_uuid: follow.follower.uuid,
+        phone: follow.follower.phone,
+        username: follow.follower.username,
+        nickname: follow.follower.nickname,
+        avatar: follow.follower.avatar,
+        bio: follow.follower.bio,
+        followed_at: follow.created_at
+      }));
 
     res.json({
       status: true,
@@ -2890,16 +2907,19 @@ app.get('/api/points/info', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
     
-    // 查找或创建用户积分记录
-    let userPoints = await UserPoints.findOne({ where: { user_id: userId } });
-    
-    if (!userPoints) {
-      userPoints = await UserPoints.create({
+    // 使用findOrCreate避免并发冲突
+    const [userPoints, created] = await UserPoints.findOrCreate({
+      where: { user_id: userId },
+      defaults: {
         user_id: userId,
         points: 0,
         total_points: 0,
         continuous_days: 0
-      });
+      }
+    });
+    
+    if (created) {
+      log.info(`[积分] 为用户 ${userId} 创建了新的积分记录`);
     }
     
     // 获取本周的打卡记录

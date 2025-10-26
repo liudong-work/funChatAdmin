@@ -49,6 +49,11 @@ const User = sequelize.define('User', {
     allowNull: true,
     comment: '个人简介'
   },
+  gender: {
+    type: DataTypes.ENUM('male', 'female', 'other'),
+    allowNull: true,
+    comment: '性别（注册后不可修改）'
+  },
   status: {
     type: DataTypes.ENUM('active', 'inactive', 'banned'),
     defaultValue: 'active',

@@ -87,8 +87,9 @@ export default function MomentsScreen({ navigation }) {
     loadMoments(1, true);
   }, []);
 
-  // Tab切换时重新加载数据
+  // 监听tab切换，重新加载数据
   useEffect(() => {
+    console.log('[MomentsScreen] Tab切换到:', activeTab);
     loadMoments(1, true);
   }, [activeTab]);
 

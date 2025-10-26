@@ -24,6 +24,7 @@ export default function RegisterScreen({ navigation }) {
     username: '',
     password: '',
     confirmPassword: '',
+    gender: '', // 性别字段
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isCodeSent, setIsCodeSent] = useState(false);
@@ -90,11 +91,17 @@ export default function RegisterScreen({ navigation }) {
   };
 
   const handleRegister = async () => {
-    const { phoneNumber, verificationCode, username, password, confirmPassword } = formData;
+    const { phoneNumber, verificationCode, username, password, confirmPassword, gender } = formData;
 
     // 表单验证
     if (!phoneNumber || !verificationCode || !username || !password || !confirmPassword) {
       Alert.alert('提示', '请填写完整的注册信息');
+      return;
+    }
+
+    // 验证性别是否选择
+    if (!gender) {
+      Alert.alert('提示', '请选择性别\n\n⚠️ 注意：性别一旦选定后不可更改');
       return;
     }
 
@@ -132,6 +139,7 @@ export default function RegisterScreen({ navigation }) {
         username,
         nickname: username,
         email: '', // 暂时不填写邮箱
+        gender: gender, // 性别
       });
       
       if (response.status) {
@@ -241,6 +249,48 @@ export default function RegisterScreen({ navigation }) {
                 />
               </View>
 
+              {/* 性别选择 */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>性别 <Text style={styles.warningText}>⚠️ 选定后不可更改</Text></Text>
+                <View style={styles.genderContainer}>
+                  <TouchableOpacity
+                    style={[
+                      styles.genderButton,
+                      formData.gender === 'male' && styles.genderButtonActive
+                    ]}
+                    onPress={() => handleInputChange('gender', 'male')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.genderIcon,
+                      formData.gender === 'male' && styles.genderIconActive
+                    ]}>♂️</Text>
+                    <Text style={[
+                      styles.genderText,
+                      formData.gender === 'male' && styles.genderTextActive
+                    ]}>男生</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity
+                    style={[
+                      styles.genderButton,
+                      formData.gender === 'female' && styles.genderButtonActive
+                    ]}
+                    onPress={() => handleInputChange('gender', 'female')}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[
+                      styles.genderIcon,
+                      formData.gender === 'female' && styles.genderIconActive
+                    ]}>♀️</Text>
+                    <Text style={[
+                      styles.genderText,
+                      formData.gender === 'female' && styles.genderTextActive
+                    ]}>女生</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>密码</Text>
                 <TextInput
@@ -282,12 +332,16 @@ export default function RegisterScreen({ navigation }) {
 
               {/* 用户协议 */}
               <View style={styles.agreement}>
-                <Text style={styles.agreementText}>
-                  注册即表示同意
-                  <Text style={styles.agreementLink}>《用户协议》</Text>
-                  和
-                  <Text style={styles.agreementLink}>《隐私政策》</Text>
-                </Text>
+                <View style={styles.agreementRow}>
+                  <Text style={styles.agreementText}>注册即表示同意</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('UserAgreement')}>
+                    <Text style={styles.agreementLink}>《用户协议》</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.agreementText}>和</Text>
+                  <TouchableOpacity onPress={() => navigation.navigate('PrivacyPolicy')}>
+                    <Text style={styles.agreementLink}>《隐私政策》</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>
 
@@ -397,6 +451,47 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     fontWeight: '500',
   },
+  warningText: {
+    fontSize: 12,
+    color: '#FFD700',
+    fontWeight: 'normal',
+  },
+  // 性别选择样式
+  genderContainer: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  genderButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 12,
+    paddingVertical: 14,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  genderButtonActive: {
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    borderColor: 'white',
+  },
+  genderIcon: {
+    fontSize: 24,
+    marginRight: 8,
+  },
+  genderIconActive: {
+    // 选中时的图标样式
+  },
+  genderText: {
+    fontSize: 16,
+    color: 'rgba(255, 255, 255, 0.8)',
+    fontWeight: '500',
+  },
+  genderTextActive: {
+    color: 'white',
+    fontWeight: 'bold',
+  },
   textInput: {
     backgroundColor: 'rgba(255, 255, 255, 0.9)',
     borderRadius: 12,
@@ -459,15 +554,25 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 20,
   },
+  agreementRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   agreementText: {
     fontSize: 12,
     color: 'rgba(255, 255, 255, 0.7)',
-    textAlign: 'center',
     lineHeight: 18,
+    marginHorizontal: 2,
   },
   agreementLink: {
+    fontSize: 12,
     color: 'white',
-    fontWeight: '500',
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+    marginHorizontal: 2,
+    paddingVertical: 4,
   },
   footer: {
     flexDirection: 'row',

@@ -211,43 +211,68 @@ export default function ProfileScreen({ onLogout, navigation }) {
         <Text style={styles.headerTitle}>👤 我的</Text>
       </View>
 
-      <View style={styles.profileCard}>
-        <TouchableOpacity 
-          style={styles.avatarContainer}
-          onPress={() => navigation.navigate('UserProfile', { userUuid: userInfo.uuid })}
-        >
-          {userInfo.avatar && userInfo.avatar.startsWith('http') ? (
-            <Image 
-              source={{ uri: userInfo.avatar }} 
-              style={styles.avatarImage}
-              resizeMode="cover"
-            />
-          ) : (
-            <Text style={styles.avatar}>{userInfo.avatar || '👤'}</Text>
-          )}
-          <View style={styles.editAvatarButton}>
-            <Text style={styles.editAvatarText}>查看</Text>
+      {/* 个人信息卡片 - 横向布局 */}
+      <TouchableOpacity 
+        style={styles.profileCard}
+        onPress={() => navigation.navigate('UserProfile', { userUuid: userInfo.uuid })}
+        activeOpacity={0.9}
+      >
+        <View style={styles.profileHeader}>
+          {/* 左侧头像 */}
+          <View style={styles.avatarSection}>
+            {userInfo.avatar && userInfo.avatar.startsWith('http') ? (
+              <Image 
+                source={{ uri: userInfo.avatar }} 
+                style={styles.avatarImage}
+                resizeMode="cover"
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Text style={styles.avatarEmoji}>{userInfo.avatar || '👤'}</Text>
+              </View>
+            )}
           </View>
-        </TouchableOpacity>
+          
+          {/* 右侧信息 */}
+          <View style={styles.infoSection}>
+            <View style={styles.nameRow}>
+              <Text style={styles.userName}>{userInfo.name}</Text>
+              <Text style={styles.viewProfileText}>进入主页 ›</Text>
+            </View>
+            <Text style={styles.userPhone}>{userInfo.phone}</Text>
+          </View>
+        </View>
         
-        <Text style={styles.userName}>{userInfo.name}</Text>
-        <Text style={styles.userPhone}>{userInfo.phone}</Text>
-        
+        {/* 统计数据 */}
         <View style={styles.userStats}>
-          <TouchableOpacity style={styles.statItem} onPress={handleViewFollowing}>
+          <TouchableOpacity 
+            style={styles.statItem} 
+            onPress={(e) => {
+              e.stopPropagation();
+              handleViewFollowing();
+            }}
+          >
             <Text style={styles.statNumber}>{followStats.followingCount}</Text>
             <Text style={styles.statLabel}>关注</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.statItem} onPress={handleViewFollowers}>
+          <View style={styles.statDivider} />
+          <TouchableOpacity 
+            style={styles.statItem} 
+            onPress={(e) => {
+              e.stopPropagation();
+              handleViewFollowers();
+            }}
+          >
             <Text style={styles.statNumber}>{followStats.followersCount}</Text>
             <Text style={styles.statLabel}>粉丝</Text>
           </TouchableOpacity>
+          <View style={styles.statDivider} />
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{momentCount}</Text>
             <Text style={styles.statLabel}>动态</Text>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* 会员中心卡片 - 醒目设计 */}
       <TouchableOpacity 
@@ -374,64 +399,76 @@ const styles = StyleSheet.create({
     margin: 15,
     padding: 20,
     borderRadius: 12,
-    alignItems: 'center',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
   },
-  avatarContainer: {
-    position: 'relative',
-    marginBottom: 15,
+  profileHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 20,
   },
-  avatar: {
-    fontSize: 60,
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    backgroundColor: '#f0f0f0',
-    textAlign: 'center',
-    lineHeight: 80,
+  avatarSection: {
+    marginRight: 15,
   },
   avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 70,
+    height: 70,
+    borderRadius: 35,
     backgroundColor: '#f0f0f0',
   },
-  editAvatarButton: {
-    position: 'absolute',
-    bottom: 0,
-    right: 0,
-    backgroundColor: '#007AFF',
-    borderRadius: 15,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+  avatarPlaceholder: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: '#f0f0f0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  editAvatarText: {
-    color: 'white',
-    fontSize: 12,
-    fontWeight: 'bold',
+  avatarEmoji: {
+    fontSize: 40,
+  },
+  infoSection: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 6,
   },
   userName: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 5,
+  },
+  viewProfileText: {
+    fontSize: 14,
+    color: '#007AFF',
+    fontWeight: '500',
   },
   userPhone: {
     fontSize: 14,
-    color: '#666',
-    marginBottom: 20,
+    color: '#999',
   },
   userStats: {
     flexDirection: 'row',
     justifyContent: 'space-around',
-    width: '100%',
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
   },
   statItem: {
     alignItems: 'center',
+    flex: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 40,
+    backgroundColor: '#E5E5EA',
   },
   statNumber: {
     fontSize: 18,

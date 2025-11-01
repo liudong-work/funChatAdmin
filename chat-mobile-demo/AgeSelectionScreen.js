@@ -10,8 +10,13 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userApi } from './services/apiService';
+import { useAuthStore } from './stores';
 
 export default function AgeSelectionScreen({ navigation }) {
+  // 使用 Zustand 状态管理
+  const token = useAuthStore(state => state.token);
+  const user = useAuthStore(state => state.user);
+  const updateUser = useAuthStore(state => state.updateUser);
   const [selectedAge, setSelectedAge] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 

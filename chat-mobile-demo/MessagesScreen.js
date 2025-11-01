@@ -214,7 +214,6 @@ export default function MessagesScreen({ navigation }) {
             try {
               console.log('[MESSAGES] 开始删除对话:', item.id, item.name);
               
-              const token = await AsyncStorage.getItem('authToken');
               if (!token) {
                 Alert.alert('提示', '请先登录');
                 return;

@@ -14,10 +14,13 @@ import {
   ScrollView,
 } from 'react-native';
 import { userApi } from "./services/apiService";
+import { useAuthStore } from './stores';
 
 const { width, height } = Dimensions.get('window');
 
 export default function RegisterScreen({ navigation }) {
+  // 使用 Zustand 状态管理
+  const setAuth = useAuthStore(state => state.setAuth);
   const [formData, setFormData] = useState({
     phoneNumber: '',
     verificationCode: '',
@@ -143,10 +146,9 @@ export default function RegisterScreen({ navigation }) {
       });
       
       if (response.status) {
-        // 保存注册返回的token和用户信息
+        // 保存注册返回的token和用户信息（使用 Zustand）
         if (response.data && response.data.token) {
-          await AsyncStorage.setItem('authToken', response.data.token);
-          await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
+          await setAuth(response.data.token, response.data.user);
         }
         
         // 注册成功后跳转到年龄选择页面

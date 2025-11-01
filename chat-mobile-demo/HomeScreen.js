@@ -67,11 +67,11 @@ const HomeScreen = ({ navigation }) => {
   // 加载用户性别
   const loadUserGender = async () => {
     try {
-      const userInfoStr = await AsyncStorage.getItem('userInfo');
-      if (userInfoStr) {
-        const user = JSON.parse(userInfoStr);
-        setUserGender(user.gender || null);
-        console.log('[Gender] 用户性别:', user.gender || '未设置');
+      if (user?.gender) {
+        setUserGender(user.gender);
+        console.log('[Gender] 用户性别:', user.gender);
+      } else {
+        console.log('[Gender] 用户性别未设置');
       }
     } catch (error) {
       console.error('[Gender] 加载用户性别失败:', error);

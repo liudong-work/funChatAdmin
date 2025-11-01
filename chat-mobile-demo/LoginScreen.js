@@ -13,11 +13,13 @@ import {
   Dimensions,
 } from 'react-native';
 import { userApi } from "./services/apiService";
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useAuthStore } from './stores';
 
 const { width, height } = Dimensions.get('window');
 
-export default function LoginScreen({ navigation, setIsAuthenticated }) {
+export default function LoginScreen({ navigation }) {
+  // 使用 Zustand 状态管理
+  const setAuth = useAuthStore(state => state.setAuth);
   const [phoneNumber, setPhoneNumber] = useState('13800138001'); // 默认填入测试账号
   const [verificationCode, setVerificationCode] = useState('123456'); // 默认填入验证码
   const [isLoading, setIsLoading] = useState(false);
@@ -101,25 +103,20 @@ export default function LoginScreen({ navigation, setIsAuthenticated }) {
       const response = await userApi.login(phoneNumber, verificationCode);
       
       if (response.status) {
-        // 登录成功，保存用户信息和token
+        // 登录成功，使用 Zustand 保存认证信息
         const { user, token } = response.data;
         
-        // 保存到本地存储
-        await AsyncStorage.setItem('authToken', token);
-        await AsyncStorage.setItem('userInfo', JSON.stringify(user));
+        // 使用 store 保存（自动持久化到 AsyncStorage）
+        await setAuth(token, user);
         
-        Alert.alert('成功', `欢迎回来，${user.nickname}！`, [
-          {
-            text: '确定',
-            onPress: () => setIsAuthenticated && setIsAuthenticated(true)
-          }
-        ]);
+        Alert.alert('成功', `欢迎回来，${user.nickname}！`);
+        // 导航会自动处理（App.js 监听 isAuthenticated 变化）
       } else {
         Alert.alert('登录失败', response.message || '请检查验证码');
       }
     } catch (error) {
       console.error('登录错误:', error);
-      Alert.alert('错误', '网络连接失败，请检查网络设置');
+      Alert.alert('错误', error.message || '网络连接失败，请检查网络设置');
     } finally {
       setIsLoading(false);
     }

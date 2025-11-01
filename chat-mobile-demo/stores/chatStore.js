@@ -42,37 +42,71 @@ const useChatStore = create((set, get) => ({
     }
   },
   
-  // 添加消息到对话
+  // 添加消息到对话（去重）
   addMessage: (conversationId, message) => {
     const { conversations } = get();
     const conversation = conversations[conversationId];
     
     if (!conversation) return;
     
+    // ✅ 检查消息是否已存在（根据 id 或 uuid）
+    const messageId = message.id || message.uuid;
+    const existingMessages = conversation.messages || [];
+    const isDuplicate = existingMessages.some(msg => 
+      (msg.id && msg.id === messageId) || (msg.uuid && msg.uuid === messageId)
+    );
+    
+    if (isDuplicate) {
+      console.log('[ChatStore] 消息已存在，跳过添加:', messageId);
+      return;
+    }
+    
     set({
       conversations: {
         ...conversations,
         [conversationId]: {
           ...conversation,
-          messages: [...conversation.messages, message],
+          messages: [...existingMessages, message],
         }
       }
     });
   },
   
-  // 批量设置消息
+  // 批量设置消息（去重）
   setMessages: (conversationId, messages) => {
     const { conversations } = get();
     const conversation = conversations[conversationId];
     
     if (!conversation) return;
     
+    // ✅ 去重消息列表（根据 id 或 uuid）
+    const uniqueMessages = [];
+    const seenIds = new Set();
+    
+    (messages || []).forEach(msg => {
+      const msgId = msg.id || msg.uuid;
+      if (msgId && !seenIds.has(msgId)) {
+        seenIds.add(msgId);
+        uniqueMessages.push(msg);
+      } else if (!msgId) {
+        // 如果没有 id，仍然添加（但可能导致问题）
+        uniqueMessages.push(msg);
+      }
+    });
+    
+    if (uniqueMessages.length !== (messages || []).length) {
+      console.log('[ChatStore] 发现重复消息，已去重:', {
+        original: (messages || []).length,
+        unique: uniqueMessages.length
+      });
+    }
+    
     set({
       conversations: {
         ...conversations,
         [conversationId]: {
           ...conversation,
-          messages: messages,
+          messages: uniqueMessages,
         }
       }
     });

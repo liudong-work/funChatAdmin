@@ -384,14 +384,6 @@ export default function App() {
     if (isAuthenticated && token && user) {
       console.log('[App] 用户已认证，连接 WebSocket');
       connect(token);
-      
-      // 注册用户到 WebSocket
-      if (socket) {
-        socket.emit('register', {
-          uuid: user.uuid,
-          phone: user.phone,
-        });
-      }
     } else {
       console.log('[App] 用户未认证，断开 WebSocket');
       disconnect();
@@ -401,7 +393,18 @@ export default function App() {
     return () => {
       disconnect();
     };
-  }, [isAuthenticated, token, user, connect, disconnect, socket]);
+  }, [isAuthenticated, token?.length, user?.uuid]); // 只依赖值，不依赖函数和对象
+  
+  // 注册用户到 WebSocket（单独的 effect）
+  useEffect(() => {
+    if (socket && connected && user) {
+      console.log('[App] 注册用户到 WebSocket:', user.uuid);
+      socket.emit('register', {
+        uuid: user.uuid,
+        phone: user.phone,
+      });
+    }
+  }, [connected, user?.uuid]); // 只监听连接状态和用户ID变化
 
   // 处理新消息
   const handleNewMessage = (data) => {

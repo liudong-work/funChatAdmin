@@ -308,6 +308,229 @@ const useMomentStore = create((set, get) => ({
     });
   },
   
+  // ========== 动态详情状态 (MomentDetailScreen) ==========
+  
+  // 动态详情数据 { momentUuid: { data, loading, refreshing } }
+  momentDetails: {},
+  
+  // 获取动态详情
+  getMomentDetail: (momentUuid) => {
+    const { momentDetails } = get();
+    return momentDetails[momentUuid] || {
+      data: null,
+      loading: false,
+      refreshing: false,
+    };
+  },
+  
+  // 设置动态详情
+  setMomentDetail: (momentUuid, data) => {
+    const { momentDetails } = get();
+    set({
+      momentDetails: {
+        ...momentDetails,
+        [momentUuid]: {
+          ...momentDetails[momentUuid],
+          data: data,
+        }
+      }
+    });
+  },
+  
+  // 更新动态详情的部分字段
+  updateMomentDetail: (momentUuid, updates) => {
+    const { momentDetails } = get();
+    const currentDetail = momentDetails[momentUuid];
+    if (!currentDetail || !currentDetail.data) return;
+    
+    set({
+      momentDetails: {
+        ...momentDetails,
+        [momentUuid]: {
+          ...currentDetail,
+          data: {
+            ...currentDetail.data,
+            ...updates,
+          }
+        }
+      }
+    });
+  },
+  
+  // 设置动态详情加载状态
+  setMomentDetailLoading: (momentUuid, loading) => {
+    const { momentDetails } = get();
+    set({
+      momentDetails: {
+        ...momentDetails,
+        [momentUuid]: {
+          ...momentDetails[momentUuid],
+          loading: loading,
+        }
+      }
+    });
+  },
+  
+  // 设置动态详情刷新状态
+  setMomentDetailRefreshing: (momentUuid, refreshing) => {
+    const { momentDetails } = get();
+    set({
+      momentDetails: {
+        ...momentDetails,
+        [momentUuid]: {
+          ...momentDetails[momentUuid],
+          refreshing: refreshing,
+        }
+      }
+    });
+  },
+  
+  // ========== 评论状态 ==========
+  
+  // 评论列表 { momentUuid: { list, loading, submitting } }
+  comments: {},
+  
+  // 获取评论列表
+  getComments: (momentUuid) => {
+    const { comments } = get();
+    return comments[momentUuid]?.list || [];
+  },
+  
+  // 设置评论列表
+  setComments: (momentUuid, list) => {
+    const { comments } = get();
+    set({
+      comments: {
+        ...comments,
+        [momentUuid]: {
+          ...comments[momentUuid],
+          list: list,
+        }
+      }
+    });
+  },
+  
+  // 添加评论
+  addComment: (momentUuid, comment) => {
+    const { comments } = get();
+    const currentComments = comments[momentUuid]?.list || [];
+    set({
+      comments: {
+        ...comments,
+        [momentUuid]: {
+          ...comments[momentUuid],
+          list: [...currentComments, comment],
+        }
+      }
+    });
+  },
+  
+  // 设置评论加载状态
+  setCommentsLoading: (momentUuid, loading) => {
+    const { comments } = get();
+    set({
+      comments: {
+        ...comments,
+        [momentUuid]: {
+          ...comments[momentUuid],
+          loading: loading,
+        }
+      }
+    });
+  },
+  
+  // 设置评论提交状态
+  setCommentSubmitting: (momentUuid, submitting) => {
+    const { comments } = get();
+    set({
+      comments: {
+        ...comments,
+        [momentUuid]: {
+          ...comments[momentUuid],
+          submitting: submitting,
+        }
+      }
+    });
+  },
+  
+  // 获取评论提交状态
+  getCommentSubmitting: (momentUuid) => {
+    const { comments } = get();
+    return comments[momentUuid]?.submitting || false;
+  },
+  
+  // ========== 评论输入文本 ==========
+  
+  // 评论输入文本 { momentUuid: 'text' }
+  commentTexts: {},
+  
+  // 获取评论输入文本
+  getCommentText: (momentUuid) => {
+    const { commentTexts } = get();
+    return commentTexts[momentUuid] || '';
+  },
+  
+  // 设置评论输入文本
+  setCommentText: (momentUuid, text) => {
+    const { commentTexts } = get();
+    set({
+      commentTexts: {
+        ...commentTexts,
+        [momentUuid]: text,
+      }
+    });
+  },
+  
+  // 清空评论输入文本
+  clearCommentText: (momentUuid) => {
+    const { commentTexts } = get();
+    const newCommentTexts = { ...commentTexts };
+    delete newCommentTexts[momentUuid];
+    set({ commentTexts: newCommentTexts });
+  },
+  
+  // ========== 关注状态 (来自 userStore，但这里也需要) ==========
+  
+  // 关注状态 { userUuid: { isFollowing, loading } }
+  followStatus: {},
+  
+  // 获取关注状态
+  getFollowStatus: (userUuid) => {
+    const { followStatus } = get();
+    return followStatus[userUuid] || {
+      isFollowing: false,
+      loading: false,
+    };
+  },
+  
+  // 设置关注状态
+  setFollowStatus: (userUuid, isFollowing) => {
+    const { followStatus } = get();
+    set({
+      followStatus: {
+        ...followStatus,
+        [userUuid]: {
+          ...followStatus[userUuid],
+          isFollowing: isFollowing,
+        }
+      }
+    });
+  },
+  
+  // 设置关注加载状态
+  setFollowLoading: (userUuid, loading) => {
+    const { followStatus } = get();
+    set({
+      followStatus: {
+        ...followStatus,
+        [userUuid]: {
+          ...followStatus[userUuid],
+          loading: loading,
+        }
+      }
+    });
+  },
+  
   // ========== 清理函数 ==========
   
   clearTab: (tab) => {
@@ -324,6 +547,24 @@ const useMomentStore = create((set, get) => ({
           lastLoadTime: 0,
         }
       }
+    });
+  },
+  
+  clearMomentDetail: (momentUuid) => {
+    const { momentDetails, comments, commentTexts } = get();
+    
+    const newMomentDetails = { ...momentDetails };
+    const newComments = { ...comments };
+    const newCommentTexts = { ...commentTexts };
+    
+    delete newMomentDetails[momentUuid];
+    delete newComments[momentUuid];
+    delete newCommentTexts[momentUuid];
+    
+    set({
+      momentDetails: newMomentDetails,
+      comments: newComments,
+      commentTexts: newCommentTexts,
     });
   },
   
@@ -353,6 +594,10 @@ const useMomentStore = create((set, get) => ({
         images: [],
         currentIndex: 0,
       },
+      momentDetails: {},
+      comments: {},
+      commentTexts: {},
+      followStatus: {},
     });
   },
 }));

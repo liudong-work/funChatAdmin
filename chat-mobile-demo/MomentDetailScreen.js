@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,66 +11,101 @@ import {
   Alert,
   RefreshControl,
   Dimensions,
-  Modal,
 } from 'react-native';
 import ImageViewing from 'react-native-image-viewing';
 import { userApi } from "./services/apiService";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import useMomentStore from './stores/momentStore';
 
 const { width } = Dimensions.get('window');
 
 export default function MomentDetailScreen({ route, navigation }) {
   const { moment } = route.params;
   console.log('MomentDetailScreen 接收到的参数:', { moment, routeParams: route.params });
-  const [momentData, setMomentData] = useState(moment);
-  const [comments, setComments] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [commentText, setCommentText] = useState('');
-  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
-  const [imageViewerVisible, setImageViewerVisible] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [isFollowing, setIsFollowing] = useState(false);
-  const [isFollowLoading, setIsFollowLoading] = useState(false);
+  
+  const momentUuid = moment?.uuid;
+  const authorUuid = moment?.author?.uuid;
+  
+  // ✅ 使用 useMomentStore 替代所有 useState
+  const {
+    getMomentDetail,
+    setMomentDetail,
+    updateMomentDetail,
+    setMomentDetailLoading,
+    setMomentDetailRefreshing,
+    getComments,
+    setComments,
+    setCommentsLoading,
+    getCommentSubmitting,
+    setCommentSubmitting,
+    getCommentText,
+    setCommentText,
+    clearCommentText,
+    getFollowStatus,
+    setFollowStatus,
+    setFollowLoading,
+    imageViewer,
+    showImageViewer,
+    hideImageViewer,
+  } = useMomentStore();
+  
+  // ✅ 从 store 获取状态
+  const momentDetail = getMomentDetail(momentUuid);
+  const momentData = momentDetail.data || moment;
+  const loading = momentDetail.loading;
+  const refreshing = momentDetail.refreshing;
+  
+  const comments = getComments(momentUuid);
+  const isSubmittingComment = getCommentSubmitting(momentUuid);
+  const commentText = getCommentText(momentUuid);
+  
+  const followStatus = authorUuid ? getFollowStatus(authorUuid) : { isFollowing: false, loading: false };
+  const isFollowing = followStatus.isFollowing;
+  const isFollowLoading = followStatus.loading;
 
   useEffect(() => {
+    // ✅ 初始化动态详情到 store
+    if (!momentDetail.data) {
+      setMomentDetail(momentUuid, moment);
+    }
+    
     loadComments();
     checkFollowStatus();
   }, []);
 
-  // 检查关注状态
+  // ✅ 检查关注状态（使用 store）
   const checkFollowStatus = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
       if (!token) return;
 
-      if (!momentData || !momentData.author || !momentData.author.uuid) {
-        console.error('momentData.author.uuid 不存在:', momentData);
+      if (!authorUuid) {
+        console.error('authorUuid 不存在:', momentData);
         return;
       }
 
-      const response = await userApi.checkFollowStatus(momentData.author.uuid, token);
+      const response = await userApi.checkFollowStatus(authorUuid, token);
       if (response.status) {
-        setIsFollowing(response.data.is_following);
+        setFollowStatus(authorUuid, response.data.is_following);
       }
     } catch (error) {
       console.error('检查关注状态失败:', error);
     }
   };
 
-  // 关注/取消关注
+  // ✅ 关注/取消关注（使用 store）
   const handleFollow = async () => {
     try {
-      setIsFollowLoading(true);
+      setFollowLoading(authorUuid, true);
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         Alert.alert('错误', '请先登录');
         return;
       }
 
-      const response = await userApi.followUser(momentData.author.uuid, token);
+      const response = await userApi.followUser(authorUuid, token);
       if (response.status) {
-        setIsFollowing(response.data.is_following);
+        setFollowStatus(authorUuid, response.data.is_following);
         Alert.alert('成功', response.message);
       } else {
         Alert.alert('错误', response.message || '操作失败');
@@ -79,29 +114,29 @@ export default function MomentDetailScreen({ route, navigation }) {
       console.error('关注操作失败:', error);
       Alert.alert('错误', '网络错误，请重试');
     } finally {
-      setIsFollowLoading(false);
+      setFollowLoading(authorUuid, false);
     }
   };
 
-  // 加载评论列表
+  // ✅ 加载评论列表（使用 store）
   const loadComments = async () => {
     try {
-      setLoading(true);
-      console.log('loadComments - momentData:', momentData);
+      setCommentsLoading(momentUuid, true);
+      console.log('loadComments - momentUuid:', momentUuid);
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         Alert.alert('错误', '请先登录');
         return;
       }
 
-      if (!momentData || !momentData.uuid) {
-        console.error('momentData 或 uuid 不存在:', momentData);
+      if (!momentUuid) {
+        console.error('momentUuid 不存在');
         return;
       }
 
-      const response = await userApi.getComments(momentData.uuid, {}, token);
+      const response = await userApi.getComments(momentUuid, {}, token);
       if (response.status) {
-        setComments(response.data.list || []);
+        setComments(momentUuid, response.data.list || []);
       } else {
         Alert.alert('错误', response.message || '加载评论失败');
       }
@@ -109,11 +144,11 @@ export default function MomentDetailScreen({ route, navigation }) {
       console.error('加载评论失败:', error);
       Alert.alert('错误', '加载评论失败');
     } finally {
-      setLoading(false);
+      setCommentsLoading(momentUuid, false);
     }
   };
 
-  // 提交评论
+  // ✅ 提交评论（使用 store）
   const submitComment = async () => {
     if (!commentText.trim()) {
       Alert.alert('提示', '请输入评论内容');
@@ -121,22 +156,21 @@ export default function MomentDetailScreen({ route, navigation }) {
     }
 
     try {
-      setIsSubmittingComment(true);
+      setCommentSubmitting(momentUuid, true);
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         Alert.alert('错误', '请先登录');
         return;
       }
 
-      const response = await userApi.addComment(momentData.uuid, commentText.trim(), token);
+      const response = await userApi.addComment(momentUuid, commentText.trim(), token);
       if (response.status) {
-        setCommentText('');
+        clearCommentText(momentUuid);
         loadComments();
-        // 更新评论数
-        setMomentData(prev => ({
-          ...prev,
+        // ✅ 更新评论数
+        updateMomentDetail(momentUuid, {
           comments_count: response.data.comments_count
-        }));
+        });
       } else {
         Alert.alert('错误', response.message || '评论失败');
       }
@@ -144,11 +178,11 @@ export default function MomentDetailScreen({ route, navigation }) {
       console.error('提交评论失败:', error);
       Alert.alert('错误', '评论失败，请重试');
     } finally {
-      setIsSubmittingComment(false);
+      setCommentSubmitting(momentUuid, false);
     }
   };
 
-  // 点赞功能
+  // ✅ 点赞功能（使用 store，乐观更新）
   const handleLike = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
@@ -157,33 +191,39 @@ export default function MomentDetailScreen({ route, navigation }) {
         return;
       }
 
-      // 乐观更新UI
+      // ✅ 乐观更新UI
       const isLiked = momentData.is_liked;
-      setMomentData(prev => ({
-        ...prev,
+      const oldData = { ...momentData };
+      updateMomentDetail(momentUuid, {
         is_liked: !isLiked,
-        likes_count: isLiked ? prev.likes_count - 1 : prev.likes_count + 1
-      }));
+        likes_count: isLiked ? momentData.likes_count - 1 : momentData.likes_count + 1
+      });
 
       // 调用API
-      const response = await userApi.likeMoment(momentData.uuid, token);
+      const response = await userApi.likeMoment(momentUuid, token);
       
       if (!response.status) {
-        // 如果失败，回滚UI
-        setMomentData(momentData);
+        // ✅ 如果失败，回滚UI
+        updateMomentDetail(momentUuid, {
+          is_liked: oldData.is_liked,
+          likes_count: oldData.likes_count
+        });
         Alert.alert('错误', response.message || '点赞失败');
       } else {
-        // 更新UI状态
-        setMomentData(prev => ({
-          ...prev,
+        // ✅ 更新UI状态
+        updateMomentDetail(momentUuid, {
           is_liked: response.data.is_liked,
           likes_count: response.data.likes_count
-        }));
+        });
       }
     } catch (error) {
       console.error('点赞失败:', error);
-      // 回滚UI
-      setMomentData(momentData);
+      // ✅ 回滚UI（使用保存的旧数据）
+      const oldData = momentDetail.data || moment;
+      updateMomentDetail(momentUuid, {
+        is_liked: oldData.is_liked,
+        likes_count: oldData.likes_count
+      });
       Alert.alert('错误', '网络错误，请重试');
     }
   };
@@ -233,16 +273,17 @@ export default function MomentDetailScreen({ route, navigation }) {
     }
   };
 
-  // 预览图片
+  // ✅ 预览图片（使用 store）
   const handlePreviewImage = (imageUri, index = 0) => {
-    setCurrentImageIndex(index);
-    setImageViewerVisible(true);
+    const images = momentData?.images || [];
+    showImageViewer(images, index);
   };
 
+  // ✅ 刷新（使用 store）
   const onRefresh = () => {
-    setRefreshing(true);
+    setMomentDetailRefreshing(momentUuid, true);
     loadComments();
-    setTimeout(() => setRefreshing(false), 1000);
+    setTimeout(() => setMomentDetailRefreshing(momentUuid, false), 1000);
   };
 
   // 如果momentData不存在，显示加载中
@@ -398,7 +439,7 @@ export default function MomentDetailScreen({ route, navigation }) {
           style={styles.commentInput}
           placeholder="说点好听的,遇见有趣的"
           value={commentText}
-          onChangeText={setCommentText}
+          onChangeText={(text) => setCommentText(momentUuid, text)}
           multiline
           maxLength={200}
         />
@@ -413,12 +454,12 @@ export default function MomentDetailScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {/* 图片查看器 */}
+      {/* ✅ 图片查看器（使用 store） */}
       <ImageViewing
-        images={momentData?.images?.map(uri => ({ uri })) || []}
-        imageIndex={currentImageIndex}
-        visible={imageViewerVisible}
-        onRequestClose={() => setImageViewerVisible(false)}
+        images={imageViewer.images.map(uri => ({ uri }))}
+        imageIndex={imageViewer.currentIndex}
+        visible={imageViewer.visible}
+        onRequestClose={hideImageViewer}
         enableSwipeDown={true}
         swipeDownThreshold={50}
         backgroundColor="rgba(0, 0, 0, 0.9)"

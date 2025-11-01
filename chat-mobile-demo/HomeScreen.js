@@ -21,10 +21,14 @@ import {
 import Svg, { Path, Defs, LinearGradient, Stop, Circle, Rect } from 'react-native-svg';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { bottleApi, bottleConfigApi } from './services/apiService';
+import { useAuthStore } from './stores';
 
 const { width, height } = Dimensions.get('window');
 
 const HomeScreen = ({ navigation }) => {
+  // 使用 Zustand 状态管理
+  const user = useAuthStore(state => state.user);
+  const token = useAuthStore(state => state.token);
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [bottleMessage, setBottleMessage] = useState('');
   const [foundBottle, setFoundBottle] = useState(null);

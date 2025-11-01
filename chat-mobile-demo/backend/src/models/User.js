@@ -54,6 +54,11 @@ const User = sequelize.define('User', {
     allowNull: true,
     comment: '性别（注册后不可修改）'
   },
+  age_range: {
+    type: DataTypes.STRING(20),
+    allowNull: true,
+    comment: '年龄段（注册后不可修改）'
+  },
   status: {
     type: DataTypes.ENUM('active', 'inactive', 'banned'),
     defaultValue: 'active',

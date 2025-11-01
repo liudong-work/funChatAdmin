@@ -1,5 +1,5 @@
 import sequelize from './src/config/database.js';
-import { User, Moment, Comment, Like, Follow, Bottle, Message, UserPoints, CheckinRecord, Order, MembershipPlan } from './src/models/index.js';
+import { User, Moment, Comment, Like, Follow, Bottle, Message, UserPoints, CheckinRecord, Order, MembershipPlan, BottleConfig, Feedback } from './src/models/index.js';
 
 async function syncDatabase() {
   try {

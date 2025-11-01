@@ -143,10 +143,17 @@ export default function RegisterScreen({ navigation }) {
       });
       
       if (response.status) {
-        Alert.alert('成功', '注册成功！请登录', [
+        // 保存注册返回的token和用户信息
+        if (response.data && response.data.token) {
+          await AsyncStorage.setItem('authToken', response.data.token);
+          await AsyncStorage.setItem('userInfo', JSON.stringify(response.data.user));
+        }
+        
+        // 注册成功后跳转到年龄选择页面
+        Alert.alert('注册成功', '请选择您的年龄段', [
           {
-            text: '确定',
-            onPress: () => navigation.navigate('Login')
+            text: '继续',
+            onPress: () => navigation.navigate('AgeSelection')
           }
         ]);
       } else {

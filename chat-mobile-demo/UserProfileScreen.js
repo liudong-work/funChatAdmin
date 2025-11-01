@@ -319,28 +319,10 @@ export default function UserProfileScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* 用户信息卡片 */}
-        <View style={styles.userInfoCard}>
+        {/* 用户信息 - 无卡片 */}
+        <View style={styles.userInfoSection}>
           <Text style={styles.username}>{userInfo.nickname}</Text>
           <Text style={styles.bio}>{userInfo.bio || '这个人很懒，什么都没留下~'}</Text>
-          
-          {/* 统计数据 */}
-          <View style={styles.statsRow}>
-            <TouchableOpacity style={styles.statItem} onPress={handleViewFollowing}>
-              <Text style={styles.statNumber}>{userStats.followingCount}</Text>
-              <Text style={styles.statLabel}>关注</Text>
-            </TouchableOpacity>
-            <View style={styles.statDivider} />
-            <TouchableOpacity style={styles.statItem} onPress={handleViewFollowers}>
-              <Text style={styles.statNumber}>{userStats.followersCount}</Text>
-              <Text style={styles.statLabel}>粉丝</Text>
-            </TouchableOpacity>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNumber}>{userStats.momentsCount}</Text>
-              <Text style={styles.statLabel}>动态</Text>
-            </View>
-          </View>
         </View>
 
         {/* 非当前用户才显示操作按钮 */}
@@ -565,58 +547,22 @@ const styles = StyleSheet.create({
   avatarBadgeText: {
     fontSize: 16,
   },
-  // 用户信息卡片
-  userInfoCard: {
-    backgroundColor: 'white',
-    marginHorizontal: 15,
-    marginBottom: 15,
-    paddingTop: 20,
-    paddingBottom: 15,
+  // 用户信息区域 - 无卡片
+  userInfoSection: {
     paddingHorizontal: 20,
-    borderRadius: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 3,
+    paddingVertical: 16,
+    marginBottom: 8,
   },
   username: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#333',
+    color: '#1A1A1A',
     marginBottom: 8,
   },
   bio: {
     fontSize: 14,
     color: '#666',
-    lineHeight: 20,
-    marginBottom: 15,
-  },
-  // 统计数据行
-  statsRow: {
-    flexDirection: 'row',
-    paddingTop: 15,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  statItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  statDivider: {
-    width: 1,
-    backgroundColor: '#E5E5EA',
-    marginVertical: 5,
-  },
-  statNumber: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#667eea',
-    marginBottom: 6,
-  },
-  statLabel: {
-    fontSize: 13,
-    color: '#999',
+    lineHeight: 22,
   },
   // 操作按钮区域
   actionButtonsContainer: {

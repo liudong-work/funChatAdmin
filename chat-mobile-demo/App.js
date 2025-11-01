@@ -30,6 +30,7 @@ import AccountDeletionScreen from './AccountDeletionScreen';
 import FeedbackScreen from './FeedbackScreen';
 import PrivacyPolicyScreen from './PrivacyPolicyScreen';
 import UserAgreementScreen from './UserAgreementScreen';
+import AgeSelectionScreen from './AgeSelectionScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -372,6 +373,7 @@ function AuthStack({ setIsAuthenticated }) {
         {(props) => <LoginScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
       </Stack.Screen>
       <Stack.Screen name="Register" component={RegisterScreen} />
+      <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
       <Stack.Screen name="UserAgreement" component={UserAgreementScreen} />
     </Stack.Navigator>

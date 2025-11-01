@@ -315,6 +315,10 @@ export const userApi = {
   // 申请注销账号
   deleteAccount: (reason, token) => 
     apiService.authenticatedPost('/api/user/delete-account', { reason }, token),
+
+  // 更新年龄段（仅允许设置一次）
+  updateAge: (age_range, token) => 
+    apiService.authenticatedPost('/api/user/update-age', { age_range }, token),
 };
 
 

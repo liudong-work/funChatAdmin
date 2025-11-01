@@ -3116,6 +3116,59 @@ app.get('/api/points/checkin-history', authenticateToken, async (req, res) => {
   }
 });
 
+// ========== 用户年龄设置API ==========
+
+// 更新用户年龄段（仅允许设置一次）
+app.post('/api/user/update-age', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { age_range } = req.body;
+
+    if (!age_range) {
+      return res.json({
+        status: false,
+        message: '请选择年龄段'
+      });
+    }
+
+    // 查找用户
+    const user = await User.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({
+        status: false,
+        message: '用户不存在'
+      });
+    }
+
+    // 检查是否已设置过年龄
+    if (user.age_range) {
+      return res.json({
+        status: false,
+        message: '年龄段已设置，不可修改'
+      });
+    }
+
+    // 更新年龄段
+    await user.update({ age_range });
+
+    log.info(`用户 ${user.uuid} 设置年龄段: ${age_range}`);
+
+    res.json({
+      status: true,
+      message: '年龄设置成功',
+      data: {
+        age_range
+      }
+    });
+  } catch (error) {
+    log.error('更新年龄段失败:', error);
+    res.json({
+      status: false,
+      message: '设置失败: ' + error.message
+    });
+  }
+});
+
 // ========== 账号注销相关API ==========
 
 // 申请注销账号

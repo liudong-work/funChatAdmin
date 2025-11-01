@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { messageApi } from "./services/apiService";
-import { useAuthStore, useSocketStore } from './stores';
+import { useAuthStore, useSocketStore, useChatStore } from './stores';
 
 export default function MessagesScreen({ navigation }) {
   // 使用 Zustand 状态管理
@@ -13,9 +13,22 @@ export default function MessagesScreen({ navigation }) {
   const on = useSocketStore(state => state.on);
   const off = useSocketStore(state => state.off);
   
+  // ✅ 使用 chatStore 管理对话列表
+  const {
+    getConversationList,
+    setConversationList,
+    addOrUpdateConversation,
+    removeConversation,
+    conversationList,
+    setConversationRefreshing,
+  } = useChatStore();
+  
+  // ✅ 从 store 获取对话列表和刷新状态
+  const users = getConversationList();
+  const refreshing = conversationList.refreshing;
+  
+  // ⚠️ searchText 保留为本地状态（纯 UI 状态）
   const [searchText, setSearchText] = useState('');
-  const [users, setUsers] = useState([]);
-  const [refreshing, setRefreshing] = useState(false);
   
   // 每次进入消息页面时都重新加载消息列表
   useFocusEffect(
@@ -39,7 +52,8 @@ export default function MessagesScreen({ navigation }) {
     const handleNewMessage = (data) => {
       console.log('[Messages] 收到新消息:', data);
       if (data && data.message) {
-        addUserToMessages(
+        // ✅ 使用 store 方法更新对话列表
+        addOrUpdateConversation(
           data.message.sender_uuid,
           data.message.sender_name || `用户${data.message.sender_uuid.slice(-4)}`,
           data.message.content || '新消息',
@@ -60,14 +74,14 @@ export default function MessagesScreen({ navigation }) {
       off('voice_message', handleNewMessage);
       off('image_message', handleNewMessage);
     };
-  }, [socket, connected, on, off]);
+  }, [socket, connected, on, off, addOrUpdateConversation]);
 
-  // 下拉刷新处理
+  // ✅ 下拉刷新处理（使用 store）
   const onRefresh = useCallback(async () => {
-    setRefreshing(true);
+    setConversationRefreshing(true);
     await loadConversations();
-    setRefreshing(false);
-  }, []);
+    setConversationRefreshing(false);
+  }, [setConversationRefreshing]);
 
   // 加载消息列表
   const loadConversations = async () => {
@@ -129,69 +143,17 @@ export default function MessagesScreen({ navigation }) {
           };
         });
         
-        setUsers(conversationUsers);
+        // ✅ 使用 store 方法更新对话列表
+        setConversationList(conversationUsers);
         console.log('消息列表加载成功:', conversationUsers.length, '个对话');
       } else {
         console.warn('加载消息列表失败:', response.message);
-        setUsers([]);
+        setConversationList([]);
       }
     } catch (error) {
       console.error('加载消息列表失败:', error);
     }
   };
-
-  // 添加新用户到消息列表（当收到新消息时调用）
-  const addUserToMessages = useCallback((senderUuid, senderName, lastMessage, messageType = 'text', imageUrl = null) => {
-    // 确保 senderUuid 不为空
-    if (!senderUuid) {
-      console.warn('addUserToMessages: senderUuid is null or undefined');
-      return;
-    }
-
-    setUsers(prev => {
-      const existingIndex = prev.findIndex(u => u.id === senderUuid);
-      if (existingIndex >= 0) {
-        // 更新现有用户
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          lastMessage,
-          lastMessageImageUrl: imageUrl,
-          lastTime: (() => {
-            try {
-              return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            } catch (error) {
-              console.warn('[Messages] 当前时间格式化错误:', error);
-              return '--:--';
-            }
-          })(),
-          unreadCount: (updated[existingIndex].unreadCount || 0) + 1,
-        };
-        // 移到最前面
-        const [moved] = updated.splice(existingIndex, 1);
-        return [moved, ...updated];
-      } else {
-        // 添加新用户
-        const newUser = {
-          id: senderUuid,
-          name: senderName || '陌生人',
-          avatar: '👤',
-          lastMessage,
-          lastMessageImageUrl: imageUrl,
-          lastTime: (() => {
-            try {
-              return new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
-            } catch (error) {
-              console.warn('[Messages] 当前时间格式化错误:', error);
-              return '--:--';
-            }
-          })(),
-          unreadCount: 1,
-        };
-        return [newUser, ...prev];
-      }
-    });
-  }, []);
 
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchText.toLowerCase())
@@ -225,8 +187,8 @@ export default function MessagesScreen({ navigation }) {
               console.log('[MESSAGES] 删除对话响应:', response);
               
               if (response.status) {
-                // 从本地列表移除
-                setUsers(prev => prev.filter(user => user.id !== item.id));
+                // ✅ 从 store 中移除对话
+                removeConversation(item.id);
                 console.log('[MESSAGES] 对话已删除:', item.id, '删除了', response.deletedCount, '条消息');
                 
                 // 刷新消息列表

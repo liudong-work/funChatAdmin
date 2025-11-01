@@ -1,13 +1,23 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { userApi, pointsApi } from './services/apiService';
-import { useAuthStore } from './stores';
+import { useAuthStore, useUserStore } from './stores';
 
 export default function ProfileScreen({ navigation }) {
   // 使用 Zustand 状态管理
   const user = useAuthStore(state => state.user);
   const token = useAuthStore(state => state.token);
   const logout = useAuthStore(state => state.logout);
+  
+  // ✅ 使用 useUserStore 替代 useState
+  const {
+    getFollowStats,
+    setFollowStats,
+    getPointsInfo,
+    setPointsInfo,
+    getMomentCount,
+    setMomentCount,
+  } = useUserStore();
   
   // 处理后的用户信息（用于显示）
   const userInfo = useMemo(() => ({
@@ -19,18 +29,23 @@ export default function ProfileScreen({ navigation }) {
     uuid: user?.uuid || '',
   }), [user]);
   
-  const [followStats, setFollowStats] = useState({
+  // ✅ 从 store 获取状态（如果不存在则使用默认值）
+  const followStats = getFollowStats(userInfo.uuid) || {
     followingCount: 0,
     followersCount: 0,
-  });
+    isFollowing: false,
+  };
 
-  const [pointsInfo, setPointsInfo] = useState({
+  const pointsInfo = getPointsInfo(userInfo.uuid) || {
+    totalPoints: 0,
+    level: 1,
+    todayPoints: 0,
     points: 0,
     continuous_days: 0,
     is_checked_in_today: false,
-  });
+  };
 
-  const [momentCount, setMomentCount] = useState(0);
+  const momentCount = getMomentCount(userInfo.uuid) || 0;
 
   // 加载数据
   useEffect(() => {
@@ -54,42 +69,60 @@ export default function ProfileScreen({ navigation }) {
     return unsubscribe;
   }, [navigation, userInfo.uuid, token]);
 
-  // 加载积分信息
+  // ✅ 加载积分信息（更新到 store）
   const loadPointsInfo = async () => {
     try {
       if (!token) return;
       
       const response = await pointsApi.getPointsInfo(token);
       if (response && response.status) {
-        setPointsInfo(response.data);
+        // 转换数据格式以兼容 pointsInfo 结构
+        const pointsData = {
+          totalPoints: response.data.points || 0,
+          level: response.data.level || 1,
+          todayPoints: response.data.today_points || 0,
+          points: response.data.points || 0,
+          continuous_days: response.data.continuous_days || 0,
+          is_checked_in_today: response.data.is_checked_in_today || false,
+        };
+        setPointsInfo(userInfo.uuid, pointsData);
       }
     } catch (error) {
       console.error('加载积分信息失败:', error);
     }
   };
 
-  // 加载关注统计数据
+  // ✅ 加载关注统计数据（更新到 store）
   const loadFollowStats = async () => {
     try {
       if (!token) return;
 
       // 获取关注列表
       const followingRes = await userApi.getFollowingList(null, { page: 1, pageSize: 1 }, token);
+      let followingCount = 0;
       if (followingRes.status && followingRes.data) {
-        setFollowStats(prev => ({ ...prev, followingCount: followingRes.data.total || 0 }));
+        followingCount = followingRes.data.total || 0;
       }
 
       // 获取粉丝列表
       const followersRes = await userApi.getFollowersList(null, { page: 1, pageSize: 1 }, token);
+      let followersCount = 0;
       if (followersRes.status && followersRes.data) {
-        setFollowStats(prev => ({ ...prev, followersCount: followersRes.data.total || 0 }));
+        followersCount = followersRes.data.total || 0;
       }
+
+      // ✅ 更新到 store
+      setFollowStats(userInfo.uuid, {
+        followingCount,
+        followersCount,
+        isFollowing: false, // 自己的资料，不需要关注状态
+      });
     } catch (error) {
       console.error('加载关注统计失败:', error);
     }
   };
 
-  // 加载用户动态数量
+  // ✅ 加载用户动态数量（更新到 store）
   const loadMomentCount = async (userUuid = null) => {
     try {
       const uuid = userUuid || userInfo.uuid;
@@ -97,7 +130,8 @@ export default function ProfileScreen({ navigation }) {
 
       const response = await userApi.getUserMoments(uuid, { page: 1, pageSize: 1 }, token);
       if (response && response.status && response.data) {
-        setMomentCount(response.data.total || 0);
+        const count = response.data.total || 0;
+        setMomentCount(uuid, count);
       }
     } catch (error) {
       console.error('加载动态数量失败:', error);
@@ -106,16 +140,16 @@ export default function ProfileScreen({ navigation }) {
 
   // 查看关注列表
   const handleViewFollowing = () => {
-    Alert.alert('关注列表', `你关注了 ${followStats.followingCount} 个用户`);
+    Alert.alert('关注列表', `你关注了 ${followStats.followingCount || 0} 个用户`);
     // 后续可以导航到关注列表页面
-    // navigation.navigate('FollowingList');
+    // navigation.navigate('FollowList', { type: 'following', userUuid: userInfo.uuid });
   };
 
   // 查看粉丝列表
   const handleViewFollowers = () => {
-    Alert.alert('粉丝列表', `你有 ${followStats.followersCount} 个粉丝`);
+    Alert.alert('粉丝列表', `你有 ${followStats.followersCount || 0} 个粉丝`);
     // 后续可以导航到粉丝列表页面
-    // navigation.navigate('FollowersList');
+    // navigation.navigate('FollowList', { type: 'followers', userUuid: userInfo.uuid });
   };
 
   const menuItems = [

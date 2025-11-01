@@ -6,13 +6,48 @@ import * as ImagePicker from 'expo-image-picker';
 import { messageApi, fileApi } from "./services/apiService";
 import * as FileSystem from 'expo-file-system/legacy';
 import { getBaseUrl } from './config/api.js';
-import { useSocketStore } from './stores';
+import { useSocketStore, useChatStore } from './stores';
 
 export default function ChatDetailScreen({ route, navigation, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
   // 获取 socket 实例
   const socket = useSocketStore(state => state.socket);
   const connected = useSocketStore(state => state.connected);
   const { user } = route.params;
+  
+  // ✅ 生成对话ID
+  const conversationId = user.sender_uuid || user.id;
+  
+  // ✅ 使用 chatStore 替代大部分 useState
+  const {
+    getCurrentMessages,
+    getInputText,
+    setInputText,
+    addMessage,
+    setMessages,
+    setActiveConversation,
+    imagePreview,
+    showImagePreview,
+    hideImagePreview,
+    voiceRecording,
+    startRecording: startRecordingStore,
+    stopRecording: stopRecordingStore,
+    updateRecordSeconds,
+    voicePlaying,
+    setPlayingVoice,
+    stopPlayingVoice,
+    keyboard,
+    setKeyboardVisible,
+  } = useChatStore();
+  
+  // ✅ 从 store 获取状态
+  const messages = getCurrentMessages();
+  const inputText = getInputText(conversationId);
+  const isRecording = voiceRecording.isRecording;
+  const recordSeconds = voiceRecording.recordSeconds;
+  const playingMessageId = voicePlaying.messageId;
+  const playingProgress = voicePlaying.progress;
+  const keyboardHeight = keyboard.height;
+  const isKeyboardVisible = keyboard.visible;
   
   console.log('[ChatDetail] 组件加载，接收到的user参数:', {
     id: user?.id,
@@ -111,39 +146,23 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     }
   };
   
-  const [messages, setMessages] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [inputText, setInputText] = useState('');
-  
-  // 图片预览状态
-  const [imagePreviewVisible, setImagePreviewVisible] = useState(false);
-  const [previewImageUrl, setPreviewImageUrl] = useState('');
-  const [burnTimer, setBurnTimer] = useState(null); // 阅后即焚定时器
-  const [viewedImages, setViewedImages] = useState(new Set()); // 跟踪已查看的图片
-  const [currentUserAvatar, setCurrentUserAvatar] = useState('👤'); // 当前用户头像
+  // ⚠️ 保留的本地状态（特殊情况）
+  const [viewedImages, setViewedImages] = useState(new Set()); // 本地缓存，已查看的图片
+  const [currentUserAvatar, setCurrentUserAvatar] = useState('👤'); // 用户头像（可能需要）
+  const [isVoiceMode, setIsVoiceMode] = useState(false); // 语音模式切换
+  const [isLoading, setIsLoading] = useState(true); // 初始加载状态
+  const [isLoadingMore, setIsLoadingMore] = useState(false); // 加载更多状态
+  const [hasMoreMessages, setHasMoreMessages] = useState(true); // 是否有更多消息
+  const [currentPage, setCurrentPage] = useState(0); // 当前页码
+  const pageSize = 20; // 每页加载20条消息（常量）
   
   // AsyncStorage 键名
   const VIEWED_IMAGES_KEY = `viewed_images_${currentUserUuid}_${user.id}`;
-  const [keyboardHeight, setKeyboardHeight] = useState(0);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  
+  // Refs
   const scrollViewRef = useRef(null);
-  const [isRecording, setIsRecording] = useState(false);
   const recordingRef = useRef(null);
-  const [recordSeconds, setRecordSeconds] = useState(0);
   const recordTimerRef = useRef(null);
-  
-  // 语音输入模式状态
-  const [isVoiceMode, setIsVoiceMode] = useState(false);
-  
-  // 分页加载相关状态
-  const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const [hasMoreMessages, setHasMoreMessages] = useState(true);
-  const [currentPage, setCurrentPage] = useState(0);
-  const [pageSize] = useState(20); // 每页加载20条消息
-  
-  // 语音播放状态管理
-  const [playingMessageId, setPlayingMessageId] = useState(null);
-  const [playingProgress, setPlayingProgress] = useState(0);
 
   // 选择图片并通过 WebSocket 发送
   const pickAndSendImage = async () => {
@@ -233,24 +252,25 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       console.log('[Image] 图片消息已发送，数据大小:', bytes.length, '字节');
 
       // 本地先插入一条图片消息（使用本地URI预览）
-      setMessages(prev => {
-        const newMessage = {
-          id: Date.now(),
-          text: '',
-          type: 'image',
-          imageUrl: asset.uri,
-          width: asset.width,
-          height: asset.height,
-          timestamp: new Date(),
-          user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
-        };
-        console.log('[Image] 添加本地图片消息:', {
-          messageId: newMessage.id,
-          userId: newMessage.user.id,
-          currentUserUuid: currentUserUuid,
-          shouldBeOnRight: newMessage.user.id === currentUserUuid
-        });
-        return [...prev, newMessage];
+      // ✅ 使用 store 添加消息
+      const newImageMessage = {
+        id: Date.now(),
+        text: '',
+        type: 'image',
+        imageUrl: asset.uri,
+        width: asset.width,
+        height: asset.height,
+        timestamp: new Date(),
+        user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
+      };
+      
+      addMessage(conversationId, newImageMessage);
+      
+      console.log('[Image] 添加本地图片消息:', {
+        messageId: newImageMessage.id,
+        userId: newImageMessage.user.id,
+        currentUserUuid: currentUserUuid,
+        shouldBeOnRight: newImageMessage.user.id === currentUserUuid
       });
       
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
@@ -260,6 +280,11 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       Alert.alert('提示', '发送图片失败: ' + e.message);
     }
   };
+  
+  // ✅ 设置当前活跃对话
+  useEffect(() => {
+    setActiveConversation(conversationId);
+  }, [conversationId, setActiveConversation]);
   
   // 加载对话历史
   useEffect(() => {
@@ -317,33 +342,29 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         // 判断是谁发的，自己发的也要即时插入（避免等待轮询）
         const isMine = wsMessage && currentUserUuid && wsMessage.sender_uuid === currentUserUuid;
 
-        // 将WS消息转为本地消息结构并插入
-        setMessages((prev) => {
-          const next = [
-            ...prev,
-            {
-              id: safeId,
-              text: safeText,
-              timestamp: safeTime,
-              // 语音消息相关字段
-              audioData: wsMessage?.audioData || null,
-              audioUrl: wsMessage?.audioUrl || null,
-              duration: wsMessage?.duration || null,
-              // 图片消息相关字段
-              imageUrl: wsMessage?.imageUrl || null,
-              width: wsMessage?.width || null,
-              height: wsMessage?.height || null,
-              type: wsMessage?.type || 'text',
-              user: {
-                id: isMine ? currentUserUuid : otherUserId,
-                name: isMine ? '我' : (user.name || '对方'),
-                avatar: isMine ? '👤' : (user.avatar || '👤'),
-              },
-            },
-          ];
-          console.log('[ChatDetail] 已插入一条消息，当前总数:', next.length);
-          return next;
-        });
+        // ✅ 将WS消息转为本地消息结构并插入
+        const newMessage = {
+          id: safeId,
+          text: safeText,
+          timestamp: safeTime,
+          // 语音消息相关字段
+          audioData: wsMessage?.audioData || null,
+          audioUrl: wsMessage?.audioUrl || null,
+          duration: wsMessage?.duration || null,
+          // 图片消息相关字段
+          imageUrl: wsMessage?.imageUrl || null,
+          width: wsMessage?.width || null,
+          height: wsMessage?.height || null,
+          type: wsMessage?.type || 'text',
+          user: {
+            id: isMine ? currentUserUuid : otherUserId,
+            name: isMine ? '我' : (user.name || '对方'),
+            avatar: isMine ? '👤' : (user.avatar || '👤'),
+          },
+        };
+        
+        addMessage(conversationId, newMessage);
+        console.log('[ChatDetail] 已插入一条消息，当前总数:', messages.length + 1);
         setTimeout(() => {
           scrollViewRef.current?.scrollToEnd({ animated: true });
         }, 100);
@@ -374,8 +395,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     });
   }, [messages]);
 
-  // 图片预览功能（阅后即焚版本）
-  const showImagePreview = (imageUrl) => {
+  // ✅ 图片预览功能（使用 store 的 showImagePreview）
+  const handleShowImagePreview = (imageUrl) => {
     console.log('[Image] 显示图片预览（阅后即焚）:', {
       originalUrl: imageUrl,
       processedUrl: getImageUrl(imageUrl),
@@ -398,11 +419,6 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       return;
     }
     
-    // 清除之前的定时器
-    if (burnTimer) {
-      clearTimeout(burnTimer);
-    }
-    
     const processedUrl = getImageUrl(imageUrl);
     console.log('[Image] 处理后的URL:', {
       original: imageUrl,
@@ -410,8 +426,14 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       isProcessed: processedUrl !== imageUrl
     });
     
-    setPreviewImageUrl(processedUrl);
-    setImagePreviewVisible(true);
+    // 设置3秒后自动关闭的定时器
+    const timer = setTimeout(() => {
+      console.log('[Image] 阅后即焚：3秒后自动关闭图片');
+      hideImagePreview();
+    }, 3000);
+    
+    // ✅ 使用 store 显示图片预览
+    showImagePreview(processedUrl, timer);
     
     // 记录已查看的图片（使用原始URL作为标识）
     setViewedImages(prev => {
@@ -420,41 +442,23 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       return newSet;
     });
     console.log('[Image] 图片已标记为已查看:', imageUrl);
-    
-    // 设置3秒后自动关闭
-    const timer = setTimeout(() => {
-      console.log('[Image] 阅后即焚：3秒后自动关闭图片');
-      setImagePreviewVisible(false);
-      setBurnTimer(null);
-    }, 3000);
-    
-    setBurnTimer(timer);
     console.log('[Image] 阅后即焚定时器已设置（3秒）');
   };
   
-  // 手动关闭图片预览
+  // ✅ 手动关闭图片预览（使用 store）
   const closeImagePreview = () => {
     console.log('[Image] 手动关闭图片预览');
-    if (burnTimer) {
-      clearTimeout(burnTimer);
-      setBurnTimer(null);
-    }
-    setImagePreviewVisible(false);
+    hideImagePreview();
   };
 
-  const hideImagePreview = () => {
-    setImagePreviewVisible(false);
-    setPreviewImageUrl('');
-  };
-
-  // 组件卸载时清理定时器
+  // ✅ 组件卸载时清理定时器
   useEffect(() => {
     return () => {
-      if (burnTimer) {
-        clearTimeout(burnTimer);
+      if (imagePreview.burnTimer) {
+        clearTimeout(imagePreview.burnTimer);
       }
     };
-  }, [burnTimer]);
+  }, [imagePreview.burnTimer]);
 
   const loadConversationHistory = async (userAvatar = null, page = 0, isLoadMore = false) => {
     try {
@@ -694,13 +698,13 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         });
         
         if (isLoadMore) {
-          // 加载更多消息，添加到现有消息前面
+          // ✅ 加载更多消息，添加到现有消息前面
           // 由于后端返回的是倒序，需要反转后再添加
           const reversedMessages = [...conversationMessages].reverse();
-          setMessages(prevMessages => [...reversedMessages, ...prevMessages]);
+          setMessages(conversationId, [...reversedMessages, ...messages]);
           setCurrentPage(page);
         } else {
-          // 首次加载或刷新，替换所有消息
+          // ✅ 首次加载或刷新，替换所有消息
           // 由于后端返回的是倒序，需要反转后显示
           const reversedMessages = [...conversationMessages].reverse();
           
@@ -716,28 +720,27 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
             })));
           }
           
-          setMessages(reversedMessages);
+          // ✅ 使用 store 设置消息
+          setMessages(conversationId, reversedMessages);
           setCurrentPage(0);
           
           // 延迟验证消息是否正确设置并强制重新检查
           setTimeout(() => {
             console.log('[ChatDetail] 消息状态设置完成，请检查UI是否显示语音消息');
             
-            // 强制重新检查消息状态
-            setMessages(prevMessages => {
-              const audioMessagesFinal = prevMessages.filter(msg => msg.type === 'audio');
-              console.log('[ChatDetail] 最终状态检查 - 语音消息数量:', audioMessagesFinal.length);
-              if (audioMessagesFinal.length > 0) {
-                console.log('[ChatDetail] 最终语音消息详情:', audioMessagesFinal.map(msg => ({
-                  id: msg.id,
-                  type: msg.type,
-                  audioUrl: msg.audioUrl,
-                  file_url: msg.file_url,
-                  hasAudioUrl: !!msg.audioUrl
-                })));
-              }
-              return prevMessages; // 返回相同状态以触发重渲染
-            });
+            // ✅ 检查消息状态（从 store 获取）
+            const currentMessages = getCurrentMessages();
+            const audioMessagesFinal = currentMessages.filter(msg => msg.type === 'audio');
+            console.log('[ChatDetail] 最终状态检查 - 语音消息数量:', audioMessagesFinal.length);
+            if (audioMessagesFinal.length > 0) {
+              console.log('[ChatDetail] 最终语音消息详情:', audioMessagesFinal.map(msg => ({
+                id: msg.id,
+                type: msg.type,
+                audioUrl: msg.audioUrl,
+                file_url: msg.file_url,
+                hasAudioUrl: !!msg.audioUrl
+              })));
+            }
           }, 300);
         }
         
@@ -762,7 +765,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           data: response.data,
           message: response.message
         });
-        setMessages([]);
+        // ✅ 使用 store 设置空消息
+        setMessages(conversationId, []);
       } else {
         console.warn('加载对话历史失败:', {
           status: response.status,
@@ -771,7 +775,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         });
         // 如果没有历史消息，且是从瓶子来的，显示瓶子消息
         if (user.bottleMessage) {
-          setMessages([{
+          // ✅ 使用 store 设置瓶子消息
+          setMessages(conversationId, [{
             id: 1,
             text: user.bottleMessage,
             timestamp: new Date(),
@@ -787,7 +792,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       console.error('加载对话历史失败:', error);
       // 如果加载失败，且是从瓶子来的，显示瓶子消息
       if (user.bottleMessage) {
-        setMessages([{
+        // ✅ 使用 store 设置瓶子消息
+        setMessages(conversationId, [{
           id: 1,
           text: user.bottleMessage,
           timestamp: new Date(),
@@ -931,8 +937,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
     // 键盘监听
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (e) => {
       console.log('键盘高度:', e.endCoordinates.height); // 调试信息
-      setKeyboardHeight(e.endCoordinates.height);
-      setIsKeyboardVisible(true);
+      // ✅ 使用 store 设置键盘状态
+      setKeyboardVisible(true, e.endCoordinates.height);
       // 延迟滚动到底部，确保键盘完全显示
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -941,8 +947,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
 
     const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
       console.log('键盘隐藏'); // 调试信息
-      setKeyboardHeight(0);
-      setIsKeyboardVisible(false);
+      // ✅ 使用 store 设置键盘隐藏
+      setKeyboardVisible(false, 0);
     });
 
     return () => {
@@ -966,8 +972,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   const toggleVoiceMode = () => {
     setIsVoiceMode(!isVoiceMode);
     if (isVoiceMode) {
-      // 退出语音模式时，清空输入文本
-      setInputText('');
+      // ✅ 退出语音模式时，清空输入文本
+      setInputText(conversationId, '');
     }
   };
 
@@ -979,14 +985,21 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         Audio.RecordingOptionsPresets.HIGH_QUALITY
       );
       recordingRef.current = recording;
-      setIsRecording(true);
-      setRecordSeconds(0);
+      // ✅ 使用 store 开始录音
+      startRecordingStore(conversationId);
+      // ✅ 使用 store 重置录音秒数
+      updateRecordSeconds(0);
       recordTimerRef.current && clearInterval(recordTimerRef.current);
-      recordTimerRef.current = setInterval(() => setRecordSeconds((s) => s + 1), 1000);
+      recordTimerRef.current = setInterval(() => {
+        // ✅ 从 store 获取最新值（避免闭包问题）
+        const currentSeconds = useChatStore.getState().voiceRecording.recordSeconds || 0;
+        updateRecordSeconds(currentSeconds + 1);
+      }, 1000);
       console.log('[Voice] 录音已开始');
     } catch (e) {
       console.error('[Voice] 开始录音失败:', e);
-      setIsRecording(false);
+      // ✅ 使用 store 停止录音
+      stopRecordingStore();
     }
   };
 
@@ -1001,7 +1014,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       await recordingRef.current.stopAndUnloadAsync();
       const uri = recordingRef.current.getURI();
       recordingRef.current = null;
-      setIsRecording(false);
+      // ✅ 使用 store 停止录音
+      stopRecordingStore();
       console.log('[Voice] 录音文件URI:', uri);
       
       if (!uri) {
@@ -1047,8 +1061,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
 
       console.log('[Voice] 语音消息已发送，时长:', recordSeconds, '秒');
       
-      // 添加到本地消息列表
-      setMessages((prev) => ([...prev, {
+      // ✅ 添加到本地消息列表（使用 store）
+      addMessage(conversationId, {
         id: Date.now(),
         uuid: `voice_${Date.now()}_local`,
         text: '[语音消息]',
@@ -1060,26 +1074,25 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         duration: recordSeconds, // 添加时长信息
         timestamp: new Date(),
         user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
-      }]));
+      });
       setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
       console.error('[Voice] 停止录音/发送失败:', e);
-      setIsRecording(false);
+      // ✅ 使用 store 停止录音
+      stopRecordingStore();
       Alert.alert('提示', '语音发送失败');
     }
   };
 
   const playAudio = async (url, audioData, messageId) => {
     try {
-      // 如果正在播放其他消息，先停止
+      // ✅ 如果正在播放其他消息，先停止
       if (playingMessageId && playingMessageId !== messageId) {
-        setPlayingMessageId(null);
-        setPlayingProgress(0);
+        stopPlayingVoice();
       }
       
-      // 设置当前播放状态
-      setPlayingMessageId(messageId);
-      setPlayingProgress(0);
+      // ✅ 设置当前播放状态
+      setPlayingVoice(messageId, 0);
       
       let sound;
       
@@ -1181,14 +1194,13 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       
       sound.setOnPlaybackStatusUpdate((status) => {
         if (status.isLoaded) {
-          // 更新播放进度
+          // ✅ 更新播放进度
           const progress = status.positionMillis / status.durationMillis;
-          setPlayingProgress(progress);
+          setPlayingVoice(messageId, progress);
           
           if (status.didJustFinish) {
             console.log('[Voice] 音频播放完成');
-            setPlayingMessageId(null);
-            setPlayingProgress(0);
+            stopPlayingVoice();
             sound.unloadAsync();
           }
         }
@@ -1212,14 +1224,14 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   useEffect(() => {
     const keyboardDidShowListener = Keyboard.addListener('keyboardDidShow', (event) => {
       console.log('[Keyboard] 键盘显示，高度:', event.endCoordinates.height);
-      setKeyboardHeight(event.endCoordinates.height);
-      setIsKeyboardVisible(true);
+      // ✅ 使用 store 设置键盘状态
+      setKeyboardVisible(true, event.endCoordinates.height);
     });
 
     const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
       console.log('[Keyboard] 键盘隐藏');
-      setKeyboardHeight(0);
-      setIsKeyboardVisible(false);
+      // ✅ 使用 store 设置键盘隐藏
+      setKeyboardVisible(false, 0);
     });
 
     return () => {
@@ -1272,8 +1284,9 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           currentUserUuid: currentUserUuid,
           shouldBeOnRight: newMessage.user.id === currentUserUuid
         });
-        setMessages(prev => [...prev, newMessage]);
-        setInputText('');
+        // ✅ 使用 store 添加消息
+        addMessage(conversationId, newMessage);
+        setInputText(conversationId, '');
         
         // 延迟滚动到底部，确保新消息已渲染
         setTimeout(() => {
@@ -1309,16 +1322,14 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       console.log('[DELETE] 后端响应:', response);
       
       if (response.status) {
-        // 删除成功，从本地消息列表中移除
+        // ✅ 删除成功，从本地消息列表中移除
         console.log('[DELETE] 删除成功，从本地消息列表移除:', messageUuid);
-        setMessages(prev => {
-          const filtered = prev.filter(msg => msg.uuid !== messageUuid);
-          console.log('[DELETE] 本地消息列表更新:', {
-            原数量: prev.length,
-            新数量: filtered.length,
-            删除的消息UUID: messageUuid
-          });
-          return filtered;
+        const filtered = messages.filter(msg => msg.uuid !== messageUuid);
+        setMessages(conversationId, filtered);
+        console.log('[DELETE] 本地消息列表更新:', {
+          原数量: messages.length,
+          新数量: filtered.length,
+          删除的消息UUID: messageUuid
         });
         console.log('[DELETE] 消息已从本地列表删除:', messageUuid);
       } else {
@@ -1584,7 +1595,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                                 });
                                 console.log('[Image] 准备显示预览');
                                 if (imageUrl) {
-                                  showImagePreview(imageUrl);
+                                  handleShowImagePreview(imageUrl);
                                 } else {
                                   console.error('[Image] 图片URL为空，无法预览');
                                 }
@@ -1802,7 +1813,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           <TextInput
             style={styles.textInput}
             value={inputText}
-            onChangeText={setInputText}
+            onChangeText={(text) => setInputText(conversationId, text)}
             placeholder="发送消息..."
             multiline
             maxLength={500}
@@ -1822,7 +1833,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
 
       {/* 图片预览 Modal（阅后即焚版本） */}
       <Modal
-        visible={imagePreviewVisible}
+        visible={imagePreview.visible}
         transparent={true}
         animationType="fade"
         onRequestClose={closeImagePreview}
@@ -1839,7 +1850,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                 <Text style={styles.swipeHintText}>下滑关闭</Text>
               </View>
               <Image
-                source={{ uri: previewImageUrl }}
+                source={{ uri: imagePreview.url }}
                 style={styles.previewImage}
                 resizeMode="contain"
                 onError={(error) => {
@@ -1847,20 +1858,20 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     error: error,
                     errorMessage: error?.message || '未知错误',
                     errorCode: error?.code || '无错误代码',
-                    previewImageUrl: previewImageUrl,
-                    imageSource: { uri: previewImageUrl },
-                    urlType: typeof previewImageUrl,
-                    urlLength: previewImageUrl?.length || 0
+                    previewImageUrl: imagePreview.url,
+                    imageSource: { uri: imagePreview.url },
+                    urlType: typeof imagePreview.url,
+                    urlLength: imagePreview.url?.length || 0
                   });
                   
                   // 尝试显示错误信息给用户
                   Alert.alert(
                     '图片加载失败', 
-                    `无法加载图片：${previewImageUrl}\n错误：${error?.message || '网络或文件问题'}`,
+                    `无法加载图片：${imagePreview.url}\n错误：${error?.message || '网络或文件问题'}`,
                     [
                       { text: '重试', onPress: () => {
                         // 重新尝试加载图片
-                        if (previewImageUrl) {
+                        if (imagePreview.url) {
                           console.log('[Image] 用户选择重试加载图片');
                         }
                       }},

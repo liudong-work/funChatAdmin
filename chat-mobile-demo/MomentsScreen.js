@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,20 +13,36 @@ import {
 import ImageViewing from 'react-native-image-viewing';
 import { userApi } from "./services/apiService";
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useMomentStore } from './stores';
 
 export default function MomentsScreen({ navigation }) {
-  const [activeTab, setActiveTab] = useState('latest'); // 'follow' 或 'latest'
-  const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [moments, setMoments] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
-  const [imageViewerVisible, setImageViewerVisible] = useState(false);
-  const [currentImageIndex, setCurrentImageIndex] = useState(0);
-  const [currentMomentImages, setCurrentMomentImages] = useState([]);
-  const [lastLoadTime, setLastLoadTime] = useState(0);
+  // ✅ 使用 useMomentStore 替代所有 useState
+  const {
+    activeTab,
+    setActiveTab,
+    moments,
+    setMoments,
+    setLoading,
+    setRefreshing,
+    setPage,
+    setHasMore,
+    setLastLoadTime,
+    imageViewer,
+    showImageViewer,
+    hideImageViewer,
+    toggleLike,
+  } = useMomentStore();
+  
+  // ✅ 从 store 获取当前标签的数据
+  const currentTabData = moments[activeTab];
+  const momentsList = currentTabData.list;
+  const refreshing = currentTabData.refreshing;
+  const loading = currentTabData.loading;
+  const page = currentTabData.page;
+  const hasMore = currentTabData.hasMore;
+  const lastLoadTime = currentTabData.lastLoadTime;
 
-  // 加载动态数据
+  // ✅ 加载动态数据（使用 store 更新状态）
   const loadMoments = async (pageNum = 1, isRefresh = false) => {
     try {
       // 防抖：避免频繁调用（1秒内只能调用一次）
@@ -35,19 +51,20 @@ export default function MomentsScreen({ navigation }) {
         console.log('[MomentsScreen] 请求过于频繁，跳过此次调用');
         return;
       }
-      setLastLoadTime(now);
+      setLastLoadTime(activeTab, now);
 
       if (isRefresh) {
-        setPage(1);
-        setHasMore(true);
+        setPage(activeTab, 1);
+        setHasMore(activeTab, true);
       }
 
-      setLoading(true);
+      setLoading(activeTab, true);
       
       // 获取用户token
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
         Alert.alert('错误', '请先登录');
+        setLoading(activeTab, false);
         return;
       }
 
@@ -63,13 +80,15 @@ export default function MomentsScreen({ navigation }) {
         const newMoments = response.data.list || [];
         
         if (isRefresh || pageNum === 1) {
-          setMoments(newMoments);
+          // ✅ 使用 store 方法设置动态列表
+          setMoments(activeTab, newMoments);
         } else {
-          setMoments(prev => [...prev, ...newMoments]);
+          // ✅ 追加新动态到现有列表
+          setMoments(activeTab, [...momentsList, ...newMoments]);
         }
         
-        setHasMore(newMoments.length === 10);
-        setPage(pageNum);
+        setHasMore(activeTab, newMoments.length === 10);
+        setPage(activeTab, pageNum);
       } else {
         Alert.alert('错误', response.message || '加载动态失败');
       }
@@ -77,8 +96,8 @@ export default function MomentsScreen({ navigation }) {
       console.error('加载动态失败:', error);
       Alert.alert('错误', '网络错误，请重试');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      setLoading(activeTab, false);
+      setRefreshing(activeTab, false);
     }
   };
 
@@ -139,18 +158,18 @@ export default function MomentsScreen({ navigation }) {
   };
 
   const onRefresh = () => {
+    setRefreshing(activeTab, true);
     loadMoments(1, true);
   };
 
-  // 预览图片
+  // ✅ 预览图片（使用 store）
   const handlePreviewImage = (momentItem, imageIndex = 0) => {
     if (momentItem.images && momentItem.images.length > 0) {
-      setCurrentMomentImages(momentItem.images);
-      setCurrentImageIndex(imageIndex);
-      setImageViewerVisible(true);
+      showImageViewer(momentItem.images, imageIndex);
     }
   };
 
+  // ✅ 点赞处理（使用 store）
   const handleLike = async (momentItem) => {
     try {
       const token = await AsyncStorage.getItem('authToken');
@@ -159,44 +178,26 @@ export default function MomentsScreen({ navigation }) {
         return;
       }
 
-      // 乐观更新UI
-      const updatedMoments = moments.map(m => {
-        if (m.uuid === momentItem.uuid) {
-          return {
-            ...m,
-            is_liked: !m.is_liked,
-            likes_count: m.is_liked ? m.likes_count - 1 : m.likes_count + 1
-          };
-        }
-        return m;
-      });
-      setMoments(updatedMoments);
+      // ✅ 乐观更新UI（使用 store）
+      const newIsLiked = !momentItem.is_liked;
+      const newLikesCount = momentItem.is_liked ? momentItem.likes_count - 1 : momentItem.likes_count + 1;
+      toggleLike(momentItem.uuid, newIsLiked, newLikesCount);
 
       // 调用API
       const response = await userApi.likeMoment(momentItem.uuid, token);
       
       if (!response.status) {
-        // 如果失败，回滚UI
-        setMoments(moments);
+        // ✅ 如果失败，回滚UI
+        toggleLike(momentItem.uuid, momentItem.is_liked, momentItem.likes_count);
         Alert.alert('错误', response.message || '点赞失败');
       } else {
-        // 更新UI状态
-        const updatedMoments = moments.map(m => {
-          if (m.uuid === momentItem.uuid) {
-            return {
-              ...m,
-              is_liked: response.data.is_liked,
-              likes_count: response.data.likes_count
-            };
-          }
-          return m;
-        });
-        setMoments(updatedMoments);
+        // ✅ 使用服务器返回的最新数据更新
+        toggleLike(momentItem.uuid, response.data.is_liked, response.data.likes_count);
       }
     } catch (error) {
       console.error('点赞失败:', error);
-      // 回滚UI
-      setMoments(moments);
+      // ✅ 回滚UI
+      toggleLike(momentItem.uuid, momentItem.is_liked, momentItem.likes_count);
       Alert.alert('错误', '网络错误，请重试');
     }
   };
@@ -322,7 +323,7 @@ export default function MomentsScreen({ navigation }) {
       </View>
 
       <FlatList
-        data={moments}
+        data={momentsList}
         renderItem={renderMomentItem}
         keyExtractor={(item) => item.uuid || item.id}
         refreshControl={
@@ -347,12 +348,12 @@ export default function MomentsScreen({ navigation }) {
         <Text style={styles.floatingPublishButtonText}>✏️</Text>
       </TouchableOpacity>
 
-      {/* 图片查看器 */}
+      {/* ✅ 图片查看器（使用 store 状态） */}
       <ImageViewing
-        images={currentMomentImages.map(uri => ({ uri }))}
-        imageIndex={currentImageIndex}
-        visible={imageViewerVisible}
-        onRequestClose={() => setImageViewerVisible(false)}
+        images={imageViewer.images.map(uri => ({ uri }))}
+        imageIndex={imageViewer.currentIndex}
+        visible={imageViewer.visible}
+        onRequestClose={hideImageViewer}
         enableSwipeDown={true}
         swipeDownThreshold={50}
         backgroundColor="rgba(0, 0, 0, 0.9)"

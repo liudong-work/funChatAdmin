@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
+import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput, Image, Alert, Platform } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import { messageApi } from "./services/apiService";
 import { useAuthStore, useSocketStore, useChatStore } from './stores';
@@ -305,6 +305,12 @@ export default function MessagesScreen({ navigation }) {
         showsVerticalScrollIndicator={false}
         refreshing={refreshing}
         onRefresh={onRefresh}
+        // ✅ 性能优化参数
+        initialNumToRender={15}
+        maxToRenderPerBatch={10}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === 'android'}
+        updateCellsBatchingPeriod={50}
       />
     </View>
   );

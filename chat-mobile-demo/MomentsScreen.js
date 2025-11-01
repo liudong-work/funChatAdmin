@@ -9,6 +9,7 @@ import {
   SafeAreaView,
   RefreshControl,
   Alert,
+  Platform,
 } from 'react-native';
 import ImageViewing from 'react-native-image-viewing';
 import { userApi } from "./services/apiService";
@@ -338,6 +339,24 @@ export default function MomentsScreen({ navigation }) {
             </Text>
           </View>
         }
+        // ✅ 性能优化参数
+        initialNumToRender={10}
+        maxToRenderPerBatch={5}
+        windowSize={5}
+        removeClippedSubviews={Platform.OS === 'android'}
+        updateCellsBatchingPeriod={50}
+        // ✅ 上拉加载更多
+        onEndReached={() => {
+          if (hasMore && !loading) {
+            loadMoments(page + 1, false);
+          }
+        }}
+        onEndReachedThreshold={0.5}
+        ListFooterComponent={loading && !refreshing ? (
+          <View style={styles.loadingFooter}>
+            <Text style={styles.loadingText}>加载中...</Text>
+          </View>
+        ) : null}
       />
 
       {/* 悬浮发布按钮 */}
@@ -541,6 +560,15 @@ const styles = StyleSheet.create({
   floatingPublishButtonText: {
     fontSize: 24,
     color: 'white',
+  },
+  // ✅ FlatList 加载更多样式
+  loadingFooter: {
+    paddingVertical: 20,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#999',
   },
 });
 

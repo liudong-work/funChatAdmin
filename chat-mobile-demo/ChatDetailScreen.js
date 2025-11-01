@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, Platform, Keyboard, Dimensions, ScrollView, StatusBar, Alert, Image, Modal, SafeAreaView } from 'react-native';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, Platform, Keyboard, Dimensions, FlatList, StatusBar, Alert, Image, Modal, SafeAreaView } from 'react-native';
 import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as ImagePicker from 'expo-image-picker';
@@ -1368,41 +1368,17 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           }
         ]}
       >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.scrollView}
-          contentContainerStyle={[
-            styles.scrollContent,
-            {
-              paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 80, // 键盘弹起时增加底部边距
-            }
-          ]}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-          onScroll={(event) => {
-            const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
-            const isNearTop = contentOffset.y <= 100; // 距离顶部100px时触发加载更多
-            
-            if (isNearTop && hasMoreMessages && !isLoadingMore) {
-              loadMoreMessages();
-            }
-          }}
-          scrollEventThrottle={400}
-        >
-        <View style={styles.messagesContainer}>
-          {/* 加载更多指示器 */}
-          {isLoadingMore && (
-            <View style={styles.loadMoreContainer}>
-              <Text style={styles.loadMoreText}>加载历史消息...</Text>
-            </View>
-          )}
-          
-          {isLoading ? (
-            <View style={styles.loadingContainer}>
-              <Text style={styles.loadingText}>加载对话中...</Text>
-            </View>
-          ) : (
-                  messages.map((message) => {
+        {/* ✅ 使用 FlatList 虚拟滚动优化性能 */}
+        {isLoading ? (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>加载对话中...</Text>
+          </View>
+        ) : (
+          <FlatList
+            ref={scrollViewRef}
+            data={messages}
+            keyExtractor={(item) => item.id || item.uuid || String(Math.random())}
+            renderItem={({ item: message }) => {
                     // 调试日志：检查消息对齐逻辑
                     const isMyMessage = message.user.id === currentUserUuid;
                     console.log('[ChatDetail] 消息对齐检查:', {
@@ -1773,10 +1749,47 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
               </View>
             </View>
                     );
-                  })
-                )}
-        </View>
-        </ScrollView>
+            }}
+            // ✅ FlatList 性能优化参数
+            inverted={false}
+            contentContainerStyle={[
+              styles.scrollContent,
+              {
+                paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 80,
+              }
+            ]}
+            style={styles.scrollView}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+            // 性能优化
+            initialNumToRender={20}
+            maxToRenderPerBatch={10}
+            windowSize={5}
+            removeClippedSubviews={Platform.OS === 'android'}
+            updateCellsBatchingPeriod={50}
+            // 加载更多（上拉加载历史消息）
+            onEndReached={() => {
+              if (hasMoreMessages && !isLoadingMore) {
+                loadMoreMessages();
+              }
+            }}
+            onEndReachedThreshold={0.1}
+            // 加载更多指示器
+            ListHeaderComponent={isLoadingMore ? (
+              <View style={styles.loadMoreContainer}>
+                <Text style={styles.loadMoreText}>加载历史消息...</Text>
+              </View>
+            ) : null}
+            // 空列表
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <Text style={styles.emptyText}>暂无消息</Text>
+              </View>
+            }
+            // 滚动优化
+            scrollEventThrottle={16}
+          />
+        )}
       </View>
       
       <View 
@@ -2282,5 +2295,16 @@ const styles = StyleSheet.create({
     height: '100%',
     maxWidth: Dimensions.get('window').width - 40,
     maxHeight: Dimensions.get('window').height - 100,
+  },
+  // ✅ FlatList 空列表样式
+  emptyContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 50,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#999',
   },
 });

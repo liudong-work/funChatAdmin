@@ -45,7 +45,6 @@ export default function AgeSelectionScreen({ navigation }) {
           onPress: async () => {
             try {
               setIsSubmitting(true);
-              const token = await AsyncStorage.getItem('authToken');
               if (!token) {
                 Alert.alert('错误', '请先登录');
                 return;
@@ -55,13 +54,8 @@ export default function AgeSelectionScreen({ navigation }) {
               const response = await userApi.updateAge(selectedAge, token);
               
               if (response.status) {
-                // 更新本地用户信息
-                const userInfoStr = await AsyncStorage.getItem('userInfo');
-                if (userInfoStr) {
-                  const userInfo = JSON.parse(userInfoStr);
-                  userInfo.age_range = selectedAge;
-                  await AsyncStorage.setItem('userInfo', JSON.stringify(userInfo));
-                }
+                // 更新本地用户信息（使用 Zustand）
+                await updateUser({ age_range: selectedAge });
 
                 Alert.alert('成功', '年龄设置成功！', [
                   {

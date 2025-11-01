@@ -1,17 +1,23 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { StyleSheet, View, Text, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { userApi, pointsApi } from './services/apiService';
+import { useAuthStore } from './stores';
 
-export default function ProfileScreen({ onLogout, navigation }) {
-  const [userInfo, setUserInfo] = useState({
-    name: '我的昵称',
-    avatar: '👤',
-    phone: '138****8888',
-    email: 'user@example.com',
+export default function ProfileScreen({ navigation }) {
+  // 使用 Zustand 状态管理
+  const user = useAuthStore(state => state.user);
+  const token = useAuthStore(state => state.token);
+  const logout = useAuthStore(state => state.logout);
+  
+  // 处理后的用户信息（用于显示）
+  const userInfo = useMemo(() => ({
+    name: user?.nickname || user?.username || '我的昵称',
+    avatar: user?.avatar || '👤',
+    phone: user?.phone ? `${user.phone.slice(0, 3)}****${user.phone.slice(-4)}` : '138****8888',
+    email: user?.email || 'user@example.com',
     joinDate: '2024-01-01',
-    uuid: '',
-  });
+    uuid: user?.uuid || '',
+  }), [user]);
   
   const [followStats, setFollowStats] = useState({
     followingCount: 0,
@@ -26,60 +32,31 @@ export default function ProfileScreen({ onLogout, navigation }) {
 
   const [momentCount, setMomentCount] = useState(0);
 
-  // 加载用户信息
+  // 加载数据
   useEffect(() => {
-    loadUserInfo();
-    loadFollowStats();
-    loadPointsInfo();
-  }, []);
+    if (userInfo.uuid && token) {
+      loadFollowStats();
+      loadPointsInfo();
+      loadMomentCount();
+    }
+  }, [userInfo.uuid, token]);
 
   // 监听页面焦点，从编辑资料页面返回时刷新数据
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      // 页面获得焦点时重新加载用户信息
-      loadUserInfo();
-      loadPointsInfo();
+      // 页面获得焦点时重新加载数据
+      if (userInfo.uuid && token) {
+        loadPointsInfo();
+        loadMomentCount();
+      }
     });
 
     return unsubscribe;
-  }, [navigation]);
-
-  // 当用户uuid加载完成后，加载动态数量
-  useEffect(() => {
-    if (userInfo.uuid) {
-      loadMomentCount();
-    }
-  }, [userInfo.uuid]);
-
-  const loadUserInfo = async () => {
-    try {
-      const userInfoStr = await AsyncStorage.getItem('userInfo');
-      if (userInfoStr) {
-        const user = JSON.parse(userInfoStr);
-        const userData = {
-          name: user.nickname || user.username || '我的昵称',
-          avatar: user.avatar || '👤',
-          phone: user.phone ? `${user.phone.slice(0, 3)}****${user.phone.slice(-4)}` : '138****8888',
-          email: user.email || 'user@example.com',
-          joinDate: '2024-01-01',
-          uuid: user.uuid || '',
-        };
-        setUserInfo(userData);
-        
-        // 如果用户uuid存在，立即加载动态数量
-        if (userData.uuid) {
-          loadMomentCount(userData.uuid);
-        }
-      }
-    } catch (error) {
-      console.error('加载用户信息失败:', error);
-    }
-  };
+  }, [navigation, userInfo.uuid, token]);
 
   // 加载积分信息
   const loadPointsInfo = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
       if (!token) return;
       
       const response = await pointsApi.getPointsInfo(token);
@@ -94,7 +71,6 @@ export default function ProfileScreen({ onLogout, navigation }) {
   // 加载关注统计数据
   const loadFollowStats = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
       if (!token) return;
 
       // 获取关注列表
@@ -116,7 +92,6 @@ export default function ProfileScreen({ onLogout, navigation }) {
   // 加载用户动态数量
   const loadMomentCount = async (userUuid = null) => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
       const uuid = userUuid || userInfo.uuid;
       if (!token || !uuid) return;
 
@@ -195,10 +170,9 @@ export default function ProfileScreen({ onLogout, navigation }) {
         {
           text: '确定',
           style: 'destructive',
-          onPress: () => {
-            if (onLogout) {
-              onLogout();
-            }
+          onPress: async () => {
+            await logout();
+            // 导航会自动处理（App.js 监听 isAuthenticated 变化）
           },
         },
       ]

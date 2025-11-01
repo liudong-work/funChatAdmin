@@ -602,19 +602,6 @@ export default function App() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      // 推送通知功能已禁用
-      // notificationService.removeListeners();
-      // await notificationService.clearBadge();
-      
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('userInfo');
-      setIsAuthenticated(false);
-    } catch (error) {
-      console.error('退出登录失败:', error);
-    }
-  };
 
   // 推送通知监听器已禁用
   // useEffect(() => {
@@ -638,17 +625,7 @@ export default function App() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {isAuthenticated ? (
-        <MainStack 
-          onNewMessageCallback={setNewMessageCallback} 
-          handleLogout={handleLogout}
-          onRegisterChatMessageCallback={(cb) => { chatMessageHandlerRef.current = cb; }}
-          onSetCurrentChatUser={setCurrentChatUserId}
-          currentUserUuid={currentUserUuid}
-        />
-      ) : (
-        <AuthStack setIsAuthenticated={setIsAuthenticated} />
-      )}
+      {isAuthenticated ? <MainStack /> : <AuthStack />}
     </NavigationContainer>
   );
 }

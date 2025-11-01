@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Text, TouchableOpacity, Alert } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Text, TouchableOpacity, Alert, ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createStackNavigator } from '@react-navigation/stack';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import io from 'socket.io-client';
-import { getWebSocketUrl } from './config/api.js';
-// import notificationService from './services/notificationService.js'; // 暂时禁用，Expo Go 不支持推送
 
+// 导入状态管理
+import { useAuthStore, useSocketStore } from './stores';
+
+// 导入页面组件
 import HomeScreen from './HomeScreen';
 import MessagesScreen from './MessagesScreen';
 import ProfileScreen from './ProfileScreen';
@@ -36,53 +36,39 @@ const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
 
 // 消息页面的堆栈导航器
-function MessagesStack({ onNewMessageCallback, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
+function MessagesStack() {
   return (
     <Stack.Navigator>
       <Stack.Screen 
         name="MessagesList" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <MessagesScreen {...props} onNewMessageCallback={onNewMessageCallback} />}
-      </Stack.Screen>
+        component={MessagesScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
 
-// 底部标签导航器
 // 主堆栈导航器
-function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
+function MainStack() {
+  // 从 store 获取用户信息用于导航
+  const user = useAuthStore(state => state.user);
+  
   return (
     <Stack.Navigator>
       <Stack.Screen 
         name="MainTabs" 
+        component={TabNavigator}
         options={{ headerShown: false }}
-      >
-        {(props) => (
-          <TabNavigator 
-            {...props}
-            onNewMessageCallback={onNewMessageCallback} 
-            handleLogout={handleLogout}
-            onRegisterChatMessageCallback={onRegisterChatMessageCallback}
-            onSetCurrentChatUser={onSetCurrentChatUser}
-            currentUserUuid={currentUserUuid}
-          />
-        )}
-      </Stack.Screen>
+      />
       <Stack.Screen 
         name="ChatDetail" 
+        component={ChatDetailScreen}
         options={({ route, navigation }) => ({
           headerShown: true,
           title: route.params?.user?.name || route.params?.user?.username || '聊天',
-          headerStyle: {
-            backgroundColor: '#007AFF',
-          },
+          headerStyle: { backgroundColor: '#007AFF' },
           headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
+          headerTitleStyle: { fontWeight: 'bold' },
           headerRight: () => (
             <TouchableOpacity
               onPress={() => {
@@ -91,202 +77,101 @@ function MainStack({ onNewMessageCallback, handleLogout, onRegisterChatMessageCa
                   `确定要呼叫 ${route.params?.user?.name || route.params?.user?.username || '用户'} 吗？`,
                   [
                     { text: '取消', style: 'cancel' },
-                    { text: '确定', onPress: () => {
-                      navigation.navigate('VoiceCall', {
+                    { 
+                      text: '确定', 
+                      onPress: () => navigation.navigate('VoiceCall', {
                         caller: {
-                          id: 'current_user_id', // 这里需要从全局状态获取
-                          name: '当前用户',
-                          avatar: '👤',
+                          id: user?.uuid || 'current_user_id',
+                          name: user?.nickname || user?.username || '当前用户',
+                          avatar: user?.avatar || '👤',
                         },
-                        callee: {
-                          id: route.params?.user?.id,
-                          name: route.params?.user?.name || route.params?.user?.username,
-                          avatar: route.params?.user?.avatar || '👤',
-                        },
-                      });
-                    }}
+                        receiver: route.params?.user
+                      })
+                    }
                   ]
                 );
               }}
               style={{ marginRight: 15 }}
             >
-              <Text style={{ color: '#fff', fontSize: 18 }}>📞</Text>
+              <Text style={{ color: '#fff', fontSize: 16 }}>📞</Text>
             </TouchableOpacity>
           ),
         })}
-      >
-        {(props) => (
-          <ChatDetailScreen
-            {...props}
-            onRegisterChatMessageCallback={onRegisterChatMessageCallback}
-            onSetCurrentChatUser={onSetCurrentChatUser}
-            currentUserUuid={currentUserUuid}
-          />
-        )}
-      </Stack.Screen>
-      <Stack.Screen 
-        name="VoiceCall" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <VoiceCallScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen 
-        name="PublishMoment" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <PublishMomentScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen 
-        name="MomentDetail" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <MomentDetailScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen 
-        name="UserProfile" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <UserProfileScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen 
-        name="FollowList" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <FollowListScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen 
-        name="EditProfile" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <EditProfileScreen {...props} />}
-      </Stack.Screen>
-      <Stack.Screen 
-        name="Checkin" 
-        options={{
-          headerShown: true,
-          title: '每日签到',
-          headerStyle: {
-            backgroundColor: '#3b82f6',
-          },
-          headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
-        }}
-      >
-        {(props) => <CheckinScreen {...props} />}
-      </Stack.Screen>
+      />
+      <Stack.Screen name="VoiceCall" component={VoiceCallScreen} />
+      <Stack.Screen name="PublishMoment" component={PublishMomentScreen} />
+      <Stack.Screen name="MomentDetail" component={MomentDetailScreen} />
+      <Stack.Screen name="UserProfile" component={UserProfileScreen} />
+      <Stack.Screen name="FollowList" component={FollowListScreen} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} />
+      <Stack.Screen name="Checkin" component={CheckinScreen} />
       <Stack.Screen 
         name="Payment" 
+        component={PaymentScreen}
         options={{
           headerShown: true,
-          title: '微信支付',
-          headerStyle: {
-            backgroundColor: '#07C160',
-          },
+          title: '购买套餐',
+          headerStyle: { backgroundColor: '#007AFF' },
           headerTintColor: '#fff',
-          headerTitleStyle: {
-            fontWeight: 'bold',
-          },
+          headerTitleStyle: { fontWeight: 'bold' },
         }}
-      >
-        {(props) => <PaymentScreen {...props} />}
-      </Stack.Screen>
+      />
       <Stack.Screen 
         name="MemberCenter" 
-        options={{
-          headerShown: false, // 使用自定义header
-        }}
-      >
-        {(props) => <MemberCenterScreen {...props} />}
-      </Stack.Screen>
+        component={MemberCenterScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen 
         name="PrivacySettings" 
-        options={{
-          headerShown: false, // 使用自定义header
-        }}
-      >
-        {(props) => <PrivacySettingsScreen {...props} />}
-      </Stack.Screen>
+        component={PrivacySettingsScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen 
         name="PrivacyPolicy" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <PrivacyPolicyScreen {...props} />}
-      </Stack.Screen>
+        component={PrivacyPolicyScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen 
         name="UserAgreement" 
-        options={{
-          headerShown: false,
-        }}
-      >
-        {(props) => <UserAgreementScreen {...props} />}
-      </Stack.Screen>
+        component={UserAgreementScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen 
         name="AccountSecurity" 
-        options={{
-          headerShown: false, // 使用自定义header
-        }}
-      >
-        {(props) => <AccountSecurityScreen {...props} />}
-      </Stack.Screen>
+        component={AccountSecurityScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen 
         name="AccountDeletion" 
-        options={{
-          headerShown: false, // 使用自定义header
-        }}
-      >
-        {(props) => <AccountDeletionScreen {...props} />}
-      </Stack.Screen>
+        component={AccountDeletionScreen}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen 
         name="Feedback" 
-        options={{
-          headerShown: false, // 使用自定义header
-        }}
-      >
-        {(props) => <FeedbackScreen {...props} />}
-      </Stack.Screen>
+        component={FeedbackScreen}
+        options={{ headerShown: false }}
+      />
     </Stack.Navigator>
   );
 }
 
-function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
+// 底部标签导航器
+function TabNavigator() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-
-          if (route.name === 'Home') {
-            iconName = focused ? '🏠' : '🏡';
-          } else if (route.name === 'Messages') {
-            iconName = focused ? '💬' : '💭';
-          } else if (route.name === 'Moments') {
-            iconName = focused ? '⭐' : '✨';
-          } else if (route.name === 'Profile') {
-            iconName = focused ? '👤' : '👥';
-          }
-
-          return <Text style={{ fontSize: size, color }}>{iconName}</Text>;
+          const icons = {
+            Home: focused ? '🏠' : '🏡',
+            Messages: focused ? '💬' : '💭',
+            Moments: focused ? '⭐' : '✨',
+            Profile: focused ? '👤' : '👥',
+          };
+          return <Text style={{ fontSize: size, color }}>{icons[route.name]}</Text>;
         },
         tabBarActiveTintColor: '#007AFF',
         tabBarInactiveTintColor: route.name === 'Home' ? 'rgba(255, 255, 255, 0.7)' : 'gray',
         tabBarStyle: route.name === 'Home' ? {
-          // 首页：透明样式
           backgroundColor: 'transparent',
           borderTopWidth: 0,
           paddingBottom: 5,
@@ -296,7 +181,6 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
           elevation: 0,
           shadowOpacity: 0,
         } : {
-          // 其他页面：白色背景样式
           backgroundColor: 'white',
           borderTopWidth: 1,
           borderTopColor: '#E5E5EA',
@@ -305,14 +189,12 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
           height: 60,
         },
         tabBarLabelStyle: route.name === 'Home' ? {
-          // 首页：带阴影的文字样式
           fontSize: 12,
           fontWeight: '500',
           textShadowColor: 'rgba(0, 0, 0, 0.3)',
           textShadowOffset: { width: 0, height: 1 },
           textShadowRadius: 2,
         } : {
-          // 其他页面：普通文字样式
           fontSize: 12,
           fontWeight: '500',
         },
@@ -322,56 +204,32 @@ function TabNavigator({ onNewMessageCallback, handleLogout, onRegisterChatMessag
       <Tab.Screen 
         name="Home" 
         component={HomeScreen}
-        options={{
-          tabBarLabel: '首页',
-        }}
+        options={{ tabBarLabel: '首页' }}
       />
       <Tab.Screen 
         name="Messages" 
-        options={{
-          tabBarLabel: '消息',
-        }}
-      >
-        {(props) => (
-          <MessagesStack
-            {...props}
-            onNewMessageCallback={onNewMessageCallback}
-            onRegisterChatMessageCallback={onRegisterChatMessageCallback}
-            onSetCurrentChatUser={onSetCurrentChatUser}
-            currentUserUuid={currentUserUuid}
-          />
-        )}
-      </Tab.Screen>
+        component={MessagesStack}
+        options={{ tabBarLabel: '消息' }}
+      />
       <Tab.Screen 
         name="Moments" 
         component={MomentsScreen}
-        options={{
-          tabBarLabel: '动态',
-        }}
+        options={{ tabBarLabel: '动态' }}
       />
       <Tab.Screen 
         name="Profile" 
-        options={{
-          tabBarLabel: '我的',
-        }}
-      >
-        {(props) => <ProfileScreen {...props} onLogout={handleLogout} />}
-      </Tab.Screen>
+        component={ProfileScreen}
+        options={{ tabBarLabel: '我的' }}
+      />
     </Tab.Navigator>
   );
 }
 
 // 认证堆栈导航器
-function AuthStack({ setIsAuthenticated }) {
+function AuthStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-      }}
-    >
-      <Stack.Screen name="Login">
-        {(props) => <LoginScreen {...props} setIsAuthenticated={setIsAuthenticated} />}
-      </Stack.Screen>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="AgeSelection" component={AgeSelectionScreen} />
       <Stack.Screen name="PrivacyPolicy" component={PrivacyPolicyScreen} />
@@ -380,292 +238,147 @@ function AuthStack({ setIsAuthenticated }) {
   );
 }
 
+// 主应用组件
 export default function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
-  const [socket, setSocket] = useState(null);
-  const [newMessageCallback, setNewMessageCallback] = useState(null);
-  const chatMessageHandlerRef = useRef(null);
-  const [currentChatUserId, setCurrentChatUserId] = useState(null);
-  const [currentUserUuid, setCurrentUserUuid] = useState(null);
+  // 使用 Zustand 状态管理
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const isLoading = useAuthStore(state => state.isLoading);
+  const token = useAuthStore(state => state.token);
+  const user = useAuthStore(state => state.user);
+  const initAuth = useAuthStore(state => state.initAuth);
+  
+  const socket = useSocketStore(state => state.socket);
+  const connected = useSocketStore(state => state.connected);
+  const connect = useSocketStore(state => state.connect);
+  const disconnect = useSocketStore(state => state.disconnect);
+  const on = useSocketStore(state => state.on);
+  const off = useSocketStore(state => state.off);
+  
   const navigationRef = useRef(null);
 
-  // 检查用户登录状态
+  // 初始化认证状态
   useEffect(() => {
-    checkAuthStatus();
-  }, []);
+    console.log('[App] 初始化应用...');
+    initAuth();
+  }, [initAuth]);
 
-  const checkAuthStatus = async () => {
-    try {
-      const token = await AsyncStorage.getItem('authToken');
-      const userInfo = await AsyncStorage.getItem('userInfo');
+  // 管理 WebSocket 连接
+  useEffect(() => {
+    if (isAuthenticated && token && user) {
+      console.log('[App] 用户已认证，连接 WebSocket');
+      connect(token);
       
-      if (token && userInfo) {
-        // 验证token是否有效（这里可以添加token验证逻辑）
-        setIsAuthenticated(true);
-        try {
-          const user = JSON.parse(userInfo);
-          setCurrentUserUuid(user.uuid);
-        } catch {}
-        // 连接WebSocket
-        connectWebSocket(userInfo);
-      } else {
-        setIsAuthenticated(false);
-      }
-    } catch (error) {
-      console.error('检查登录状态失败:', error);
-      setIsAuthenticated(false);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // 处理新消息
-  const handleNewMessage = (data) => {
-    console.log('处理新消息:', data);
-    if (data && data.message) {
-      const original = data.message;
-      // 处理消息数据
-      const processed = {
-        ...original,
-        content: original?.content || '',
+      // 等待 socket 连接后注册用户
+      const registerUser = () => {
+        if (socket && socket.connected) {
+          console.log('[App] 注册用户到 WebSocket:', user.uuid);
+          socket.emit('register', {
+            uuid: user.uuid,
+            phone: user.phone,
+          });
+        }
       };
-      
-      // 消息列表预览更新
-      if (newMessageCallback) {
-        // 确保必要字段存在
-        if (!processed.sender_uuid) {
-        console.warn('handleNewMessage: message.sender_uuid is missing');
+
+      // 如果已连接，直接注册；否则等待连接事件
+      if (socket) {
+        if (socket.connected) {
+          registerUser();
         } else {
-          // 处理图片消息的特殊显示
-          let displayContent = processed.content || '新消息';
-          let messageType = 'text';
-          let imageUrl = null;
-          
-          if (processed.type === 'image' || processed.message_type === 'image') {
-            messageType = 'image';
-            imageUrl = processed.imageUrl || processed.file_url;
-            displayContent = '📷 阅后即焚图片';
-          }
-          
-          newMessageCallback(
-            processed.sender_uuid,
-            `用户${processed.sender_uuid.slice(-4)}`,
-            displayContent,
-            messageType,
-            imageUrl
-          );
+          socket.on('connect', registerUser);
         }
       }
-    
-    // 推送到聊天详情页（如果已注册）
-    const handler = chatMessageHandlerRef.current;
-    if (typeof handler === 'function') {
-      console.log('[Chat] 推送到聊天详情页，callback 可用');
-      try { handler(processed); } catch (e) { console.warn('[Chat] 调用聊天详情回调报错', e); }
     } else {
-      console.log('[Chat] 聊天详情未注册回调或不是函数:', typeof handler);
+      console.log('[App] 用户未认证，断开 WebSocket');
+      disconnect();
     }
+    
+    // 组件卸载时断开连接
+    return () => {
+      if (socket) {
+        socket.off('connect', () => {});
+      }
+    };
+  }, [isAuthenticated, token, user, connect, disconnect, socket]);
+
+  // 处理 WebSocket 消息监听
+  useEffect(() => {
+    if (!socket || !connected) {
+      return;
     }
-  };
 
-  // 初始化推送通知（暂时禁用，Expo Go 不支持）
-  const initializePushNotifications = async (user) => {
-    console.log('[推送] 推送通知已禁用 - Expo Go 不支持推送通知');
-    console.log('[推送] 请使用 EAS Development Build 来测试推送功能');
-    // 推送通知功能暂时禁用，因为 Expo Go 在 SDK 53 中移除了推送支持
-  };
+    console.log('[App] 设置 WebSocket 消息监听器');
 
-  const connectWebSocket = async (userInfo) => {
-    try {
-      const user = JSON.parse(userInfo);
-      const socketInstance = io(getWebSocketUrl(), {
-        reconnection: true,
-        reconnectionDelay: 1000,
-        reconnectionAttempts: 5,
-        timeout: 20000,
-      });
+    // 处理新消息（子组件会监听）
+    const handleNewMessage = (data) => {
+      console.log('[App] 收到新消息:', data);
+    };
+
+    // 处理语音消息
+    const handleVoiceMessage = (data) => {
+      console.log('[App] 收到语音消息:', data);
+    };
+
+    // 处理图片消息
+    const handleImageMessage = (data) => {
+      console.log('[App] 收到图片消息:', data);
+    };
+
+    // 处理来电
+    const handleCallOffer = (data) => {
+      console.log('[App] 收到来电:', data);
       
-      // 初始化推送通知
-      await initializePushNotifications(user);
-      
-      socketInstance.on('connect', () => {
-        console.log('WebSocket连接成功');
-        // 注册用户到WebSocket
-        socketInstance.emit('register', {
-          uuid: user.uuid,
-          phone: user.phone,
-        });
-      });
-
-      socketInstance.on('new_message', (data) => {
-        console.log('收到新消息:', JSON.stringify(data));
-        // 全局消息处理逻辑
-        handleNewMessage(data);
-      });
-
-      // 处理语音消息
-      socketInstance.on('voice_message', (data) => {
-        console.log('[WS] 收到语音消息:', {
-          sender: data.message?.sender_uuid,
-          receiver: data.message?.receiver_uuid,
-          duration: data.message?.duration,
-          audioDataLength: data.message?.audioData ? data.message.audioData.length : 0,
-          audioUrl: data.message?.audioUrl
-        });
-        
-        // 将语音消息转换为普通消息格式进行处理
-        const voiceMessageData = {
-          message: {
-            ...data.message,
-            content: '[语音消息]', // 统一显示为语音消息
-            type: 'audio', // 修复：统一使用 'audio' 类型，与历史消息保持一致
-            // 优先使用OSS URL，如果没有则使用原始audioData
-            audioUrl: data.message?.audioUrl || null,
-            audioData: data.message?.audioUrl ? null : data.message?.audioData // 如果有URL就不传递原始数据
-          },
-          conversation_key: data.conversation_key
-        };
-        
-        handleNewMessage(voiceMessageData);
-      });
-
-      // 处理图片消息
-      socketInstance.on('image_message', (data) => {
-        console.log('[WS] 收到图片消息:', {
-          sender: data.message?.sender_uuid,
-          receiver: data.message?.receiver_uuid,
-          imageUrl: data.message?.imageUrl,
-          width: data.message?.width,
-          height: data.message?.height
-        });
-        
-        // 将图片消息转换为普通消息格式进行处理
-        const imageMessageData = {
-          message: {
-            ...data.message,
-            content: '[图片消息]', // 统一显示为图片消息
-            type: 'image'
-          },
-          conversation_key: data.conversation_key
-        };
-        
-        handleNewMessage(imageMessageData);
-      });
-
-      // 处理图片发送确认
-      socketInstance.on('image_message_sent', (data) => {
-        console.log('[WS] 图片消息发送成功确认:', {
-          messageId: data.messageId,
-          imageUrl: data.imageUrl,
-          status: data.status
-        });
-      });
-
-      // ==================== WebRTC 语音通话监听 ====================
-      
-      // 处理来电
-      socketInstance.on('call_offer', (data) => {
-        console.log('[WebRTC] 收到来电:', {
-          from: data.from,
-          caller: data.caller
-        });
-        
-        // 导航到通话界面（来电状态）
-        if (navigationRef.current) {
-          navigationRef.current.navigate('Messages', {
+      // 导航到通话界面
+      if (navigationRef.current && user) {
+        navigationRef.current.navigate('MainTabs', {
+          screen: 'Messages',
+          params: {
             screen: 'VoiceCall',
             params: {
               caller: data.caller || { id: data.from, name: '对方', avatar: '👤' },
-              callee: { id: user.uuid, name: user.nickname || user.username, avatar: user.avatar || '👤' },
+              callee: { 
+                id: user.uuid, 
+                name: user.nickname || user.username, 
+                avatar: user.avatar || '👤' 
+              },
               isIncoming: true,
-              offer: data.offer, // 保存 Offer 用于接听时处理
+              offer: data.offer,
             }
-          });
-        }
-      });
-
-      socketInstance.on('disconnect', (reason) => {
-        console.log('WebSocket连接断开:', reason);
-      });
-
-      socketInstance.on('reconnect', (attemptNumber) => {
-        console.log('WebSocket重连成功，尝试次数:', attemptNumber);
-        // 重连后重新注册用户
-        socketInstance.emit('register', {
-          uuid: user.uuid,
-          phone: user.phone,
+          }
         });
-      });
+      }
+    };
 
-      socketInstance.on('reconnect_error', (error) => {
-        console.error('WebSocket重连失败:', error);
-      });
+    // 注册监听器
+    on('new_message', handleNewMessage);
+    on('voice_message', handleVoiceMessage);
+    on('image_message', handleImageMessage);
+    on('call_offer', handleCallOffer);
 
-      // 响应心跳检测
-      socketInstance.on('ping', () => {
-        socketInstance.emit('pong');
-      });
-
-      socketInstance.on('heartbeat_ack', () => {
-        // 心跳确认
-      });
-
-      setSocket(socketInstance);
-      // 将 socket 存储到全局变量，供其他组件使用
-      global.socket = socketInstance;
-    } catch (error) {
-      console.error('WebSocket连接失败:', error);
-    }
-  };
-
-  const handleLogout = async () => {
-    try {
-      // 推送通知功能已禁用
-      // notificationService.removeListeners();
-      // await notificationService.clearBadge();
-      
-      await AsyncStorage.removeItem('authToken');
-      await AsyncStorage.removeItem('userInfo');
-      setIsAuthenticated(false);
-    } catch (error) {
-      console.error('退出登录失败:', error);
-    }
-  };
-
-  // 推送通知监听器已禁用
-  // useEffect(() => {
-  //   if (isAuthenticated && navigationRef.current) {
-  //     notificationService.setupNotificationListeners(navigationRef.current);
-  //     
-  //     return () => {
-  //       notificationService.removeListeners();
-  //     };
-  //   }
-  // }, [isAuthenticated]);
+    // 清理监听器
+    return () => {
+      off('new_message', handleNewMessage);
+      off('voice_message', handleVoiceMessage);
+      off('image_message', handleImageMessage);
+      off('call_offer', handleCallOffer);
+    };
+  }, [socket, connected, on, off, user]);
 
   // 显示加载状态
   if (isLoading) {
     return (
       <NavigationContainer>
-        <Text style={{ textAlign: 'center', marginTop: 100 }}>加载中...</Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#007AFF" />
+          <Text style={{ marginTop: 10, color: '#666' }}>加载中...</Text>
+        </View>
       </NavigationContainer>
     );
   }
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {isAuthenticated ? (
-        <MainStack 
-          onNewMessageCallback={setNewMessageCallback} 
-          handleLogout={handleLogout}
-          onRegisterChatMessageCallback={(cb) => { chatMessageHandlerRef.current = cb; }}
-          onSetCurrentChatUser={setCurrentChatUserId}
-          currentUserUuid={currentUserUuid}
-        />
-      ) : (
-        <AuthStack setIsAuthenticated={setIsAuthenticated} />
-      )}
+      {isAuthenticated ? <MainStack /> : <AuthStack />}
     </NavigationContainer>
   );
 }
+

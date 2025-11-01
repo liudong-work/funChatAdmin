@@ -1,48 +1,66 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, View, Text, FlatList, TouchableOpacity, TextInput, Image, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { messageApi } from "./services/apiService";
+import { useAuthStore, useSocketStore } from './stores';
 
-export default function MessagesScreen({ navigation, onNewMessageCallback }) {
-  const [searchText, setSearchText] = useState('');
+export default function MessagesScreen({ navigation }) {
+  // 使用 Zustand 状态管理
+  const user = useAuthStore(state => state.user);
+  const token = useAuthStore(state => state.token);
+  const socket = useSocketStore(state => state.socket);
+  const connected = useSocketStore(state => state.connected);
+  const on = useSocketStore(state => state.on);
+  const off = useSocketStore(state => state.off);
   
+  const [searchText, setSearchText] = useState('');
   const [users, setUsers] = useState([]);
-  const [currentUserUuid, setCurrentUserUuid] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   
-  // 加载用户信息
-  useEffect(() => {
-    loadUserInfo();
-  }, []);
-
   // 每次进入消息页面时都重新加载消息列表
   useFocusEffect(
     useCallback(() => {
       console.log('消息页面获得焦点，重新加载消息列表');
-      loadConversations();
-    }, [])
+      if (user?.uuid && token) {
+        loadConversations();
+      }
+    }, [user?.uuid, token])
   );
 
-  // Register callback function when component mounts
+  // 监听 WebSocket 新消息
   useEffect(() => {
-    if (onNewMessageCallback) {
-      console.log('[Messages] 注册新消息回调');
-      onNewMessageCallback(addUserToMessages);
+    if (!socket || !connected) {
+      return;
     }
-  }, [onNewMessageCallback, addUserToMessages]);
 
-  const loadUserInfo = async () => {
-    try {
-      const userInfo = await AsyncStorage.getItem('userInfo');
-      if (userInfo) {
-        const user = JSON.parse(userInfo);
-        setCurrentUserUuid(user.uuid);
+    console.log('[Messages] 注册新消息监听器');
+
+    // 处理新消息
+    const handleNewMessage = (data) => {
+      console.log('[Messages] 收到新消息:', data);
+      if (data && data.message) {
+        addUserToMessages(
+          data.message.sender_uuid,
+          data.message.sender_name || `用户${data.message.sender_uuid.slice(-4)}`,
+          data.message.content || '新消息',
+          data.message.message_type || 'text',
+          data.message.file_url
+        );
       }
-    } catch (error) {
-      console.error('加载用户信息失败:', error);
-    }
-  };
+    };
+
+    // 注册监听器
+    on('new_message', handleNewMessage);
+    on('voice_message', handleNewMessage);
+    on('image_message', handleNewMessage);
+
+    // 清理监听器
+    return () => {
+      off('new_message', handleNewMessage);
+      off('voice_message', handleNewMessage);
+      off('image_message', handleNewMessage);
+    };
+  }, [socket, connected, on, off]);
 
   // 下拉刷新处理
   const onRefresh = useCallback(async () => {
@@ -54,26 +72,14 @@ export default function MessagesScreen({ navigation, onNewMessageCallback }) {
   // 加载消息列表
   const loadConversations = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
-      const userInfo = await AsyncStorage.getItem('userInfo');
-      
-      console.log('[MESSAGES] 调试信息:', {
+      console.log('[MESSAGES] 加载对话列表:', {
         hasToken: !!token,
-        hasUserInfo: !!userInfo,
-        userInfoContent: userInfo
+        hasUser: !!user,
+        userUuid: user?.uuid
       });
       
-      if (!token || !userInfo) {
+      if (!token || !user?.uuid) {
         console.warn('未找到认证信息，无法加载消息列表');
-        return;
-      }
-
-      const user = JSON.parse(userInfo);
-      console.log('[MESSAGES] 解析后的用户信息:', user);
-      console.log('[MESSAGES] 用户UUID:', user.uuid);
-      
-      if (!user.uuid) {
-        console.error('[MESSAGES] 用户信息缺少UUID字段:', user);
         return;
       }
       

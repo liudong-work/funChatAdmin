@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { Text, TouchableOpacity, Alert } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -51,7 +51,7 @@ function MessagesStack() {
 }
 
 // 主堆栈导航器
-function MainStack() {
+function MainStack({ onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
   return (
     <Stack.Navigator>
       <Stack.Screen 
@@ -372,6 +372,23 @@ export default function App() {
   const off = useSocketStore(state => state.off);
   
   const navigationRef = useRef(null);
+  
+  // 聊天消息回调 refs
+  const chatMessageHandlerRef = useRef(null);
+  const currentChatUserRef = useRef(null);
+  const newMessageCallback = useRef(null);
+  
+  // 注册聊天消息回调函数
+  const onRegisterChatMessageCallback = (callback) => {
+    console.log('[App] 注册聊天消息回调');
+    chatMessageHandlerRef.current = callback;
+  };
+  
+  // 设置当前聊天用户
+  const onSetCurrentChatUser = (userUuid) => {
+    console.log('[App] 设置当前聊天用户:', userUuid);
+    currentChatUserRef.current = userUuid;
+  };
 
   // 初始化认证状态
   useEffect(() => {
@@ -395,19 +412,8 @@ export default function App() {
     };
   }, [isAuthenticated, token?.length, user?.uuid]); // 只依赖值，不依赖函数和对象
   
-  // 注册用户到 WebSocket（单独的 effect）
-  useEffect(() => {
-    if (socket && connected && user) {
-      console.log('[App] 注册用户到 WebSocket:', user.uuid);
-      socket.emit('register', {
-        uuid: user.uuid,
-        phone: user.phone,
-      });
-    }
-  }, [connected, user?.uuid]); // 只监听连接状态和用户ID变化
-
   // 处理新消息
-  const handleNewMessage = (data) => {
+  const handleNewMessage = useCallback((data) => {
     console.log('处理新消息:', data);
     if (data && data.message) {
       const original = data.message;
@@ -418,10 +424,10 @@ export default function App() {
       };
       
       // 消息列表预览更新
-      if (newMessageCallback) {
+      if (newMessageCallback.current) {
         // 确保必要字段存在
         if (!processed.sender_uuid) {
-        console.warn('handleNewMessage: message.sender_uuid is missing');
+          console.warn('handleNewMessage: message.sender_uuid is missing');
         } else {
           // 处理图片消息的特殊显示
           let displayContent = processed.content || '新消息';
@@ -434,7 +440,7 @@ export default function App() {
             displayContent = '📷 阅后即焚图片';
           }
           
-          newMessageCallback(
+          newMessageCallback.current(
             processed.sender_uuid,
             `用户${processed.sender_uuid.slice(-4)}`,
             displayContent,
@@ -444,16 +450,53 @@ export default function App() {
         }
       }
     
-    // 推送到聊天详情页（如果已注册）
-    const handler = chatMessageHandlerRef.current;
-    if (typeof handler === 'function') {
-      console.log('[Chat] 推送到聊天详情页，callback 可用');
-      try { handler(processed); } catch (e) { console.warn('[Chat] 调用聊天详情回调报错', e); }
-    } else {
-      console.log('[Chat] 聊天详情未注册回调或不是函数:', typeof handler);
+      // 推送到聊天详情页（如果已注册）
+      const handler = chatMessageHandlerRef.current;
+      if (typeof handler === 'function') {
+        console.log('[Chat] 推送到聊天详情页，callback 可用');
+        try { handler(processed); } catch (e) { console.warn('[Chat] 调用聊天详情回调报错', e); }
+      } else {
+        console.log('[Chat] 聊天详情未注册回调或不是函数:', typeof handler);
+      }
     }
+  }, []); // 空依赖数组，因为使用的都是 ref
+  
+  // 注册用户到 WebSocket（单独的 effect）
+  useEffect(() => {
+    if (socket && connected && user) {
+      console.log('[App] 注册用户到 WebSocket:', user.uuid);
+      socket.emit('register', {
+        uuid: user.uuid,
+        phone: user.phone,
+      });
     }
-  };
+  }, [connected, user?.uuid]); // 只监听连接状态和用户ID变化
+  
+  // 注册消息监听器
+  useEffect(() => {
+    if (socket && connected) {
+      console.log('[App] 注册消息监听器');
+      
+      // 监听新消息
+      const handleMessage = (data) => {
+        console.log('[App] 收到 new_message 事件:', data);
+        handleNewMessage(data);
+      };
+      
+      // 注册监听器
+      on('new_message', handleMessage);
+      on('voice_message', handleMessage);
+      on('image_message', handleMessage);
+      
+      // 清理函数
+      return () => {
+        console.log('[App] 注销消息监听器');
+        off('new_message', handleMessage);
+        off('voice_message', handleMessage);
+        off('image_message', handleMessage);
+      };
+    }
+  }, [socket, connected, on, off, handleNewMessage]);
 
   // 初始化推送通知（暂时禁用，Expo Go 不支持）
   const initializePushNotifications = async (user) => {
@@ -598,8 +641,6 @@ export default function App() {
       });
 
       setSocket(socketInstance);
-      // 将 socket 存储到全局变量，供其他组件使用
-      global.socket = socketInstance;
     } catch (error) {
       console.error('WebSocket连接失败:', error);
     }
@@ -628,7 +669,15 @@ export default function App() {
 
   return (
     <NavigationContainer ref={navigationRef}>
-      {isAuthenticated ? <MainStack /> : <AuthStack />}
+      {isAuthenticated ? (
+        <MainStack 
+          onRegisterChatMessageCallback={onRegisterChatMessageCallback}
+          onSetCurrentChatUser={onSetCurrentChatUser}
+          currentUserUuid={user?.uuid}
+        />
+      ) : (
+        <AuthStack />
+      )}
     </NavigationContainer>
   );
 }

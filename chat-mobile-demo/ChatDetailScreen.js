@@ -6,8 +6,12 @@ import * as ImagePicker from 'expo-image-picker';
 import { messageApi, fileApi } from "./services/apiService";
 import * as FileSystem from 'expo-file-system/legacy';
 import { getBaseUrl } from './config/api.js';
+import { useSocketStore } from './stores';
 
 export default function ChatDetailScreen({ route, navigation, onRegisterChatMessageCallback, onSetCurrentChatUser, currentUserUuid }) {
+  // 获取 socket 实例
+  const socket = useSocketStore(state => state.socket);
+  const connected = useSocketStore(state => state.connected);
   const { user } = route.params;
   
   console.log('[ChatDetail] 组件加载，接收到的user参数:', {
@@ -205,16 +209,15 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       const bytes = new Uint8Array(arrayBuffer);
       console.log('[Image] 图片数据长度:', bytes.length);
       
-      const socket = global.socket;
-      if (!socket || !socket.connected) {
-        console.error('[Image] WebSocket 未连接，状态:', socket ? socket.connected : 'socket不存在');
+      if (!socket || !connected) {
+        console.error('[Image] WebSocket 未连接，状态:', socket ? connected : 'socket不存在');
         Alert.alert('提示', '网络连接异常，请稍后重试');
         return;
       }
       
       console.log('[Image] 通过 WebSocket 发送图片消息...');
       console.log('[Image] Socket状态:', {
-        connected: socket.connected,
+        connected: connected,
         id: socket.id
       });
       
@@ -872,14 +875,13 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       }
       
       // 检查Socket连接
-      const socket = global.socket;
-      if (!socket) {
+      if (!socket || !connected) {
         console.error('[VoiceCall] Socket未连接');
         Alert.alert('错误', '网络连接异常，请重新登录');
         return;
       }
       
-      console.log('[VoiceCall] Socket连接状态:', socket.connected);
+      console.log('[VoiceCall] Socket连接状态:', connected);
       
       // 导航到语音通话页面
       console.log('[VoiceCall] 准备导航到通话页面...');
@@ -1026,21 +1028,14 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
 
       // 通过 WebSocket 发送语音消息
       console.log('[Voice] 通过 WebSocket 发送语音消息...');
-      console.log('[Voice] 检查 global.socket:', !!global.socket);
-      const socket = global.socket; // 假设 socket 存储在全局变量中
-      if (!socket) {
-        console.error('[Voice] WebSocket 连接不存在');
-        console.error('[Voice] global对象:', Object.keys(global));
+      console.log('[Voice] 检查 socket:', !!socket);
+      if (!socket || !connected) {
+        console.error('[Voice] WebSocket 连接不存在或未连接');
         Alert.alert('提示', '网络连接异常，请返回首页重新进入');
         return;
       }
       
-      console.log('[Voice] Socket连接状态:', socket.connected);
-      if (!socket.connected) {
-        console.error('[Voice] Socket未连接');
-        Alert.alert('提示', 'WebSocket未连接，请返回首页重新进入');
-        return;
-      }
+      console.log('[Voice] Socket连接状态:', connected);
 
       socket.emit('voice_message', {
         from: currentUserUuid,

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, Alert, Animated, Platform } from 'react-native';
 // import webrtcService from './services/webrtcService';
 import webrtcService from './MockWebRTCService'; // 模拟版本（用于 Expo Go 测试）
+import { useSocketStore } from './stores';
 
 export default function VoiceCallScreen({ route, navigation }) {
   const { caller, callee, isIncoming } = route.params;
@@ -17,45 +18,21 @@ export default function VoiceCallScreen({ route, navigation }) {
   const callTimerRef = useRef(null);
   
   // 获取 socket 实例
-  const socket = global.socket;
+  const socket = useSocketStore(state => state.socket);
+  const connected = useSocketStore(state => state.connected);
   
   // 初始化 WebRTC 并监听信令
   useEffect(() => {
     console.log('[WebRTC] 检查 Socket 连接状态:', {
       socket: !!socket,
-      connected: socket?.connected,
+      connected: connected,
       id: socket?.id
     });
     
-    if (!socket) {
-      console.error('[WebRTC] Socket 未连接 - global.socket 为空');
+    if (!socket || !connected) {
+      console.error('[WebRTC] Socket 未连接');
       Alert.alert('错误', '网络连接异常，请重新登录');
       navigation.goBack();
-      return;
-    }
-    
-    if (!socket.connected) {
-      console.error('[WebRTC] Socket 未连接 - 连接状态:', socket.connected);
-      
-      // 尝试重连
-      console.log('[WebRTC] 尝试重新连接 WebSocket...');
-      socket.connect();
-      
-      // 等待连接建立
-      const checkConnection = () => {
-        if (socket.connected) {
-          console.log('[WebRTC] WebSocket 重连成功');
-          // 重新初始化
-          webrtcService.initialize(socket);
-        } else {
-          console.error('[WebRTC] WebSocket 重连失败');
-          Alert.alert('错误', '网络连接异常，请检查网络设置');
-          navigation.goBack();
-        }
-      };
-      
-      // 给连接一些时间
-      setTimeout(checkConnection, 2000);
       return;
     }
     

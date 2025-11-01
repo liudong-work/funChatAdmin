@@ -45,3 +45,31 @@ backend/uploads/
 backend/logs/
 backend/node_modules/
 backend/.env
+
+# Backup and temporary files
+*.backup.js
+*Old.js
+*Clean.js
+*Redesign.js
+*Optimized.js
+*.log
+*.tmp
+*.temp
+qrcode.txt
+test-upload.txt
+
+# Test scripts
+backend/test-*.js
+
+# Elasticsearch & Kibana
+backend/elasticsearch-*/
+backend/kibana-*/
+*.tar.gz
+*.zip
+
+# Build artifacts
+backend/backend/
+backend/app.json
+
+# Shell scripts (if needed, can be uncommented)
+# start-expo.sh

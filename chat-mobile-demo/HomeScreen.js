@@ -210,8 +210,7 @@ const HomeScreen = ({ navigation }) => {
   // 检查是否有可捞的瓶子
   const checkAvailableBottles = async () => {
     try {
-      // 获取用户token
-      const token = await AsyncStorage.getItem('authToken');
+      // 使用 store 中的 token
       if (!token) {
         console.log('用户未登录，不检查瓶子');
         setAvailableBottle(null);
@@ -377,8 +376,7 @@ const HomeScreen = ({ navigation }) => {
   // 捞单个瓶子的逻辑
   const fishSingleBottle = async () => {
     try {
-      // 获取用户token
-      const token = await AsyncStorage.getItem('authToken');
+      // 使用 store 中的 token
       if (!token) {
         Alert.alert('错误', '请先登录');
         return;
@@ -425,8 +423,7 @@ const HomeScreen = ({ navigation }) => {
     try {
       setIsThrowing(true);
       
-      // 获取用户token
-      const token = await AsyncStorage.getItem('authToken');
+      // 使用 store 中的 token
       if (!token) {
         Alert.alert('错误', '请先登录');
         setIsThrowing(false);
@@ -474,8 +471,7 @@ const HomeScreen = ({ navigation }) => {
     try {
       setIsPicking(true);
       
-      // 获取用户token
-      const token = await AsyncStorage.getItem('authToken');
+      // 使用 store 中的 token
       if (!token) {
         Alert.alert('错误', '请先登录');
         setIsPicking(false);

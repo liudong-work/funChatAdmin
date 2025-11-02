@@ -163,6 +163,7 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   const scrollViewRef = useRef(null);
   const recordingRef = useRef(null);
   const recordTimerRef = useRef(null);
+  const hasScrolled = useRef(false); // ✅ 记录是否已初始滚动
 
   // 选择图片并通过 WebSocket 发送
   const pickAndSendImage = async () => {
@@ -1381,6 +1382,9 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
           <FlatList
             ref={scrollViewRef}
             data={messages}
+            maintainVisibleContentPosition={{
+              minIndexForVisible: 0,
+            }}
             keyExtractor={(item) => item.id || item.uuid || String(Math.random())}
             renderItem={({ item: message }) => {
                     // 调试日志：检查消息对齐逻辑
@@ -1755,13 +1759,17 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     );
             }}
             // ✅ FlatList 性能优化参数
-            inverted={true}
+            inverted={false}
             contentContainerStyle={[
               styles.scrollContent,
               {
-                paddingTop: keyboardHeight > 0 ? keyboardHeight + 80 : 80,
+                paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 80,
               }
             ]}
+            onContentSizeChange={() => {
+              // ✅ 内容变化时（新消息）自动滚动到底部
+              scrollViewRef.current?.scrollToEnd({ animated: true });
+            }}
             style={styles.scrollView}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -1778,12 +1786,19 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
               }
             }}
             onEndReachedThreshold={0.1}
-            // 加载更多指示器（inverted模式下在底部=Footer）
-            ListFooterComponent={isLoadingMore ? (
+            // 加载更多指示器（顶部显示）
+            ListHeaderComponent={isLoadingMore ? (
               <View style={styles.loadMoreContainer}>
                 <Text style={styles.loadMoreText}>加载历史消息...</Text>
               </View>
             ) : null}
+            // 初始滚动到底部
+            onLayout={() => {
+              if (messages.length > 0 && scrollViewRef.current && !hasScrolled.current) {
+                scrollViewRef.current.scrollToEnd({ animated: false });
+                hasScrolled.current = true;
+              }
+            }}
             // 空列表
             ListEmptyComponent={
               <View style={styles.emptyContainer}>

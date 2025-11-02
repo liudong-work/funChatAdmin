@@ -273,7 +273,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         shouldBeOnRight: newImageMessage.user.id === currentUserUuid
       });
       
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      // ✅ inverted={true} 模式下，新消息自动显示，不需要手动滚动
+      // setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
       console.error('[Image] 选择/发送图片失败:', e);
       console.error('[Image] 错误详情:', e.message, e.stack);
@@ -307,9 +308,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       
       // 确保消息加载完成后滚动到底部
       setTimeout(() => {
-        if (scrollViewRef.current) {
-          scrollViewRef.current.scrollToEnd({ animated: false });
-        }
+        // ✅ inverted={true} 模式下，新消息自动显示在底部
+        // if (scrollViewRef.current) {
+        //   scrollViewRef.current.scrollToEnd({ animated: false });
+        // }
       }, 300);
     };
     loadAll();
@@ -753,11 +755,12 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         
         // 确保消息设置完成后滚动到底部（仅在首次加载时）
         if (!isLoadMore) {
-          setTimeout(() => {
-            if (scrollViewRef.current) {
-              scrollViewRef.current.scrollToEnd({ animated: true });
-            }
-          }, 100);
+          // ✅ inverted={true} 模式下，新消息自动显示
+          // setTimeout(() => {
+          //   if (scrollViewRef.current) {
+          //     scrollViewRef.current.scrollToEnd({ animated: true });
+          //   }
+          // }, 100);
         }
       } else if (response.status && (!response.data || !response.data.messages)) {
         console.warn('API成功但没有消息数据:', {
@@ -939,10 +942,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
       console.log('键盘高度:', e.endCoordinates.height); // 调试信息
       // ✅ 使用 store 设置键盘状态
       setKeyboardVisible(true, e.endCoordinates.height);
-      // 延迟滚动到底部，确保键盘完全显示
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      // ✅ inverted={true} 模式下，输入框自动在可见区域
+      // setTimeout(() => {
+      //   scrollViewRef.current?.scrollToEnd({ animated: true });
+      // }, 100);
     });
 
     const keyboardDidHideListener = Keyboard.addListener('keyboardDidHide', () => {
@@ -1075,7 +1078,8 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         timestamp: new Date(),
         user: { id: currentUserUuid, name: '我', avatar: currentUserAvatar },
       });
-      setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
+      // ✅ inverted={true} 模式下，新消息自动显示，不需要手动滚动
+      // setTimeout(() => scrollViewRef.current?.scrollToEnd({ animated: true }), 100);
     } catch (e) {
       console.error('[Voice] 停止录音/发送失败:', e);
       // ✅ 使用 store 停止录音
@@ -1212,12 +1216,12 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
   };
 
   useEffect(() => {
-    // 自动滚动到底部 - 使用setTimeout确保DOM更新完成
-    if (messages.length > 0 && scrollViewRef.current) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 50);
-    }
+    // ✅ inverted={true} 模式下，新消息自动显示在底部，不需要手动滚动
+    // if (messages.length > 0 && scrollViewRef.current) {
+    //   setTimeout(() => {
+    //     scrollViewRef.current?.scrollToEnd({ animated: true });
+    //   }, 50);
+    // }
   }, [messages]);
 
   // 键盘监听器
@@ -1288,10 +1292,10 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
         addMessage(conversationId, newMessage);
         setInputText(conversationId, '');
         
-        // 延迟滚动到底部，确保新消息已渲染
-        setTimeout(() => {
-          scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 100);
+        // ✅ inverted={true} 模式下，新消息自动显示
+        // setTimeout(() => {
+        //   scrollViewRef.current?.scrollToEnd({ animated: true });
+        // }, 100);
       } else {
         Alert.alert('发送失败', response.message || '消息发送失败');
       }
@@ -1751,11 +1755,11 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
                     );
             }}
             // ✅ FlatList 性能优化参数
-            inverted={false}
+            inverted={true}
             contentContainerStyle={[
               styles.scrollContent,
               {
-                paddingBottom: keyboardHeight > 0 ? keyboardHeight + 80 : 80,
+                paddingTop: keyboardHeight > 0 ? keyboardHeight + 80 : 80,
               }
             ]}
             style={styles.scrollView}
@@ -1767,15 +1771,15 @@ export default function ChatDetailScreen({ route, navigation, onRegisterChatMess
             windowSize={5}
             removeClippedSubviews={Platform.OS === 'android'}
             updateCellsBatchingPeriod={50}
-            // 加载更多（上拉加载历史消息）
+            // 加载更多（inverted模式下，滚动到底部=加载历史）
             onEndReached={() => {
               if (hasMoreMessages && !isLoadingMore) {
                 loadMoreMessages();
               }
             }}
             onEndReachedThreshold={0.1}
-            // 加载更多指示器
-            ListHeaderComponent={isLoadingMore ? (
+            // 加载更多指示器（inverted模式下在底部=Footer）
+            ListFooterComponent={isLoadingMore ? (
               <View style={styles.loadMoreContainer}>
                 <Text style={styles.loadMoreText}>加载历史消息...</Text>
               </View>
